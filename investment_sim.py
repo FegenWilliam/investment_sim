@@ -17,6 +17,15 @@ class NewsSentiment(Enum):
 
 
 @dataclass
+class NewsReport:
+    """Represents news from all three sources"""
+    trustworthy_source: str  # Empty if news is fake
+    sensationalist_source: str  # Always exaggerated
+    insider_source: str  # May flip to opposite
+    insider_flipped: bool  # Whether insider source flipped
+
+
+@dataclass
 class PendingNewsImpact:
     """Tracks a news story that will affect stock price in the future"""
     company_name: str
@@ -25,6 +34,7 @@ class PendingNewsImpact:
     weeks_until_impact: int
     is_real: bool  # True if real news, False if hoax
     news_text: str
+    news_report: NewsReport  # All three news sources
 
 
 class MarketNews:
@@ -78,11 +88,106 @@ class MarketNews:
         "{company} debt levels raise concerns among credit rating agencies"
     ]
 
+    # Sensationalist positive news templates (exaggerated clickbait)
+    SENSATIONALIST_POSITIVE_TEMPLATES = [
+        "🚀 {company} ABOUT TO EXPLODE - ANALYSTS PREDICT 500% GAINS! You Won't BELIEVE What Happened!",
+        "💰 BREAKING: {company} Stock Set to MOON! Insiders Buying Everything They Can!",
+        "🔥 {company} REVOLUTIONIZES {industry} - This Changes EVERYTHING! Stock Price to SKYROCKET!",
+        "⚡ URGENT: {company} Discovery Could Make You RICH! Wall Street Going CRAZY!",
+        "🎯 {company} Just Destroyed the Competition! Stock About to GO PARABOLIC!",
+        "💎 DIAMOND HANDS ALERT: {company} Hidden Gem FINALLY Revealed! TO THE MOON! 🌙",
+        "🚨 YOU'RE MISSING OUT: {company} Stock Predicted to 10X by Year End!",
+        "⭐ {company} CEO Drops BOMBSHELL Announcement - Market Will Never Be the Same!",
+        "🎰 JACKPOT: {company} Strikes GOLD in {industry} Sector! Buy NOW Before It's Too Late!",
+        "🏆 {company} CRUSHES Earnings - THIS Is the Trade of the DECADE!",
+        "🌟 LEGENDARY Investor Loads Up on {company} - Follow the SMART Money NOW!",
+        "💸 {company} Money Printer Goes BRRRR - Unlimited Upside Potential CONFIRMED!",
+        "🎉 {company} Just Won the {industry} Lottery! Stock Price Will NEVER Be This Low Again!",
+        "⚠️ FOMO ALERT: Everyone's Buying {company} - Don't Get Left Behind!",
+        "🔔 BREAKING: {company} Patent Will Mint MILLIONAIRES! Act FAST!",
+        "🎊 {company} Announces Deal That Wall Street Calls 'HISTORIC' - Buy Signal FLASHING!",
+        "💥 {company} Absolutely DEMOLISHES Competition - Monopoly Status Incoming!",
+        "🌊 TSUNAMI of Money Flowing Into {company} - Ride the Wave!",
+        "🎺 {company} Blows Past ALL Expectations - Bears Getting DESTROYED!",
+        "⚡ FLASH: {company} Innovation Makes Competitors OBSOLETE - Stock to TRIPLE!"
+    ]
+
+    # Sensationalist negative news templates (exaggerated disaster)
+    SENSATIONALIST_NEGATIVE_TEMPLATES = [
+        "💀 {company} COLLAPSING - Get Out NOW Before It's TOO LATE! Total Disaster!",
+        "🔥 MARKET BLOODBATH: {company} Stock in FREE FALL! Everything is on FIRE!",
+        "⚠️ ALERT: {company} About to GO BANKRUPT?! Insiders Dumping EVERYTHING!",
+        "💣 EXPLOSIVE: {company} Scandal Could DESTROY Entire {industry} Industry!",
+        "📉 {company} DEATH SPIRAL Confirmed - This Stock is TOXIC! Sell NOW!",
+        "🚨 RED ALERT: {company} Crash Imminent! Experts Say 'RUN FOR THE HILLS!'",
+        "☠️ {company} DEVASTATED by News - Stock Heading to ZERO?!",
+        "⛔ STOP: Do NOT Buy {company}! Absolute DISASTER Unfolding!",
+        "💥 {company} IMPLODING - CEO Caught in MASSIVE Scandal! Company DOOMED!",
+        "🔴 CATASTROPHIC: {company} Faces EXTINCTION! Shareholders in PANIC MODE!",
+        "⚡ BREAKING: {company} Lawsuit Could Wipe Out BILLIONS! Stock PLUMMETING!",
+        "🌪️ TORNADO of Bad News Hits {company} - Analysts Scream SELL SELL SELL!",
+        "💀 {company} Just Committed Financial SUICIDE - This Stock is DEAD!",
+        "🚑 EMERGENCY: {company} Bleeding Cash - Bankruptcy Fears EXPLODE!",
+        "⚠️ {company} NIGHTMARE Scenario Unfolding - Investors FLEEING in Terror!",
+        "🔥 DUMPSTER FIRE: {company} Management Incompetence EXPOSED! Avoid at ALL Costs!",
+        "💣 BOMBSHELL: {company} Hiding DEVASTATING Losses! Cover-up Revealed!",
+        "📉 {company} in COMPLETE MELTDOWN - Worst Investment of the Century!",
+        "☠️ TOXIC ASSET ALERT: {company} Will DESTROY Your Portfolio! Get Out!",
+        "🚨 {company} Regulators Close In - Company Might Not Survive the Week!"
+    ]
+
     def __init__(self):
         self.pending_impacts: List[PendingNewsImpact] = []
         self.news_history: List[Tuple[int, str]] = []  # (week_number, news_text)
 
-    def generate_news(self, companies: Dict[str, 'Company'], week_number: int) -> Optional[str]:
+    def _generate_news_report(self, company_name: str, industry: str, sentiment: NewsSentiment, is_real: bool) -> NewsReport:
+        """Generate news from all three sources"""
+
+        # 1. TRUSTWORTHY SOURCE - Only reports if 100% confirmed (real news)
+        if is_real:
+            # Use normal templates for trustworthy source
+            if sentiment == NewsSentiment.POSITIVE:
+                trustworthy_template = random.choice(self.POSITIVE_NEWS_TEMPLATES)
+            else:
+                trustworthy_template = random.choice(self.NEGATIVE_NEWS_TEMPLATES)
+            trustworthy_source = trustworthy_template.format(company=company_name, industry=industry)
+        else:
+            # Trustworthy source doesn't report fake news
+            trustworthy_source = ""
+
+        # 2. SENSATIONALIST SOURCE - Always reports with exaggerated headlines
+        if sentiment == NewsSentiment.POSITIVE:
+            sensationalist_template = random.choice(self.SENSATIONALIST_POSITIVE_TEMPLATES)
+        else:
+            sensationalist_template = random.choice(self.SENSATIONALIST_NEGATIVE_TEMPLATES)
+        sensationalist_source = sensationalist_template.format(company=company_name, industry=industry)
+
+        # 3. INSIDER SOURCE - 50% chance to flip to opposite
+        insider_flipped = random.random() < 0.5
+
+        if insider_flipped:
+            # Flip to opposite sentiment
+            if sentiment == NewsSentiment.POSITIVE:
+                insider_template = random.choice(self.NEGATIVE_NEWS_TEMPLATES)
+            else:
+                insider_template = random.choice(self.POSITIVE_NEWS_TEMPLATES)
+        else:
+            # Report same as actual sentiment
+            if sentiment == NewsSentiment.POSITIVE:
+                insider_template = random.choice(self.POSITIVE_NEWS_TEMPLATES)
+            else:
+                insider_template = random.choice(self.NEGATIVE_NEWS_TEMPLATES)
+
+        insider_source = insider_template.format(company=company_name, industry=industry)
+
+        return NewsReport(
+            trustworthy_source=trustworthy_source,
+            sensationalist_source=sensationalist_source,
+            insider_source=insider_source,
+            insider_flipped=insider_flipped
+        )
+
+    def generate_news(self, companies: Dict[str, 'Company'], week_number: int) -> Optional[NewsReport]:
         """Generate market news for a random company"""
         # Select random company
         company_name = random.choice(list(companies.keys()))
@@ -91,17 +196,14 @@ class MarketNews:
         # Randomly choose positive or negative sentiment
         sentiment = random.choice([NewsSentiment.POSITIVE, NewsSentiment.NEGATIVE])
 
-        # Select random news template
-        if sentiment == NewsSentiment.POSITIVE:
-            template = random.choice(self.POSITIVE_NEWS_TEMPLATES)
-        else:
-            template = random.choice(self.NEGATIVE_NEWS_TEMPLATES)
-
-        # Format news with company info
-        news_text = template.format(company=company_name, industry=company.industry)
-
         # Determine if news is real or hoax (70% real, 30% hoax)
         is_real = random.random() < 0.7
+
+        # Generate news from all three sources
+        news_report = self._generate_news_report(company_name, company.industry, sentiment, is_real)
+
+        # Use trustworthy source text for history (or sensationalist if trustworthy is empty)
+        news_text = news_report.trustworthy_source if news_report.trustworthy_source else news_report.sensationalist_source
 
         # Determine impact magnitude (5% to 15% change)
         base_impact = random.uniform(5.0, 15.0)
@@ -117,13 +219,14 @@ class MarketNews:
             impact_magnitude=impact_magnitude,
             weeks_until_impact=weeks_until_impact,
             is_real=is_real,
-            news_text=news_text
+            news_text=news_text,
+            news_report=news_report
         )
 
         self.pending_impacts.append(pending_impact)
         self.news_history.append((week_number, news_text))
 
-        return news_text
+        return news_report
 
     def update_pending_impacts(self, companies: Dict[str, 'Company']) -> List[str]:
         """Update countdown for pending impacts and apply them when due"""
@@ -309,7 +412,7 @@ class InvestmentGame:
         self.round_number = 1
         self.week_number = 1  # Track weeks (each player turn = 1 week)
         self.market_news = MarketNews()  # Market news system
-        self.pending_news_display: Optional[str] = None  # News to display this week
+        self.pending_news_display: Optional[NewsReport] = None  # News to display this week
 
         self._initialize_companies()
         self._initialize_players()
@@ -358,9 +461,30 @@ class InvestmentGame:
         # Display market news if available
         if self.pending_news_display:
             print("\n" + "📰 " + "="*58)
-            print("MARKET NEWS")
+            print("MARKET NEWS - THIS WEEK'S HEADLINES")
             print("="*60)
-            print(f"  {self.pending_news_display}")
+            print()
+
+            # Source 1: Trustworthy News Network (only reports confirmed news)
+            print("📊 Trustworthy News Network")
+            print("-" * 60)
+            if self.pending_news_display.trustworthy_source:
+                print(f"  {self.pending_news_display.trustworthy_source}")
+            else:
+                print("  [No confirmed reports at this time]")
+            print()
+
+            # Source 2: Sensationalist Headlines (always exaggerates)
+            print("📢 The Daily Clickbait")
+            print("-" * 60)
+            print(f"  {self.pending_news_display.sensationalist_source}")
+            print()
+
+            # Source 3: Insider Trading Tips (50% chance to be opposite)
+            print("🔮 Insider Trading Tips (Anonymous Source)")
+            print("-" * 60)
+            print(f"  {self.pending_news_display.insider_source}")
+
             print("="*60)
 
     def update_market(self):
