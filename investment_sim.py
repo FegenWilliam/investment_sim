@@ -279,15 +279,26 @@ class MarketNews:
         return impact_messages
 
 
+class LiquidityLevel(Enum):
+    """Liquidity levels for stocks"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class Company:
     """Represents a publicly traded company"""
 
-    def __init__(self, name: str, industry: str, initial_price: float, volatility: float):
+    def __init__(self, name: str, industry: str, initial_price: float, volatility: float, liquidity: LiquidityLevel = LiquidityLevel.MEDIUM):
         self.name = name
         self.industry = industry
         self.price = initial_price
         self.base_volatility = volatility
         self.price_history = [initial_price]
+        self.liquidity = liquidity
+        # Hidden fundamentals for research hints (not directly visible to players)
+        self.true_strength = random.uniform(0.3, 0.9)  # 0-1 scale, affects hint accuracy
+        self.hidden_sentiment = random.choice([-1, 0, 1])  # -1: bearish, 0: neutral, 1: bullish
 
     def update_price(self):
         """Update stock price based on volatility (random walk)"""
@@ -297,8 +308,37 @@ class Company:
         self.price = max(0.01, self.price)  # Prevent negative prices
         self.price_history.append(self.price)
 
+    def calculate_slippage(self, shares: int, is_buy: bool) -> float:
+        """Calculate price slippage based on liquidity and trade size"""
+        # Base slippage percentages by liquidity level
+        if self.liquidity == LiquidityLevel.HIGH:
+            base_slippage = 0.0005  # 0.05% per 100 shares
+        elif self.liquidity == LiquidityLevel.MEDIUM:
+            base_slippage = 0.002  # 0.2% per 100 shares
+        else:  # LOW
+            base_slippage = 0.005  # 0.5% per 100 shares
+
+        # Calculate slippage based on trade size
+        slippage_multiplier = shares / 100.0
+        total_slippage = base_slippage * slippage_multiplier
+
+        # Slippage goes against the trader (increases buy price, decreases sell price)
+        if is_buy:
+            return 1 + total_slippage
+        else:
+            return 1 - total_slippage
+
+    def get_liquidity_indicator(self) -> str:
+        """Get visual indicator for liquidity"""
+        if self.liquidity == LiquidityLevel.HIGH:
+            return "💧💧💧"
+        elif self.liquidity == LiquidityLevel.MEDIUM:
+            return "💧💧"
+        else:
+            return "💧"
+
     def __str__(self):
-        return f"{self.name} ({self.industry}) - ${self.price:.2f}"
+        return f"{self.name} ({self.industry}) - ${self.price:.2f} {self.get_liquidity_indicator()}"
 
 
 class Treasury:
@@ -325,30 +365,58 @@ class Player:
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 2.0  # Can borrow up to 2x equity
         self.interest_rate_weekly = 0.115  # ~6% annual = 0.115% weekly
+        # Research tracking
+        self.researched_this_week = False
+        self.research_history: Dict[str, List[str]] = {}  # company_name -> list of hints received
 
-    def buy_stock(self, company: Company, shares: int) -> bool:
-        """Buy shares of a company"""
-        total_cost = company.price * shares
+    def buy_stock(self, company: Company, shares: int) -> Tuple[bool, str]:
+        """Buy shares of a company with liquidity slippage"""
+        # Calculate effective price with slippage
+        slippage_factor = company.calculate_slippage(shares, is_buy=True)
+        effective_price = company.price * slippage_factor
+        total_cost = effective_price * shares
+
         if total_cost > self.cash:
-            return False
+            return False, "Insufficient funds!"
 
         self.cash -= total_cost
         if company.name in self.portfolio:
             self.portfolio[company.name] += shares
         else:
             self.portfolio[company.name] = shares
-        return True
 
-    def sell_stock(self, company: Company, shares: int) -> bool:
-        """Sell shares of a company"""
+        # Calculate and show slippage impact
+        slippage_cost = (effective_price - company.price) * shares
+        if slippage_cost > 0.01:
+            message = f"Purchase successful! (Price slippage: ${slippage_cost:.2f} due to {company.liquidity.value} liquidity)"
+        else:
+            message = "Purchase successful!"
+
+        return True, message
+
+    def sell_stock(self, company: Company, shares: int) -> Tuple[bool, str]:
+        """Sell shares of a company with liquidity slippage"""
         if company.name not in self.portfolio or self.portfolio[company.name] < shares:
-            return False
+            return False, "You don't own that many shares!"
 
-        self.cash += company.price * shares
+        # Calculate effective price with slippage
+        slippage_factor = company.calculate_slippage(shares, is_buy=False)
+        effective_price = company.price * slippage_factor
+        total_value = effective_price * shares
+
+        self.cash += total_value
         self.portfolio[company.name] -= shares
         if self.portfolio[company.name] == 0:
             del self.portfolio[company.name]
-        return True
+
+        # Calculate and show slippage impact
+        slippage_loss = (company.price - effective_price) * shares
+        if slippage_loss > 0.01:
+            message = f"Sale successful! (Price slippage: -${slippage_loss:.2f} due to {company.liquidity.value} liquidity)"
+        else:
+            message = "Sale successful!"
+
+        return True, message
 
     def buy_treasury(self, treasury: Treasury, bonds: int) -> bool:
         """Buy treasury bonds"""
@@ -445,6 +513,88 @@ class Player:
             return True
 
         return False
+
+    def research_company(self, company: Company) -> str:
+        """Research a company to get a hint (once per week)"""
+        if self.researched_this_week:
+            return "You've already researched a company this week!"
+
+        # Generate a hint based on company fundamentals
+        # Hints are "mostly true" - 85% accuracy
+        is_accurate = random.random() < 0.85
+
+        hint_templates = [
+            # Volatility hints
+            ("Technical analysis suggests {company} may experience {level} price swings in coming weeks.",
+             lambda c: {"level": "significant" if c.base_volatility > 7.5 else "moderate" if c.base_volatility > 6 else "mild"}),
+
+            # Industry sentiment hints
+            ("Industry insiders are {sentiment} about {industry} sector prospects.",
+             lambda c: {"sentiment": "optimistic" if c.hidden_sentiment > 0 else "pessimistic" if c.hidden_sentiment < 0 else "uncertain", "industry": c.industry}),
+
+            # Fundamental strength hints
+            ("Analyst whispers indicate {company}'s fundamentals appear {strength}.",
+             lambda c: {"strength": "solid" if c.true_strength > 0.65 else "questionable" if c.true_strength < 0.5 else "average"}),
+
+            # Liquidity hints
+            ("Trading desk reports {company} has {liquidity} market depth.",
+             lambda c: {"liquidity": "excellent" if c.liquidity == LiquidityLevel.HIGH else "limited" if c.liquidity == LiquidityLevel.LOW else "adequate"}),
+
+            # Price trend hints (based on recent history)
+            ("{company}'s price action shows {trend} momentum recently.",
+             lambda c: {"trend": "bullish" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "bearish" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "sideways"}),
+
+            # Risk level hints
+            ("Risk assessment models rate {company} as {risk} investment.",
+             lambda c: {"risk": "high-risk" if c.base_volatility > 8 else "moderate-risk" if c.base_volatility > 6 else "lower-risk"}),
+
+            # Vague future outlook
+            ("Proprietary models suggest {company} outlook is {outlook} for next month.",
+             lambda c: {"outlook": "favorable" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "concerning" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "mixed"}),
+
+            # Trading volume hints
+            ("Order flow analysis indicates {activity} institutional interest in {company}.",
+             lambda c: {"activity": "strong" if c.liquidity == LiquidityLevel.HIGH else "weak" if c.liquidity == LiquidityLevel.LOW else "moderate"}),
+        ]
+
+        # Select random hint template
+        template, data_func = random.choice(hint_templates)
+
+        # Get data for this company
+        data = data_func(company)
+        data["company"] = company.name
+
+        # If inaccurate, flip the sentiment/direction
+        if not is_accurate:
+            # Flip certain descriptors to make hint misleading
+            flips = {
+                "optimistic": "pessimistic", "pessimistic": "optimistic",
+                "solid": "questionable", "questionable": "solid",
+                "excellent": "limited", "limited": "excellent",
+                "bullish": "bearish", "bearish": "bullish",
+                "favorable": "concerning", "concerning": "favorable",
+                "strong": "weak", "weak": "strong",
+                "significant": "mild", "mild": "significant"
+            }
+            for key, value in data.items():
+                if value in flips:
+                    data[key] = flips[value]
+
+        hint = template.format(**data)
+
+        # Mark research as used
+        self.researched_this_week = True
+
+        # Store hint in history
+        if company.name not in self.research_history:
+            self.research_history[company.name] = []
+        self.research_history[company.name].append(hint)
+
+        return hint
+
+    def reset_weekly_research(self):
+        """Reset research availability for new week"""
+        self.researched_this_week = False
 
     def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury):
         """Display player's portfolio"""
@@ -691,17 +841,17 @@ class InvestmentGame:
         self._initialize_players()
 
     def _initialize_companies(self):
-        """Initialize the 5 companies with different industries"""
+        """Initialize the 5 companies with different industries and liquidity levels"""
         company_data = [
-            ("TechCorp", "Technology", 150.0, 8.0),
-            ("ElectroMax", "Electronics", 85.0, 6.5),
-            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0),
-            ("AutoDrive", "Automotive", 95.0, 7.0),
-            ("EnergyPlus", "Energy", 110.0, 9.0),
+            ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH),
+            ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM),
+            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW),
+            ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM),
+            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW),
         ]
 
-        for name, industry, price, volatility in company_data:
-            company = Company(name, industry, price, volatility)
+        for name, industry, price, volatility, liquidity in company_data:
+            company = Company(name, industry, price, volatility, liquidity)
             self.companies[name] = company
 
     def _initialize_players(self):
@@ -729,6 +879,9 @@ class InvestmentGame:
             print(f"  {company}")
         print()
         print(f"  {self.treasury}")
+        print()
+        print("  Liquidity: 💧 = Low | 💧💧 = Medium | 💧💧💧 = High")
+        print("  (Lower liquidity = higher price impact on large trades)")
         print("="*60)
 
         # Display active market cycle if any
@@ -807,6 +960,9 @@ class InvestmentGame:
         print(f"Round {self.round_number} - Week {self.week_number} - {player.name}'s Turn")
         print(f"{'#'*60}")
 
+        # Reset weekly research at start of turn
+        player.reset_weekly_research()
+
         # Apply weekly interest on borrowed amount
         interest = player.apply_interest()
         if interest > 0:
@@ -841,12 +997,13 @@ class InvestmentGame:
             print("3. Buy Stocks")
             print("4. Sell Stocks")
             print("5. Buy Treasury Bonds")
-            print("6. Borrow Money (Leverage)")
-            print("7. Repay Loan")
-            print("8. End Turn")
+            print("6. Research Company (once per week)")
+            print("7. Borrow Money (Leverage)")
+            print("8. Repay Loan")
+            print("9. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-8): ").strip()
+            choice = input("Enter choice (1-9): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -864,17 +1021,20 @@ class InvestmentGame:
                 self._buy_treasury_menu(player)
 
             elif choice == "6":
-                self._borrow_money_menu(player)
+                self._research_company_menu(player)
 
             elif choice == "7":
-                self._repay_loan_menu(player)
+                self._borrow_money_menu(player)
 
             elif choice == "8":
+                self._repay_loan_menu(player)
+
+            elif choice == "9":
                 print(f"\n{player.name} has ended their turn.")
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 8.")
+                print("Invalid choice! Please enter a number between 1 and 9.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -902,13 +1062,17 @@ class InvestmentGame:
                     print("Invalid number of shares!")
                     return
 
-                total_cost = company.price * shares
-                print(f"\nTotal cost: ${total_cost:.2f}")
+                # Calculate effective price with slippage
+                slippage_factor = company.calculate_slippage(shares, is_buy=True)
+                effective_price = company.price * slippage_factor
+                total_cost = effective_price * shares
 
-                if player.buy_stock(company, shares):
-                    print(f"Successfully purchased {shares} shares of {company.name}!")
-                else:
-                    print("Insufficient funds!")
+                print(f"\nQuoted price: ${company.price:.2f} per share")
+                print(f"Effective price (with slippage): ${effective_price:.2f} per share")
+                print(f"Total cost: ${total_cost:.2f}")
+
+                success, message = player.buy_stock(company, shares)
+                print(f"\n{message}")
             else:
                 print("Invalid choice!")
 
@@ -946,13 +1110,17 @@ class InvestmentGame:
                     print("Invalid number of shares!")
                     return
 
-                total_value = company.price * shares
-                print(f"\nTotal value: ${total_value:.2f}")
+                # Calculate effective price with slippage
+                slippage_factor = company.calculate_slippage(shares, is_buy=False)
+                effective_price = company.price * slippage_factor
+                total_value = effective_price * shares
 
-                if player.sell_stock(company, shares):
-                    print(f"Successfully sold {shares} shares of {company.name}!")
-                else:
-                    print("You don't own that many shares!")
+                print(f"\nQuoted price: ${company.price:.2f} per share")
+                print(f"Effective price (with slippage): ${effective_price:.2f} per share")
+                print(f"Total value: ${total_value:.2f}")
+
+                success, message = player.sell_stock(company, shares)
+                print(f"\n{message}")
             else:
                 print("Invalid choice!")
 
@@ -1042,6 +1210,60 @@ class InvestmentGame:
 
             success, message = player.repay_loan(amount)
             print(f"\n{message}")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _research_company_menu(self, player: Player):
+        """Menu for researching a company to get hints"""
+        print("\n" + "="*60)
+        print("RESEARCH COMPANY")
+        print("="*60)
+
+        if player.researched_this_week:
+            print("You've already researched a company this week!")
+            print("You can research one company per week.")
+            return
+
+        print("Select a company to research (you'll receive a strategic hint):")
+        print()
+
+        companies_list = list(self.companies.values())
+        for i, company in enumerate(companies_list, 1):
+            # Show if player has researched this company before
+            research_count = len(player.research_history.get(company.name, []))
+            history_marker = f" [Researched {research_count}x]" if research_count > 0 else ""
+            print(f"{i}. {company.name} ({company.industry}){history_marker}")
+        print("0. Cancel")
+
+        try:
+            choice = int(input("\nSelect company to research (0 to cancel): "))
+            if choice == 0:
+                return
+
+            if 1 <= choice <= len(companies_list):
+                company = companies_list[choice - 1]
+
+                print("\n" + "="*60)
+                print(f"RESEARCH REPORT: {company.name}")
+                print("="*60)
+
+                hint = player.research_company(company)
+                print(f"\n🔍 {hint}")
+
+                print("\n" + "="*60)
+                print("Note: Research insights are usually reliable but not guaranteed.")
+                print("="*60)
+
+                # Show previous research if any
+                if len(player.research_history[company.name]) > 1:
+                    print(f"\nPrevious research on {company.name}:")
+                    for i, old_hint in enumerate(player.research_history[company.name][:-1], 1):
+                        print(f"  {i}. {old_hint}")
+
+                input("\nPress Enter to continue...")
+            else:
+                print("Invalid choice!")
 
         except ValueError:
             print("Invalid input!")
