@@ -321,6 +321,10 @@ class Player:
         self.cash = starting_cash
         self.portfolio: Dict[str, int] = {}  # company_name -> number of shares
         self.treasury_bonds = 0
+        # Leverage system
+        self.borrowed_amount = 0.0
+        self.max_leverage_ratio = 2.0  # Can borrow up to 2x equity
+        self.interest_rate_weekly = 0.115  # ~6% annual = 0.115% weekly
 
     def buy_stock(self, company: Company, shares: int) -> bool:
         """Buy shares of a company"""
@@ -370,12 +374,93 @@ class Player:
 
         return net_worth
 
+    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury) -> float:
+        """Calculate equity (net worth minus debt)"""
+        return self.calculate_net_worth(companies, treasury) - self.borrowed_amount
+
+    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury) -> float:
+        """Calculate total portfolio value (not including cash, only investments)"""
+        assets = 0.0
+
+        # Add stock value
+        for company_name, shares in self.portfolio.items():
+            if company_name in companies:
+                assets += companies[company_name].price * shares
+
+        # Add treasury value
+        assets += self.treasury_bonds * treasury.price
+
+        return assets
+
+    def borrow_money(self, amount: float, companies: Dict[str, Company], treasury: Treasury) -> Tuple[bool, str]:
+        """Borrow money using leverage"""
+        if amount <= 0:
+            return False, "Invalid amount!"
+
+        equity = self.calculate_equity(companies, treasury)
+
+        # Check if borrowing would exceed max leverage
+        new_borrowed = self.borrowed_amount + amount
+        if new_borrowed > equity * self.max_leverage_ratio:
+            max_can_borrow = max(0, equity * self.max_leverage_ratio - self.borrowed_amount)
+            return False, f"Exceeds maximum leverage! You can borrow up to ${max_can_borrow:.2f} more."
+
+        self.borrowed_amount += amount
+        self.cash += amount
+        return True, f"Successfully borrowed ${amount:.2f}!"
+
+    def repay_loan(self, amount: float) -> Tuple[bool, str]:
+        """Repay borrowed money"""
+        if amount <= 0:
+            return False, "Invalid amount!"
+
+        if amount > self.cash:
+            return False, "Insufficient cash!"
+
+        if amount > self.borrowed_amount:
+            amount = self.borrowed_amount
+
+        self.borrowed_amount -= amount
+        self.cash -= amount
+        return True, f"Successfully repaid ${amount:.2f}! Remaining debt: ${self.borrowed_amount:.2f}"
+
+    def apply_interest(self) -> float:
+        """Apply weekly interest on borrowed amount"""
+        if self.borrowed_amount > 0:
+            interest = self.borrowed_amount * (self.interest_rate_weekly / 100)
+            self.borrowed_amount += interest
+            return interest
+        return 0.0
+
+    def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury) -> bool:
+        """Check if player is subject to margin call (equity < 30% of total position)"""
+        if self.borrowed_amount == 0:
+            return False
+
+        equity = self.calculate_equity(companies, treasury)
+        total_position = equity + self.borrowed_amount
+
+        # Margin call if equity falls below 30% of total position
+        if total_position > 0 and (equity / total_position) < 0.30:
+            return True
+
+        return False
+
     def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury):
         """Display player's portfolio"""
         print(f"\n{'='*60}")
         print(f"{self.name}'s Portfolio")
         print(f"{'='*60}")
         print(f"Cash: ${self.cash:.2f}")
+
+        # Show leverage info
+        if self.borrowed_amount > 0:
+            print(f"💳 Borrowed (Leverage): ${self.borrowed_amount:.2f}")
+            equity = self.calculate_equity(companies, treasury)
+            print(f"💰 Equity (Net - Debt): ${equity:.2f}")
+            current_leverage = self.borrowed_amount / max(0.01, equity)
+            print(f"📊 Leverage Ratio: {current_leverage:.2f}x (Max: {self.max_leverage_ratio:.2f}x)")
+
         print()
 
         if self.portfolio:
@@ -401,6 +486,193 @@ class Player:
         print(f"{'='*60}")
 
 
+class MarketCycleType(Enum):
+    """Types of market cycles"""
+    BULL_MARKET = "bull_market"
+    BEAR_MARKET = "bear_market"
+    RECESSION = "recession"
+    INFLATION = "inflation"
+    MARKET_CRASH = "market_crash"
+    RECOVERY = "recovery"
+    TECH_BOOM = "tech_boom"
+
+
+@dataclass
+class ActiveMarketCycle:
+    """Represents an active market cycle"""
+    cycle_type: MarketCycleType
+    weeks_remaining: int
+    headline: str
+    description: str
+
+
+class MarketCycle:
+    """Handles major market cycles (economic events every 6 months)"""
+
+    def __init__(self):
+        self.active_cycle: Optional[ActiveMarketCycle] = None
+        self.cycle_history: List[Tuple[int, str]] = []  # (week_number, cycle_name)
+
+    def should_trigger_cycle(self, week_number: int) -> bool:
+        """Check if we should trigger a new cycle (every 24 weeks = 6 months)"""
+        # Trigger at weeks 24, 48, 72, etc.
+        return week_number > 0 and week_number % 24 == 0 and self.active_cycle is None
+
+    def trigger_cycle(self, week_number: int) -> ActiveMarketCycle:
+        """Trigger a new market cycle"""
+        # Randomly select a cycle type
+        cycle_type = random.choice(list(MarketCycleType))
+        duration = random.randint(8, 16)  # 2-4 months duration
+
+        # Generate headline and description based on cycle type
+        if cycle_type == MarketCycleType.BULL_MARKET:
+            headline = "🐂 BULL MARKET SURGE - Economic Expansion Accelerates!"
+            description = "Strong GDP growth, rising corporate profits, and investor optimism drive markets higher across all sectors."
+
+        elif cycle_type == MarketCycleType.BEAR_MARKET:
+            headline = "🐻 BEAR MARKET BEGINS - Economic Slowdown Hits Markets"
+            description = "Weakening economic indicators, declining corporate earnings, and rising uncertainty push markets into sustained decline."
+
+        elif cycle_type == MarketCycleType.RECESSION:
+            headline = "📉 RECESSION DECLARED - Economy Contracts for Second Consecutive Quarter"
+            description = "Official recession confirmed as unemployment rises, consumer spending falls, and businesses cut investment. Markets tumble."
+
+        elif cycle_type == MarketCycleType.INFLATION:
+            headline = "🔥 INFLATION CRISIS - Consumer Prices Soar to Decade Highs"
+            description = "Surging inflation erodes purchasing power. Central banks signal aggressive rate hikes. Markets volatile as sectors react differently."
+
+        elif cycle_type == MarketCycleType.MARKET_CRASH:
+            headline = "💥 MARKET CRASH - Panic Selling Triggers Circuit Breakers"
+            description = "Severe market crash as cascading sell-offs spread panic. All sectors plummet in worst trading day in years."
+
+        elif cycle_type == MarketCycleType.RECOVERY:
+            headline = "📈 ECONOMIC RECOVERY - Markets Rally on Strong Rebound Signals"
+            description = "Economy shows strong recovery signs. Stimulus measures take effect. Consumer confidence returns. Markets surge broadly."
+
+        else:  # TECH_BOOM
+            headline = "🚀 TECHNOLOGY BOOM - Innovation Wave Transforms Markets"
+            description = "Revolutionary tech breakthroughs spark investor frenzy. Technology and electronics sectors lead massive market rally."
+
+        self.active_cycle = ActiveMarketCycle(
+            cycle_type=cycle_type,
+            weeks_remaining=duration,
+            headline=headline,
+            description=description
+        )
+
+        self.cycle_history.append((week_number, headline))
+        return self.active_cycle
+
+    def apply_cycle_effects(self, companies: Dict[str, Company]) -> List[str]:
+        """Apply market cycle effects to all companies"""
+        if not self.active_cycle:
+            return []
+
+        messages = []
+        cycle = self.active_cycle
+
+        # Apply effects based on cycle type
+        if cycle.cycle_type == MarketCycleType.BULL_MARKET:
+            # All stocks rise (3-7%)
+            for company in companies.values():
+                change = random.uniform(3.0, 7.0)
+                company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Bull market continues - All stocks trending upward!")
+
+        elif cycle.cycle_type == MarketCycleType.BEAR_MARKET:
+            # All stocks fall (2-5%)
+            for company in companies.values():
+                change = random.uniform(2.0, 5.0)
+                company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Bear market persists - Broad market decline continues")
+
+        elif cycle.cycle_type == MarketCycleType.RECESSION:
+            # All stocks fall significantly (4-8%)
+            for company in companies.values():
+                change = random.uniform(4.0, 8.0)
+                company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Recession impact - Severe downward pressure on all stocks")
+
+        elif cycle.cycle_type == MarketCycleType.INFLATION:
+            # Mixed effects - energy up, others down
+            for company in companies.values():
+                if company.industry == "Energy":
+                    change = random.uniform(4.0, 8.0)
+                    company.price *= (1 + change / 100)
+                else:
+                    change = random.uniform(2.0, 4.0)
+                    company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Inflation effects - Energy stocks rise, others pressured by rate hikes")
+
+        elif cycle.cycle_type == MarketCycleType.MARKET_CRASH:
+            # Severe crash (8-15%)
+            for company in companies.values():
+                change = random.uniform(8.0, 15.0)
+                company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 MARKET CRASH IMPACT - Extreme selling pressure across all sectors!")
+
+        elif cycle.cycle_type == MarketCycleType.RECOVERY:
+            # Strong recovery (5-10%)
+            for company in companies.values():
+                change = random.uniform(5.0, 10.0)
+                company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Economic recovery drives strong gains across all sectors!")
+
+        elif cycle.cycle_type == MarketCycleType.TECH_BOOM:
+            # Tech and electronics boom, others moderate gains
+            for company in companies.values():
+                if company.industry in ["Technology", "Electronics"]:
+                    change = random.uniform(7.0, 12.0)
+                else:
+                    change = random.uniform(2.0, 4.0)
+                company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Tech boom continues - Technology and Electronics sectors surge!")
+
+        return messages
+
+    def update_cycle(self, companies: Dict[str, Company]) -> Tuple[List[str], bool]:
+        """Update active cycle, return messages and whether cycle ended"""
+        if not self.active_cycle:
+            return [], False
+
+        self.active_cycle.weeks_remaining -= 1
+
+        # Apply weekly effects
+        messages = self.apply_cycle_effects(companies)
+
+        # Check if cycle ended
+        if self.active_cycle.weeks_remaining <= 0:
+            messages.append(f"\n🔔 MARKET CYCLE ENDED: {self.active_cycle.cycle_type.value.replace('_', ' ').title()} has concluded")
+            self.active_cycle = None
+            return messages, True
+
+        return messages, False
+
+    def get_current_cycle_display(self) -> Optional[str]:
+        """Get display text for current active cycle"""
+        if not self.active_cycle:
+            return None
+
+        return f"""
+{'='*60}
+🌍 ACTIVE GLOBAL MARKET CYCLE
+{'='*60}
+{self.active_cycle.headline}
+
+{self.active_cycle.description}
+
+Duration: {self.active_cycle.weeks_remaining} weeks remaining
+{'='*60}
+"""
+
+
 class InvestmentGame:
     """Main game class"""
 
@@ -412,6 +684,7 @@ class InvestmentGame:
         self.round_number = 1
         self.week_number = 1  # Track weeks (each player turn = 1 week)
         self.market_news = MarketNews()  # Market news system
+        self.market_cycle = MarketCycle()  # Market cycle system (every 6 months)
         self.pending_news_display: Optional[NewsReport] = None  # News to display this week
 
         self._initialize_companies()
@@ -458,6 +731,11 @@ class InvestmentGame:
         print(f"  {self.treasury}")
         print("="*60)
 
+        # Display active market cycle if any
+        cycle_display = self.market_cycle.get_current_cycle_display()
+        if cycle_display:
+            print(cycle_display)
+
         # Display market news if available
         if self.pending_news_display:
             print("\n" + "📰 " + "="*58)
@@ -489,27 +767,64 @@ class InvestmentGame:
 
     def update_market(self):
         """Update all stock prices"""
+        # Check if we should trigger a new market cycle
+        if self.market_cycle.should_trigger_cycle(self.week_number):
+            cycle = self.market_cycle.trigger_cycle(self.week_number)
+            print("\n" + "🌍" + "="*58)
+            print("MAJOR GLOBAL ECONOMIC EVENT")
+            print("="*60)
+            print(f"\n{cycle.headline}")
+            print(f"\n{cycle.description}")
+            print(f"\nThis cycle will affect markets for {cycle.weeks_remaining} weeks.")
+            print("="*60)
+            input("\nPress Enter to continue...")
+
+        # Update active market cycle
+        cycle_messages, cycle_ended = self.market_cycle.update_cycle(self.companies)
+
         # Apply any pending news impacts
         impact_messages = self.market_news.update_pending_impacts(self.companies)
 
-        if impact_messages:
+        # Display all market movements
+        all_messages = cycle_messages + impact_messages
+        if all_messages:
             print("\n" + "⚡" + "="*58)
             print("BREAKING NEWS - MARKET MOVEMENTS")
             print("="*60)
-            for message in impact_messages:
+            for message in all_messages:
                 print(f"  {message}")
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Regular price updates for all companies
-        for company in self.companies.values():
-            company.update_price()
+        # Regular price updates for all companies (only if no cycle is active)
+        if not self.market_cycle.active_cycle:
+            for company in self.companies.values():
+                company.update_price()
 
     def player_turn(self, player: Player):
         """Execute a single player's turn"""
         print(f"\n\n{'#'*60}")
         print(f"Round {self.round_number} - Week {self.week_number} - {player.name}'s Turn")
         print(f"{'#'*60}")
+
+        # Apply weekly interest on borrowed amount
+        interest = player.apply_interest()
+        if interest > 0:
+            print(f"\n💳 Weekly interest charged on loan: ${interest:.2f}")
+
+        # Check for margin call
+        if player.check_margin_call(self.companies, self.treasury):
+            print("\n" + "⚠️ " + "="*58)
+            print("MARGIN CALL ALERT!")
+            print("="*60)
+            print("Your equity has fallen below 30% of your total position!")
+            print("You must either deposit cash or sell assets to reduce leverage.")
+            equity = player.calculate_equity(self.companies, self.treasury)
+            print(f"Current Equity: ${equity:.2f}")
+            print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
+            print(f"Required Action: Increase equity or repay loan immediately!")
+            print("="*60)
+            input("\nPress Enter to continue...")
 
         # Generate news every 4 weeks (monthly)
         if self.week_number % 4 == 0:
@@ -526,10 +841,12 @@ class InvestmentGame:
             print("3. Buy Stocks")
             print("4. Sell Stocks")
             print("5. Buy Treasury Bonds")
-            print("6. End Turn")
+            print("6. Borrow Money (Leverage)")
+            print("7. Repay Loan")
+            print("8. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-6): ").strip()
+            choice = input("Enter choice (1-8): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -547,11 +864,17 @@ class InvestmentGame:
                 self._buy_treasury_menu(player)
 
             elif choice == "6":
+                self._borrow_money_menu(player)
+
+            elif choice == "7":
+                self._repay_loan_menu(player)
+
+            elif choice == "8":
                 print(f"\n{player.name} has ended their turn.")
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 6.")
+                print("Invalid choice! Please enter a number between 1 and 8.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -659,6 +982,66 @@ class InvestmentGame:
                 print(f"Successfully purchased {bonds} treasury bonds!")
             else:
                 print("Insufficient funds!")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _borrow_money_menu(self, player: Player):
+        """Menu for borrowing money using leverage"""
+        print("\n" + "="*60)
+        print("BORROW MONEY (LEVERAGE)")
+        print("="*60)
+
+        equity = player.calculate_equity(self.companies, self.treasury)
+        max_can_borrow = max(0, equity * player.max_leverage_ratio - player.borrowed_amount)
+
+        print(f"Your Equity: ${equity:.2f}")
+        print(f"Already Borrowed: ${player.borrowed_amount:.2f}")
+        print(f"Max Leverage Ratio: {player.max_leverage_ratio:.2f}x")
+        print(f"Maximum You Can Borrow: ${max_can_borrow:.2f}")
+        print(f"Interest Rate: {player.interest_rate_weekly:.3f}% per week (~6% annually)")
+        print()
+
+        if max_can_borrow <= 0:
+            print("You've reached your maximum leverage limit!")
+            return
+
+        try:
+            amount = float(input("How much to borrow? $"))
+
+            if amount <= 0:
+                print("Invalid amount!")
+                return
+
+            success, message = player.borrow_money(amount, self.companies, self.treasury)
+            print(f"\n{message}")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _repay_loan_menu(self, player: Player):
+        """Menu for repaying borrowed money"""
+        print("\n" + "="*60)
+        print("REPAY LOAN")
+        print("="*60)
+
+        if player.borrowed_amount <= 0:
+            print("You don't have any outstanding loans!")
+            return
+
+        print(f"Outstanding Loan: ${player.borrowed_amount:.2f}")
+        print(f"Available Cash: ${player.cash:.2f}")
+        print()
+
+        try:
+            amount = float(input("How much to repay? $"))
+
+            if amount <= 0:
+                print("Invalid amount!")
+                return
+
+            success, message = player.repay_loan(amount)
+            print(f"\n{message}")
 
         except ValueError:
             print("Invalid input!")
