@@ -465,23 +465,23 @@ class InvestmentGame:
             print("="*60)
             print()
 
-            # Source 1: Trustworthy News Network (only reports confirmed news)
-            print("📊 Trustworthy News Network")
+            # Source 1: Financial Times Report
+            print("Financial Times Report")
             print("-" * 60)
             if self.pending_news_display.trustworthy_source:
                 print(f"  {self.pending_news_display.trustworthy_source}")
             else:
-                print("  [No confirmed reports at this time]")
+                print("  [No major developments to report at this time]")
             print()
 
-            # Source 2: Sensationalist Headlines (always exaggerates)
-            print("📢 The Daily Clickbait")
+            # Source 2: Market Pulse Daily
+            print("Market Pulse Daily")
             print("-" * 60)
             print(f"  {self.pending_news_display.sensationalist_source}")
             print()
 
-            # Source 3: Insider Trading Tips (50% chance to be opposite)
-            print("🔮 Insider Trading Tips (Anonymous Source)")
+            # Source 3: Wall Street Wire
+            print("Wall Street Wire")
             print("-" * 60)
             print(f"  {self.pending_news_display.insider_source}")
 
