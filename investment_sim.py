@@ -823,6 +823,159 @@ Duration: {self.active_cycle.weeks_remaining} weeks remaining
 """
 
 
+class HedgeFund(Player):
+    """Represents an AI-controlled hedge fund NPC"""
+
+    def __init__(self, name: str, strategy: str, starting_cash: float = 10000.0):
+        super().__init__(name, starting_cash)
+        self.strategy = strategy  # "aggressive", "value", "contrarian"
+        self.is_npc = True
+
+    def make_automated_trade(self, companies: Dict[str, Company], treasury: Treasury,
+                           market_cycle: 'MarketCycle', week_number: int) -> List[str]:
+        """Execute automated trading based on strategy"""
+        actions = []
+
+        # Aggressive Growth Fund Strategy
+        if self.strategy == "aggressive":
+            actions.extend(self._aggressive_strategy(companies, treasury, market_cycle))
+
+        # Value Fund Strategy
+        elif self.strategy == "value":
+            actions.extend(self._value_strategy(companies, treasury, market_cycle))
+
+        # Contrarian Fund Strategy
+        elif self.strategy == "contrarian":
+            actions.extend(self._contrarian_strategy(companies, treasury, market_cycle))
+
+        return actions
+
+    def _aggressive_strategy(self, companies: Dict[str, Company], treasury: Treasury,
+                           market_cycle: 'MarketCycle') -> List[str]:
+        """Aggressive: High volatility stocks, uses leverage, momentum trading"""
+        actions = []
+
+        # Use leverage aggressively if not already maxed out
+        equity = self.calculate_equity(companies, treasury)
+        if equity > 0 and self.borrowed_amount < equity * 1.5:
+            borrow_amount = min(2000, equity * 1.5 - self.borrowed_amount)
+            if borrow_amount > 100:
+                success, msg = self.borrow_money(borrow_amount, companies, treasury)
+                if success:
+                    actions.append(f"🏦 {self.name} borrowed ${borrow_amount:.2f} for aggressive plays")
+
+        # Target high volatility stocks during bull markets or recovery
+        if market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
+            MarketCycleType.BULL_MARKET, MarketCycleType.RECOVERY, MarketCycleType.TECH_BOOM
+        ]:
+            # Buy high volatility stocks
+            high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
+            for company in high_vol_companies:
+                if self.cash > 1000:
+                    shares_to_buy = int(min(self.cash * 0.3, 3000) / company.price)
+                    if shares_to_buy > 0:
+                        success, msg = self.buy_stock(company, shares_to_buy)
+                        if success:
+                            actions.append(f"📈 {self.name} aggressively bought {shares_to_buy} shares of {company.name}")
+
+        # Sell during bear markets or crashes
+        elif market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
+            MarketCycleType.BEAR_MARKET, MarketCycleType.MARKET_CRASH, MarketCycleType.RECESSION
+        ]:
+            # Sell positions to cut losses
+            for company_name, shares in list(self.portfolio.items()):
+                sell_shares = int(shares * 0.4)  # Sell 40% of position
+                if sell_shares > 0:
+                    company = companies[company_name]
+                    success, msg = self.sell_stock(company, sell_shares)
+                    if success:
+                        actions.append(f"📉 {self.name} cut position, sold {sell_shares} shares of {company_name}")
+
+        return actions
+
+    def _value_strategy(self, companies: Dict[str, Company], treasury: Treasury,
+                       market_cycle: 'MarketCycle') -> List[str]:
+        """Value: Conservative, low volatility stocks, diversified"""
+        actions = []
+
+        # Conservative leverage (only up to 1x equity)
+        equity = self.calculate_equity(companies, treasury)
+        if equity > 0 and self.borrowed_amount < equity * 0.8:
+            borrow_amount = min(1000, equity * 0.8 - self.borrowed_amount)
+            if borrow_amount > 100:
+                success, msg = self.borrow_money(borrow_amount, companies, treasury)
+                if success:
+                    actions.append(f"🏦 {self.name} conservatively borrowed ${borrow_amount:.2f}")
+
+        # Focus on low volatility, high liquidity stocks
+        stable_companies = [c for c in companies.values()
+                          if c.base_volatility < 7.0 and c.liquidity == LiquidityLevel.HIGH]
+
+        if stable_companies and self.cash > 1000:
+            company = random.choice(stable_companies)
+            shares_to_buy = int(min(self.cash * 0.2, 2000) / company.price)
+            if shares_to_buy > 0:
+                success, msg = self.buy_stock(company, shares_to_buy)
+                if success:
+                    actions.append(f"💎 {self.name} added {shares_to_buy} shares of {company.name} (value play)")
+
+        # Buy treasury bonds for safety during volatile times
+        if market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
+            MarketCycleType.MARKET_CRASH, MarketCycleType.RECESSION
+        ]:
+            if self.cash > 500:
+                bonds_to_buy = int(self.cash * 0.3 / treasury.price)
+                if bonds_to_buy > 0:
+                    success = self.buy_treasury(treasury, bonds_to_buy)
+                    if success:
+                        actions.append(f"🛡️ {self.name} bought {bonds_to_buy} treasury bonds for safety")
+
+        return actions
+
+    def _contrarian_strategy(self, companies: Dict[str, Company], treasury: Treasury,
+                           market_cycle: 'MarketCycle') -> List[str]:
+        """Contrarian: Buy fear, sell greed - opposite of market sentiment"""
+        actions = []
+
+        # Moderate leverage usage
+        equity = self.calculate_equity(companies, treasury)
+        if equity > 0 and self.borrowed_amount < equity * 1.2:
+            borrow_amount = min(1500, equity * 1.2 - self.borrowed_amount)
+            if borrow_amount > 100:
+                success, msg = self.borrow_money(borrow_amount, companies, treasury)
+                if success:
+                    actions.append(f"🏦 {self.name} borrowed ${borrow_amount:.2f} for contrarian positions")
+
+        # BUY during crashes/recessions (buy fear)
+        if market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
+            MarketCycleType.MARKET_CRASH, MarketCycleType.RECESSION, MarketCycleType.BEAR_MARKET
+        ]:
+            # Buy the most beaten down stocks
+            if self.cash > 1000:
+                companies_list = list(companies.values())
+                company = random.choice(companies_list)
+                shares_to_buy = int(min(self.cash * 0.4, 3500) / company.price)
+                if shares_to_buy > 0:
+                    success, msg = self.buy_stock(company, shares_to_buy)
+                    if success:
+                        actions.append(f"🎯 {self.name} bought the dip! {shares_to_buy} shares of {company.name}")
+
+        # SELL during bull markets/recovery (sell greed)
+        elif market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
+            MarketCycleType.BULL_MARKET, MarketCycleType.RECOVERY
+        ]:
+            # Sell profitable positions
+            for company_name, shares in list(self.portfolio.items()):
+                if shares > 10:
+                    sell_shares = int(shares * 0.5)  # Sell 50% when market is euphoric
+                    company = companies[company_name]
+                    success, msg = self.sell_stock(company, sell_shares)
+                    if success:
+                        actions.append(f"💰 {self.name} took profits, sold {sell_shares} shares of {company_name}")
+
+        return actions
+
+
 class InvestmentGame:
     """Main game class"""
 
@@ -830,6 +983,7 @@ class InvestmentGame:
         self.companies: Dict[str, Company] = {}
         self.treasury = Treasury()
         self.players: List[Player] = []
+        self.hedge_funds: List[HedgeFund] = []  # NPC hedge funds
         self.current_turn = 0
         self.round_number = 1
         self.week_number = 1  # Track weeks (each player turn = 1 week)
@@ -839,6 +993,7 @@ class InvestmentGame:
 
         self._initialize_companies()
         self._initialize_players()
+        self._initialize_hedge_funds()
 
     def _initialize_companies(self):
         """Initialize the 5 companies with different industries and liquidity levels"""
@@ -869,6 +1024,21 @@ class InvestmentGame:
                     break
                 else:
                     print("Name cannot be empty!")
+
+    def _initialize_hedge_funds(self):
+        """Initialize 3 NPC hedge funds with different strategies"""
+        self.hedge_funds = [
+            HedgeFund("Apex Capital (NPC)", "aggressive", 10000.0),
+            HedgeFund("Steadfast Value (NPC)", "value", 10000.0),
+            HedgeFund("Contrarian Partners (NPC)", "contrarian", 10000.0)
+        ]
+        print("\n" + "="*60)
+        print("3 AI Hedge Funds have entered the market:")
+        print("  - Apex Capital: Aggressive growth strategy")
+        print("  - Steadfast Value: Conservative value investing")
+        print("  - Contrarian Partners: Contrarian trading")
+        print("These NPCs will compete with you in the market!")
+        print("="*60)
 
     def display_market(self):
         """Display current market prices"""
@@ -918,8 +1088,35 @@ class InvestmentGame:
 
             print("="*60)
 
+    def execute_hedge_fund_trades(self):
+        """Execute automated trades for all hedge funds"""
+        all_actions = []
+
+        for hedge_fund in self.hedge_funds:
+            # Apply interest on borrowed amounts
+            interest = hedge_fund.apply_interest()
+
+            # Make automated trades based on strategy
+            actions = hedge_fund.make_automated_trade(
+                self.companies, self.treasury, self.market_cycle, self.week_number
+            )
+            all_actions.extend(actions)
+
+        # Display hedge fund actions if any
+        if all_actions:
+            print("\n" + "🤖" + "="*58)
+            print("HEDGE FUND ACTIVITY")
+            print("="*60)
+            for action in all_actions:
+                print(f"  {action}")
+            print("="*60)
+            input("\nPress Enter to continue...")
+
     def update_market(self):
         """Update all stock prices"""
+        # Execute hedge fund trades first (NPCs react to market conditions)
+        self.execute_hedge_fund_trades()
+
         # Check if we should trigger a new market cycle
         if self.market_cycle.should_trigger_cycle(self.week_number):
             cycle = self.market_cycle.trigger_cycle(self.week_number)
@@ -1274,17 +1471,22 @@ class InvestmentGame:
         print("LEADERBOARD")
         print("="*60)
 
-        # Calculate net worth for all players
+        # Calculate net worth for all players and hedge funds
         standings = []
         for player in self.players:
             net_worth = player.calculate_net_worth(self.companies, self.treasury)
-            standings.append((player.name, net_worth))
+            standings.append((player.name, net_worth, False))
+
+        for hedge_fund in self.hedge_funds:
+            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury)
+            standings.append((hedge_fund.name, net_worth, True))
 
         # Sort by net worth descending
         standings.sort(key=lambda x: x[1], reverse=True)
 
-        for rank, (name, net_worth) in enumerate(standings, 1):
-            print(f"{rank}. {name}: ${net_worth:.2f}")
+        for rank, (name, net_worth, is_npc) in enumerate(standings, 1):
+            npc_marker = " 🤖" if is_npc else ""
+            print(f"{rank}. {name}{npc_marker}: ${net_worth:.2f}")
 
         print("="*60)
 
