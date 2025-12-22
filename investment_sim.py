@@ -694,6 +694,160 @@ class Treasury:
         return f"{self.name} - ${self.price:.2f} (Annual Return: {self.interest_rate}%)"
 
 
+class QuantumSingularity:
+    """Represents Quantum Singularity - a permanent investment with passive income"""
+
+    def __init__(self):
+        self.name = "Quantum Singularity"
+        self.monthly_return_rate = 2.0  # 2% monthly return
+        self.price = 1000.0  # $1000 per unit
+        self.description = "Sci-fi investment: Permanent passive income, cannot be sold"
+
+    def calculate_monthly_return(self, units: int) -> float:
+        """Calculate the monthly passive income from Quantum Singularity units"""
+        total_investment = units * self.price
+        return total_investment * (self.monthly_return_rate / 100.0)
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'monthly_return_rate': self.monthly_return_rate,
+            'price': self.price
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'QuantumSingularity':
+        """Deserialize from dictionary"""
+        qs = QuantumSingularity()
+        qs.monthly_return_rate = data['monthly_return_rate']
+        qs.price = data['price']
+        return qs
+
+    def __str__(self):
+        return f"{self.name} - ${self.price:.2f}/unit (Monthly Return: {self.monthly_return_rate}% - PERMANENT)"
+
+
+class Gold:
+    """Represents physical gold commodity"""
+
+    def __init__(self):
+        self.name = "Gold"
+        self.price = 2000.0  # $2000 per oz
+        self.base_volatility = 2.5  # Low volatility (2.5%)
+        self.price_history: List[float] = []
+        self.description = "Physical gold - safe haven asset"
+
+    def update_price(self):
+        """Update gold price with low volatility (safe haven behavior)"""
+        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
+        self.price *= (1 + change_percent / 100)
+        self.price = max(self.price, 100.0)  # Floor price
+        self.price_history.append(self.price)
+        if len(self.price_history) > 52:  # Keep 52 weeks of history
+            self.price_history.pop(0)
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'price': self.price,
+            'base_volatility': self.base_volatility,
+            'price_history': self.price_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'Gold':
+        """Deserialize from dictionary"""
+        gold = Gold()
+        gold.price = data['price']
+        gold.base_volatility = data['base_volatility']
+        gold.price_history = data['price_history']
+        return gold
+
+    def __str__(self):
+        trend = ""
+        if len(self.price_history) >= 2:
+            if self.price > self.price_history[-2]:
+                trend = " ↗️"
+            elif self.price < self.price_history[-2]:
+                trend = " ↘️"
+            else:
+                trend = " ➡️"
+        return f"{self.name} - ${self.price:.2f}/oz (Volatility: {self.base_volatility}%){trend}"
+
+
+class HolyWater:
+    """Represents Holy Water - fantasy blessed commodity with divine properties"""
+
+    def __init__(self):
+        self.name = "Holy Water"
+        self.price = 1800.0  # $1800 per vial
+        self.base_volatility = 4.5  # Higher volatility than gold (divine unpredictability)
+        self.price_history: List[float] = []
+        self.blessing_intensity = 1.0  # Multiplier for weird behavior
+        self.description = "Divinely blessed liquid - fantasy gold with unpredictable properties"
+
+    def update_price(self):
+        """Update Holy Water price with occasional divine intervention"""
+        # Base price change
+        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
+
+        # Occasional "divine blessing" or "curse" (10% chance)
+        if random.random() < 0.1:
+            blessing = random.choice([-1, 1])
+            divine_modifier = blessing * random.uniform(5.0, 15.0)
+            change_percent += divine_modifier
+            if blessing > 0:
+                self.blessing_intensity = 1.2  # Temporarily blessed
+            else:
+                self.blessing_intensity = 0.8  # Temporarily cursed
+        else:
+            # Slowly return blessing intensity to normal
+            self.blessing_intensity = self.blessing_intensity * 0.9 + 1.0 * 0.1
+
+        self.price *= (1 + change_percent / 100)
+        self.price = max(self.price, 100.0)  # Floor price
+        self.price_history.append(self.price)
+        if len(self.price_history) > 52:  # Keep 52 weeks of history
+            self.price_history.pop(0)
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'price': self.price,
+            'base_volatility': self.base_volatility,
+            'price_history': self.price_history,
+            'blessing_intensity': self.blessing_intensity
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'HolyWater':
+        """Deserialize from dictionary"""
+        hw = HolyWater()
+        hw.price = data['price']
+        hw.base_volatility = data['base_volatility']
+        hw.price_history = data['price_history']
+        hw.blessing_intensity = data.get('blessing_intensity', 1.0)
+        return hw
+
+    def __str__(self):
+        trend = ""
+        if len(self.price_history) >= 2:
+            if self.price > self.price_history[-2]:
+                trend = " ↗️"
+            elif self.price < self.price_history[-2]:
+                trend = " ↘️"
+            else:
+                trend = " ➡️"
+
+        blessing_status = ""
+        if self.blessing_intensity > 1.1:
+            blessing_status = " ✨ BLESSED"
+        elif self.blessing_intensity < 0.9:
+            blessing_status = " 💀 CURSED"
+
+        return f"{self.name} - ${self.price:.2f}/vial (Volatility: {self.base_volatility}%){trend}{blessing_status}"
+
+
 class Player:
     """Represents a player in the game"""
 
@@ -702,6 +856,10 @@ class Player:
         self.cash = starting_cash
         self.portfolio: Dict[str, int] = {}  # company_name -> number of shares
         self.treasury_bonds = 0
+        # New themed investments
+        self.quantum_singularity_units = 0  # Permanent investment
+        self.gold_ounces = 0  # Physical gold
+        self.holy_water_vials = 0  # Fantasy blessed commodity
         # Leverage system
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
@@ -835,7 +993,76 @@ class Player:
         self.treasury_bonds += bonds
         return True
 
-    def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury) -> float:
+    def buy_quantum_singularity(self, quantum_singularity: QuantumSingularity, units: int) -> Tuple[bool, str]:
+        """Buy Quantum Singularity units - permanent investment, cannot be sold"""
+        total_cost = quantum_singularity.price * units
+        if total_cost > self.cash:
+            return False, "Insufficient funds!"
+
+        self.cash -= total_cost
+        self.quantum_singularity_units += units
+        monthly_income = quantum_singularity.calculate_monthly_return(units)
+        return True, f"Purchased {units} Quantum Singularity units! You will receive ${monthly_income:.2f}/month passive income. WARNING: This investment is PERMANENT and cannot be sold!"
+
+    def buy_gold(self, gold: Gold, ounces: int) -> Tuple[bool, str]:
+        """Buy physical gold"""
+        total_cost = gold.price * ounces
+        if total_cost > self.cash:
+            return False, "Insufficient funds!"
+
+        self.cash -= total_cost
+        self.gold_ounces += ounces
+        return True, f"Purchase successful! Bought {ounces} oz of gold for ${total_cost:.2f}"
+
+    def sell_gold(self, gold: Gold, ounces: int) -> Tuple[bool, str]:
+        """Sell physical gold"""
+        if self.gold_ounces < ounces:
+            return False, "You don't own that much gold!"
+
+        total_value = gold.price * ounces
+        self.cash += total_value
+        self.gold_ounces -= ounces
+        return True, f"Sale successful! Sold {ounces} oz of gold for ${total_value:.2f}"
+
+    def buy_holy_water(self, holy_water: HolyWater, vials: int) -> Tuple[bool, str]:
+        """Buy Holy Water vials"""
+        total_cost = holy_water.price * vials
+        if total_cost > self.cash:
+            return False, "Insufficient funds!"
+
+        self.cash -= total_cost
+        self.holy_water_vials += vials
+        blessing_msg = ""
+        if holy_water.blessing_intensity > 1.1:
+            blessing_msg = " The water glows with divine light! ✨"
+        elif holy_water.blessing_intensity < 0.9:
+            blessing_msg = " The water seems... tainted. 💀"
+        return True, f"Purchase successful! Bought {vials} vials of Holy Water for ${total_cost:.2f}{blessing_msg}"
+
+    def sell_holy_water(self, holy_water: HolyWater, vials: int) -> Tuple[bool, str]:
+        """Sell Holy Water vials"""
+        if self.holy_water_vials < vials:
+            return False, "You don't own that many vials!"
+
+        total_value = holy_water.price * vials
+        self.cash += total_value
+        self.holy_water_vials -= vials
+        blessing_msg = ""
+        if holy_water.blessing_intensity > 1.1:
+            blessing_msg = " The buyer seems blessed by the transaction! ✨"
+        elif holy_water.blessing_intensity < 0.9:
+            blessing_msg = " The buyer looks nervous... 💀"
+        return True, f"Sale successful! Sold {vials} vials of Holy Water for ${total_value:.2f}{blessing_msg}"
+
+    def apply_quantum_singularity_income(self, quantum_singularity: QuantumSingularity) -> float:
+        """Apply monthly passive income from Quantum Singularity (called every 4 weeks)"""
+        if self.quantum_singularity_units > 0:
+            income = quantum_singularity.calculate_monthly_return(self.quantum_singularity_units)
+            self.cash += income
+            return income
+        return 0.0
+
+    def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None) -> float:
         """Calculate total net worth (cash + stocks + bonds - short obligations)"""
         net_worth = self.cash
 
@@ -852,13 +1079,21 @@ class Player:
         # Add treasury value
         net_worth += self.treasury_bonds * treasury.price
 
+        # Add themed investments
+        if gold and self.gold_ounces > 0:
+            net_worth += self.gold_ounces * gold.price
+        if holy_water and self.holy_water_vials > 0:
+            net_worth += self.holy_water_vials * holy_water.price
+        if quantum_singularity and self.quantum_singularity_units > 0:
+            net_worth += self.quantum_singularity_units * quantum_singularity.price
+
         return net_worth
 
-    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury) -> float:
+    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None) -> float:
         """Calculate equity (net worth minus debt)"""
-        return self.calculate_net_worth(companies, treasury) - self.borrowed_amount
+        return self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity) - self.borrowed_amount
 
-    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury) -> float:
+    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None) -> float:
         """Calculate total portfolio value (not including cash, only investments)"""
         assets = 0.0
 
@@ -869,6 +1104,14 @@ class Player:
 
         # Add treasury value
         assets += self.treasury_bonds * treasury.price
+
+        # Add themed investments
+        if gold and self.gold_ounces > 0:
+            assets += self.gold_ounces * gold.price
+        if holy_water and self.holy_water_vials > 0:
+            assets += self.holy_water_vials * holy_water.price
+        if quantum_singularity and self.quantum_singularity_units > 0:
+            assets += self.quantum_singularity_units * quantum_singularity.price
 
         return assets
 
@@ -1280,7 +1523,7 @@ class Player:
         player.research_history = data['research_history']
         return player
 
-    def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury):
+    def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None):
         """Display player's portfolio"""
         print(f"\n{'='*60}")
         print(f"{self.name}'s Portfolio")
@@ -1290,7 +1533,7 @@ class Player:
         # Show leverage info
         if self.borrowed_amount > 0:
             print(f"💳 Borrowed (Leverage): ${self.borrowed_amount:.2f}")
-            equity = self.calculate_equity(companies, treasury)
+            equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity)
             print(f"💰 Equity (Net - Debt): ${equity:.2f}")
             current_leverage = self.borrowed_amount / max(0.01, equity)
             print(f"📊 Leverage Ratio: {current_leverage:.2f}x (Max: {self.max_leverage_ratio:.2f}x)")
@@ -1314,7 +1557,7 @@ class Player:
                 if company_name in companies:
                     company = companies[company_name]
                     obligation = company.price * shares
-                    print(f"  {company_name}: {shares} shares shorted @ ${company.price:.2f} = ${obligation:.2f} owed")
+                    print(f"  {company_name}: {shares} shorted @ ${company.price:.2f} = ${obligation:.2f} owed")
         else:
             print("Short Positions: None")
 
@@ -1326,7 +1569,32 @@ class Player:
             print("Treasury Bonds: None")
 
         print()
-        net_worth = self.calculate_net_worth(companies, treasury)
+        # Display themed investments
+        print("Themed Investments:")
+        has_themed = False
+        if quantum_singularity and self.quantum_singularity_units > 0:
+            value = self.quantum_singularity_units * quantum_singularity.price
+            monthly_income = quantum_singularity.calculate_monthly_return(self.quantum_singularity_units)
+            print(f"  Quantum Singularity: {self.quantum_singularity_units} units @ ${quantum_singularity.price:.2f} = ${value:.2f} (${monthly_income:.2f}/month)")
+            has_themed = True
+        if gold and self.gold_ounces > 0:
+            value = self.gold_ounces * gold.price
+            print(f"  Gold: {self.gold_ounces} oz @ ${gold.price:.2f} = ${value:.2f}")
+            has_themed = True
+        if holy_water and self.holy_water_vials > 0:
+            value = self.holy_water_vials * holy_water.price
+            blessing_status = ""
+            if holy_water.blessing_intensity > 1.1:
+                blessing_status = " ✨"
+            elif holy_water.blessing_intensity < 0.9:
+                blessing_status = " 💀"
+            print(f"  Holy Water: {self.holy_water_vials} vials @ ${holy_water.price:.2f} = ${value:.2f}{blessing_status}")
+            has_themed = True
+        if not has_themed:
+            print("  None")
+
+        print()
+        net_worth = self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity)
         print(f"Total Net Worth: ${net_worth:.2f}")
         print(f"{'='*60}")
 
@@ -1860,6 +2128,10 @@ class InvestmentGame:
     def __init__(self):
         self.companies: Dict[str, Company] = {}
         self.treasury = Treasury()
+        # Themed investments
+        self.quantum_singularity = QuantumSingularity()
+        self.gold = Gold()
+        self.holy_water = HolyWater()
         self.players: List[Player] = []
         self.hedge_funds: List[HedgeFund] = []  # NPC hedge funds
         self.current_turn = 0
@@ -1950,6 +2222,11 @@ class InvestmentGame:
             print(f"  {company}")
         print()
         print(f"  {self.treasury}")
+        print()
+        print("Themed Investments:")
+        print(f"  {self.quantum_singularity}")
+        print(f"  {self.gold}")
+        print(f"  {self.holy_water}")
         print()
         print("  Liquidity: 💧 = Low | 💧💧 = Medium | 💧💧💧 = High")
         print("  (Lower liquidity = higher price impact on large trades)")
@@ -2068,6 +2345,10 @@ class InvestmentGame:
         if not self.market_cycle.active_cycle:
             for company in self.companies.values():
                 company.update_price()
+
+        # Update themed investment prices
+        self.gold.update_price()
+        self.holy_water.update_price()
 
         # Recalculate future prices after market update
         self._precalculate_future_prices()
@@ -2197,6 +2478,12 @@ class InvestmentGame:
         if short_fees > 0:
             print(f"📉 Weekly short borrow fees: ${short_fees:.2f}")
 
+        # Apply monthly passive income from Quantum Singularity (every 4 weeks)
+        if self.week_number % 4 == 0:
+            qs_income = player.apply_quantum_singularity_income(self.quantum_singularity)
+            if qs_income > 0:
+                print(f"\n⚛️ Quantum Singularity passive income: ${qs_income:.2f}")
+
         # Check for margin call
         if player.check_margin_call(self.companies, self.treasury):
             print("\n" + "⚠️ " + "="*58)
@@ -2231,20 +2518,22 @@ class InvestmentGame:
             print("5. Short Sell Stocks")
             print("6. Cover Short Position")
             print("7. Buy Treasury Bonds")
-            print("8. Research Company (once per week)")
-            print("9. Borrow Money (Leverage)")
-            print("10. Repay Loan")
-            print("11. Save Game")
-            print("12. End Turn")
+            print("8. Buy Themed Investments (Gold, Holy Water, Quantum Singularity)")
+            print("9. Sell Themed Investments (Gold, Holy Water)")
+            print("10. Research Company (once per week)")
+            print("11. Borrow Money (Leverage)")
+            print("12. Repay Loan")
+            print("13. Save Game")
+            print("14. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-12): ").strip()
+            choice = input("Enter choice (1-14): ").strip()
 
             if choice == "1":
                 self.display_market()
 
             elif choice == "2":
-                player.display_portfolio(self.companies, self.treasury)
+                player.display_portfolio(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity)
 
             elif choice == "3":
                 self._buy_stocks_menu(player)
@@ -2262,26 +2551,32 @@ class InvestmentGame:
                 self._buy_treasury_menu(player)
 
             elif choice == "8":
-                self._research_company_menu(player)
+                self._buy_themed_investments_menu(player)
 
             elif choice == "9":
-                self._borrow_money_menu(player)
+                self._sell_themed_investments_menu(player)
 
             elif choice == "10":
-                self._repay_loan_menu(player)
+                self._research_company_menu(player)
 
             elif choice == "11":
+                self._borrow_money_menu(player)
+
+            elif choice == "12":
+                self._repay_loan_menu(player)
+
+            elif choice == "13":
                 filename = input("Enter save filename (default: savegame.json): ").strip()
                 if not filename:
                     filename = "savegame.json"
                 self.save_game(filename)
 
-            elif choice == "12":
+            elif choice == "14":
                 print(f"\n{player.name} has ended their turn.")
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 12.")
+                print("Invalid choice! Please enter a number between 1 and 14.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -2498,6 +2793,103 @@ class InvestmentGame:
                 print(f"Successfully purchased {bonds} treasury bonds!")
             else:
                 print("Insufficient funds!")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _buy_themed_investments_menu(self, player: Player):
+        """Menu for buying themed investments"""
+        print("\n" + "="*60)
+        print("BUY THEMED INVESTMENTS")
+        print("="*60)
+        print(f"Available Cash: ${player.cash:.2f}")
+        print()
+        print("1. " + str(self.quantum_singularity))
+        print("2. " + str(self.gold))
+        print("3. " + str(self.holy_water))
+        print("0. Cancel")
+        print()
+
+        try:
+            choice = int(input("Select investment (0 to cancel): "))
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                # Quantum Singularity
+                units = int(input("How many units to purchase? "))
+                if units <= 0:
+                    print("Invalid number of units!")
+                    return
+                success, msg = player.buy_quantum_singularity(self.quantum_singularity, units)
+                print(msg)
+            elif choice == 2:
+                # Gold
+                ounces = int(input("How many ounces to purchase? "))
+                if ounces <= 0:
+                    print("Invalid number of ounces!")
+                    return
+                success, msg = player.buy_gold(self.gold, ounces)
+                print(msg)
+            elif choice == 3:
+                # Holy Water
+                vials = int(input("How many vials to purchase? "))
+                if vials <= 0:
+                    print("Invalid number of vials!")
+                    return
+                success, msg = player.buy_holy_water(self.holy_water, vials)
+                print(msg)
+            else:
+                print("Invalid choice!")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _sell_themed_investments_menu(self, player: Player):
+        """Menu for selling themed investments (Gold and Holy Water only)"""
+        print("\n" + "="*60)
+        print("SELL THEMED INVESTMENTS")
+        print("="*60)
+        print(f"Note: Quantum Singularity cannot be sold (permanent investment)")
+        print()
+        print(f"Your Holdings:")
+        print(f"  Gold: {player.gold_ounces} oz @ ${self.gold.price:.2f}")
+        print(f"  Holy Water: {player.holy_water_vials} vials @ ${self.holy_water.price:.2f}")
+        print()
+        print("1. Sell Gold")
+        print("2. Sell Holy Water")
+        print("0. Cancel")
+        print()
+
+        try:
+            choice = int(input("Select investment (0 to cancel): "))
+
+            if choice == 0:
+                return
+            elif choice == 1:
+                # Gold
+                if player.gold_ounces == 0:
+                    print("You don't own any gold!")
+                    return
+                ounces = int(input(f"How many ounces to sell (you have {player.gold_ounces})? "))
+                if ounces <= 0:
+                    print("Invalid number of ounces!")
+                    return
+                success, msg = player.sell_gold(self.gold, ounces)
+                print(msg)
+            elif choice == 2:
+                # Holy Water
+                if player.holy_water_vials == 0:
+                    print("You don't own any Holy Water!")
+                    return
+                vials = int(input(f"How many vials to sell (you have {player.holy_water_vials})? "))
+                if vials <= 0:
+                    print("Invalid number of vials!")
+                    return
+                success, msg = player.sell_holy_water(self.holy_water, vials)
+                print(msg)
+            else:
+                print("Invalid choice!")
 
         except ValueError:
             print("Invalid input!")
