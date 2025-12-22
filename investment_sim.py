@@ -5,6 +5,7 @@ A turn-based stock market simulation for 4 players
 """
 
 import random
+import json
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -24,6 +25,25 @@ class NewsReport:
     insider_source: str  # May flip to opposite
     insider_flipped: bool  # Whether insider source flipped
 
+    def to_dict(self) -> dict:
+        """Serialize NewsReport to dictionary"""
+        return {
+            'trustworthy_source': self.trustworthy_source,
+            'sensationalist_source': self.sensationalist_source,
+            'insider_source': self.insider_source,
+            'insider_flipped': self.insider_flipped
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'NewsReport':
+        """Deserialize NewsReport from dictionary"""
+        return NewsReport(
+            trustworthy_source=data['trustworthy_source'],
+            sensationalist_source=data['sensationalist_source'],
+            insider_source=data['insider_source'],
+            insider_flipped=data['insider_flipped']
+        )
+
 
 @dataclass
 class PendingNewsImpact:
@@ -35,6 +55,31 @@ class PendingNewsImpact:
     is_real: bool  # True if real news, False if hoax
     news_text: str
     news_report: NewsReport  # All three news sources
+
+    def to_dict(self) -> dict:
+        """Serialize PendingNewsImpact to dictionary"""
+        return {
+            'company_name': self.company_name,
+            'sentiment': self.sentiment.value,
+            'impact_magnitude': self.impact_magnitude,
+            'weeks_until_impact': self.weeks_until_impact,
+            'is_real': self.is_real,
+            'news_text': self.news_text,
+            'news_report': self.news_report.to_dict()
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'PendingNewsImpact':
+        """Deserialize PendingNewsImpact from dictionary"""
+        return PendingNewsImpact(
+            company_name=data['company_name'],
+            sentiment=NewsSentiment(data['sentiment']),
+            impact_magnitude=data['impact_magnitude'],
+            weeks_until_impact=data['weeks_until_impact'],
+            is_real=data['is_real'],
+            news_text=data['news_text'],
+            news_report=NewsReport.from_dict(data['news_report'])
+        )
 
 
 class MarketNews:
@@ -139,6 +184,24 @@ class MarketNews:
     def __init__(self):
         self.pending_impacts: List[PendingNewsImpact] = []
         self.news_history: List[Tuple[int, str]] = []  # (week_number, news_text)
+
+    def to_dict(self) -> dict:
+        """Serialize MarketNews to dictionary"""
+        return {
+            'pending_impacts': [impact.to_dict() for impact in self.pending_impacts],
+            'news_history': self.news_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'MarketNews':
+        """Deserialize MarketNews from dictionary"""
+        market_news = MarketNews()
+        market_news.pending_impacts = [
+            PendingNewsImpact.from_dict(impact_data)
+            for impact_data in data['pending_impacts']
+        ]
+        market_news.news_history = [tuple(item) for item in data['news_history']]
+        return market_news
 
     def _generate_news_report(self, company_name: str, industry: str, sentiment: NewsSentiment, is_real: bool) -> NewsReport:
         """Generate news from all three sources"""
@@ -337,6 +400,35 @@ class Company:
         else:
             return "💧"
 
+    def to_dict(self) -> dict:
+        """Serialize company to dictionary"""
+        return {
+            'name': self.name,
+            'industry': self.industry,
+            'price': self.price,
+            'base_volatility': self.base_volatility,
+            'price_history': self.price_history,
+            'liquidity': self.liquidity.value,
+            'true_strength': self.true_strength,
+            'hidden_sentiment': self.hidden_sentiment
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'Company':
+        """Deserialize company from dictionary"""
+        company = Company(
+            name=data['name'],
+            industry=data['industry'],
+            initial_price=data['price'],
+            volatility=data['base_volatility'],
+            liquidity=LiquidityLevel(data['liquidity'])
+        )
+        company.price = data['price']
+        company.price_history = data['price_history']
+        company.true_strength = data['true_strength']
+        company.hidden_sentiment = data['hidden_sentiment']
+        return company
+
     def __str__(self):
         return f"{self.name} ({self.industry}) - ${self.price:.2f} {self.get_liquidity_indicator()}"
 
@@ -348,6 +440,21 @@ class Treasury:
         self.name = "US Treasury Bonds"
         self.interest_rate = 3.5  # 3.5% annual return
         self.price = 100.0  # $100 per bond
+
+    def to_dict(self) -> dict:
+        """Serialize treasury to dictionary"""
+        return {
+            'interest_rate': self.interest_rate,
+            'price': self.price
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'Treasury':
+        """Deserialize treasury from dictionary"""
+        treasury = Treasury()
+        treasury.interest_rate = data['interest_rate']
+        treasury.price = data['price']
+        return treasury
 
     def __str__(self):
         return f"{self.name} - ${self.price:.2f} (Annual Return: {self.interest_rate}%)"
@@ -596,6 +703,33 @@ class Player:
         """Reset research availability for new week"""
         self.researched_this_week = False
 
+    def to_dict(self) -> dict:
+        """Serialize player to dictionary"""
+        return {
+            'name': self.name,
+            'cash': self.cash,
+            'portfolio': self.portfolio,
+            'treasury_bonds': self.treasury_bonds,
+            'borrowed_amount': self.borrowed_amount,
+            'max_leverage_ratio': self.max_leverage_ratio,
+            'interest_rate_weekly': self.interest_rate_weekly,
+            'researched_this_week': self.researched_this_week,
+            'research_history': self.research_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'Player':
+        """Deserialize player from dictionary"""
+        player = Player(data['name'], data['cash'])
+        player.portfolio = data['portfolio']
+        player.treasury_bonds = data['treasury_bonds']
+        player.borrowed_amount = data['borrowed_amount']
+        player.max_leverage_ratio = data['max_leverage_ratio']
+        player.interest_rate_weekly = data['interest_rate_weekly']
+        player.researched_this_week = data['researched_this_week']
+        player.research_history = data['research_history']
+        return player
+
     def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury):
         """Display player's portfolio"""
         print(f"\n{'='*60}")
@@ -655,6 +789,25 @@ class ActiveMarketCycle:
     headline: str
     description: str
 
+    def to_dict(self) -> dict:
+        """Serialize ActiveMarketCycle to dictionary"""
+        return {
+            'cycle_type': self.cycle_type.value,
+            'weeks_remaining': self.weeks_remaining,
+            'headline': self.headline,
+            'description': self.description
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'ActiveMarketCycle':
+        """Deserialize ActiveMarketCycle from dictionary"""
+        return ActiveMarketCycle(
+            cycle_type=MarketCycleType(data['cycle_type']),
+            weeks_remaining=data['weeks_remaining'],
+            headline=data['headline'],
+            description=data['description']
+        )
+
 
 class MarketCycle:
     """Handles major market cycles (economic events every 6 months)"""
@@ -662,6 +815,22 @@ class MarketCycle:
     def __init__(self):
         self.active_cycle: Optional[ActiveMarketCycle] = None
         self.cycle_history: List[Tuple[int, str]] = []  # (week_number, cycle_name)
+
+    def to_dict(self) -> dict:
+        """Serialize MarketCycle to dictionary"""
+        return {
+            'active_cycle': self.active_cycle.to_dict() if self.active_cycle else None,
+            'cycle_history': self.cycle_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'MarketCycle':
+        """Deserialize MarketCycle from dictionary"""
+        market_cycle = MarketCycle()
+        if data['active_cycle']:
+            market_cycle.active_cycle = ActiveMarketCycle.from_dict(data['active_cycle'])
+        market_cycle.cycle_history = [tuple(item) for item in data['cycle_history']]
+        return market_cycle
 
     def should_trigger_cycle(self, week_number: int) -> bool:
         """Check if we should trigger a new cycle (every 24 weeks = 6 months)"""
@@ -830,6 +999,26 @@ class HedgeFund(Player):
         super().__init__(name, starting_cash)
         self.strategy = strategy  # "aggressive", "value", "contrarian"
         self.is_npc = True
+
+    def to_dict(self) -> dict:
+        """Serialize hedge fund to dictionary"""
+        data = super().to_dict()
+        data['strategy'] = self.strategy
+        data['is_npc'] = self.is_npc
+        return data
+
+    @staticmethod
+    def from_dict(data: dict) -> 'HedgeFund':
+        """Deserialize hedge fund from dictionary"""
+        hedge_fund = HedgeFund(data['name'], data['strategy'], data['cash'])
+        hedge_fund.portfolio = data['portfolio']
+        hedge_fund.treasury_bonds = data['treasury_bonds']
+        hedge_fund.borrowed_amount = data['borrowed_amount']
+        hedge_fund.max_leverage_ratio = data['max_leverage_ratio']
+        hedge_fund.interest_rate_weekly = data['interest_rate_weekly']
+        hedge_fund.researched_this_week = data['researched_this_week']
+        hedge_fund.research_history = data['research_history']
+        return hedge_fund
 
     def make_automated_trade(self, companies: Dict[str, Company], treasury: Treasury,
                            market_cycle: 'MarketCycle', week_number: int) -> List[str]:
@@ -1197,10 +1386,11 @@ class InvestmentGame:
             print("6. Research Company (once per week)")
             print("7. Borrow Money (Leverage)")
             print("8. Repay Loan")
-            print("9. End Turn")
+            print("9. Save Game")
+            print("10. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-9): ").strip()
+            choice = input("Enter choice (1-10): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -1227,11 +1417,17 @@ class InvestmentGame:
                 self._repay_loan_menu(player)
 
             elif choice == "9":
+                filename = input("Enter save filename (default: savegame.json): ").strip()
+                if not filename:
+                    filename = "savegame.json"
+                self.save_game(filename)
+
+            elif choice == "10":
                 print(f"\n{player.name} has ended their turn.")
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 9.")
+                print("Invalid choice! Please enter a number between 1 and 10.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -1465,6 +1661,84 @@ class InvestmentGame:
         except ValueError:
             print("Invalid input!")
 
+    def save_game(self, filename: str = "savegame.json") -> bool:
+        """Save game state to JSON file"""
+        try:
+            game_state = {
+                'current_turn': self.current_turn,
+                'round_number': self.round_number,
+                'week_number': self.week_number,
+                'companies': {name: company.to_dict() for name, company in self.companies.items()},
+                'treasury': self.treasury.to_dict(),
+                'players': [player.to_dict() for player in self.players],
+                'hedge_funds': [hf.to_dict() for hf in self.hedge_funds],
+                'market_news': self.market_news.to_dict(),
+                'market_cycle': self.market_cycle.to_dict(),
+                'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None
+            }
+
+            with open(filename, 'w') as f:
+                json.dump(game_state, f, indent=2)
+
+            print(f"\n✅ Game saved successfully to {filename}!")
+            return True
+
+        except Exception as e:
+            print(f"\n❌ Error saving game: {e}")
+            return False
+
+    @staticmethod
+    def load_game(filename: str = "savegame.json") -> Optional['InvestmentGame']:
+        """Load game state from JSON file"""
+        try:
+            with open(filename, 'r') as f:
+                game_state = json.load(f)
+
+            # Create new game instance
+            game = InvestmentGame.__new__(InvestmentGame)
+
+            # Restore basic game state
+            game.current_turn = game_state['current_turn']
+            game.round_number = game_state['round_number']
+            game.week_number = game_state['week_number']
+
+            # Restore companies
+            game.companies = {
+                name: Company.from_dict(data)
+                for name, data in game_state['companies'].items()
+            }
+
+            # Restore treasury
+            game.treasury = Treasury.from_dict(game_state['treasury'])
+
+            # Restore players
+            game.players = [Player.from_dict(data) for data in game_state['players']]
+
+            # Restore hedge funds
+            game.hedge_funds = [HedgeFund.from_dict(data) for data in game_state['hedge_funds']]
+
+            # Restore market news
+            game.market_news = MarketNews.from_dict(game_state['market_news'])
+
+            # Restore market cycle
+            game.market_cycle = MarketCycle.from_dict(game_state['market_cycle'])
+
+            # Restore pending news display
+            if game_state['pending_news_display']:
+                game.pending_news_display = NewsReport.from_dict(game_state['pending_news_display'])
+            else:
+                game.pending_news_display = None
+
+            print(f"\n✅ Game loaded successfully from {filename}!")
+            return game
+
+        except FileNotFoundError:
+            print(f"\n❌ Save file '{filename}' not found!")
+            return None
+        except Exception as e:
+            print(f"\n❌ Error loading game: {e}")
+            return None
+
     def display_leaderboard(self):
         """Display current standings"""
         print("\n" + "="*60)
@@ -1537,8 +1811,31 @@ class InvestmentGame:
 
 def main():
     """Main entry point"""
-    game = InvestmentGame()
-    game.play()
+    print("\n" + "="*60)
+    print("Investment Simulation Game")
+    print("="*60)
+    print("\n1. Start New Game")
+    print("2. Load Saved Game")
+    print("3. Exit")
+    print()
+
+    choice = input("Enter choice (1-3): ").strip()
+
+    if choice == "1":
+        game = InvestmentGame()
+        game.play()
+    elif choice == "2":
+        filename = input("Enter save filename (default: savegame.json): ").strip()
+        if not filename:
+            filename = "savegame.json"
+        game = InvestmentGame.load_game(filename)
+        if game:
+            game.play()
+    elif choice == "3":
+        print("Goodbye!")
+        return
+    else:
+        print("Invalid choice!")
 
 
 if __name__ == "__main__":
