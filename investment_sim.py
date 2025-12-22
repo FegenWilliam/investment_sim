@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Competitive Investment Simulation Game
-A turn-based stock market simulation for 4 players
+A turn-based stock market simulation for 1-4 players
 """
 
 import random
@@ -1199,13 +1199,25 @@ class InvestmentGame:
             self.companies[name] = company
 
     def _initialize_players(self):
-        """Initialize 4 players"""
+        """Initialize 1-4 players"""
         print("\n" + "="*60)
         print("Welcome to Investment Simulation!")
         print("="*60)
-        print("\nEnter names for 4 players:")
 
-        for i in range(4):
+        # Ask for number of players
+        while True:
+            try:
+                num_players = int(input("\nHow many players? (1-4): ").strip())
+                if 1 <= num_players <= 4:
+                    break
+                else:
+                    print("Please enter a number between 1 and 4!")
+            except ValueError:
+                print("Invalid input! Please enter a number.")
+
+        print(f"\nEnter names for {num_players} player(s):")
+
+        for i in range(num_players):
             while True:
                 name = input(f"Player {i+1} name: ").strip()
                 if name:
