@@ -2397,13 +2397,23 @@ class InvestmentGame:
             input("\nPress Enter to continue...")
 
     def update_market(self):
-        """Update all stock prices"""
-        # Execute hedge fund trades first (NPCs react to market conditions)
+        """Update all stock prices using precompiled future prices"""
+        # Execute hedge fund trades first (NPCs react to current market conditions)
         self.execute_hedge_fund_trades()
 
+        # Apply precompiled prices to all companies
+        # The future_prices[company_name][0] is the actual next week price
+        for company_name, company in self.companies.items():
+            if company_name in self.future_prices and len(self.future_prices[company_name]) > 0:
+                # Use the precompiled price for this week
+                company.price = self.future_prices[company_name][0]
+                company.price_history.append(company.price)
+
         # Check if we should trigger a new market cycle
+        cycle_triggered = False
         if self.market_cycle.should_trigger_cycle(self.week_number):
             cycle = self.market_cycle.trigger_cycle(self.week_number)
+            cycle_triggered = True
             print("\n" + "🌍" + "="*58)
             print("MAJOR GLOBAL ECONOMIC EVENT")
             print("="*60)
@@ -2413,11 +2423,25 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Update active market cycle
-        cycle_messages, cycle_ended = self.market_cycle.update_cycle(self.companies)
+        # Update active market cycle (decrement counter, display messages)
+        cycle_messages = []
+        cycle_ended = False
+        if self.market_cycle.active_cycle:
+            self.market_cycle.active_cycle.weeks_remaining -= 1
+            if self.market_cycle.active_cycle.weeks_remaining <= 0:
+                cycle_messages.append(f"\n🔔 MARKET CYCLE ENDED: {self.market_cycle.active_cycle.cycle_type.value.replace('_', ' ').title()} has concluded")
+                self.market_cycle.active_cycle = None
+                cycle_ended = True
 
-        # Apply any pending news impacts
-        impact_messages = self.market_news.update_pending_impacts(self.companies)
+        # Update pending news impacts (decrement counters, display messages)
+        impact_messages = []
+        for impact in self.market_news.pending_impacts[:]:  # Copy list to allow removal
+            impact.weeks_until_impact -= 1
+            if impact.weeks_until_impact == 0:
+                # News impact is now occurring (already in precompiled prices)
+                if impact.is_real:
+                    impact_messages.append(f"📰 {impact.company_name}: {impact.headline} - Stock moves sharply!")
+                self.market_news.pending_impacts.remove(impact)
 
         # Display all market movements
         all_messages = cycle_messages + impact_messages
@@ -2430,17 +2454,75 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Regular price updates for all companies (only if no cycle is active)
-        if not self.market_cycle.active_cycle:
-            for company in self.companies.values():
-                company.update_price()
-
         # Update themed investment prices
         self.gold.update_price()
         self.holy_water.update_price()
 
-        # Recalculate future prices after market update
-        self._precalculate_future_prices()
+        # Update future prices: shift array and calculate new week+4
+        # If a cycle was triggered or ended, recalculate all future prices
+        # Otherwise, just shift the array and add one new week
+        if cycle_triggered or cycle_ended:
+            # Major market event - recalculate all future prices
+            self._precalculate_future_prices()
+        else:
+            # Normal week - shift prices and calculate one new week+4
+            self._advance_future_prices()
+
+    def _advance_future_prices(self):
+        """
+        Advance future prices by one week: shift array and calculate new week+4.
+        This preserves the deterministic future while adding one more week ahead.
+        """
+        for company_name, company in self.companies.items():
+            if company_name not in self.future_prices or len(self.future_prices[company_name]) == 0:
+                # No existing future prices - recalculate all
+                self._precalculate_future_prices()
+                return
+
+            # Shift array: remove week+1 (which is now current), keep weeks +2, +3, +4
+            remaining_prices = self.future_prices[company_name][1:]
+
+            # Calculate new week+5 (which becomes the new week+4)
+            week_ahead = 4  # We're calculating the 4th week ahead
+            future_week = self.week_number + week_ahead
+            simulated_price = remaining_prices[-1] if remaining_prices else company.price
+
+            # Apply market cycle effects if active
+            cycle_effect = 0.0
+            if self.market_cycle.active_cycle:
+                # Check if cycle will still be active
+                weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                if weeks_left > 0:
+                    cycle_type = self.market_cycle.active_cycle.cycle_type
+                    cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+
+            # Check if a new cycle will trigger at this future week
+            elif future_week > 0 and future_week % 24 == 0:
+                # A new cycle would trigger - we don't know which type, so use neutral
+                cycle_effect = 0.0
+
+            # Apply cycle effect or random walk
+            if cycle_effect != 0:
+                simulated_price *= (1 + cycle_effect / 100)
+            else:
+                # Random walk if no cycle
+                change_percent = random.uniform(-company.base_volatility, company.base_volatility)
+                simulated_price *= (1 + change_percent / 100)
+
+            # Apply pending news impacts that will occur in this future week
+            for impact in self.market_news.pending_impacts:
+                if impact.company_name == company_name:
+                    weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                    if weeks_until == 0:
+                        # This impact will apply in this future week
+                        if impact.is_real:
+                            simulated_price *= (1 + impact.impact_magnitude / 100)
+
+            # Ensure price stays positive
+            simulated_price = max(0.01, simulated_price)
+
+            # Update future prices: old weeks +2, +3, +4 become new +1, +2, +3, and add new +4
+            self.future_prices[company_name] = remaining_prices + [simulated_price]
 
     def _precalculate_future_prices(self):
         """
@@ -3151,6 +3233,7 @@ class InvestmentGame:
                 'weekly_gazette': self.weekly_gazette.to_dict(),
                 'pending_weekly_news': self.pending_weekly_news,
                 'future_prices': self.future_prices,
+                'random_state': list(random.getstate()),  # Save random state for deterministic futures
                 'quantum_singularity': self.quantum_singularity.to_dict(),
                 'gold': self.gold.to_dict(),
                 'holy_water': self.holy_water.to_dict()
@@ -3219,6 +3302,19 @@ class InvestmentGame:
                 # Old save file - recalculate future prices
                 game.future_prices = {}
                 game._precalculate_future_prices()
+
+            # Restore random state for deterministic futures
+            if 'random_state' in game_state:
+                # Convert list back to tuple for setstate
+                state_list = game_state['random_state']
+                # The state is (version, state_tuple_of_625_ints, gauss_next)
+                # JSON converts tuples to lists, so we need to convert back
+                random_state = (
+                    state_list[0],  # version (int)
+                    tuple(state_list[1]),  # state tuple (convert list back to tuple)
+                    state_list[2]  # gauss_next (None or float)
+                )
+                random.setstate(random_state)
 
             # Restore themed investments (or create new instances if not present in save file)
             if 'quantum_singularity' in game_state:
