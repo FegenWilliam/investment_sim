@@ -2450,7 +2450,7 @@ class InvestmentGame:
             if impact.weeks_until_impact == 0:
                 # News impact is now occurring (already in precompiled prices)
                 if impact.is_real:
-                    impact_messages.append(f"📰 {impact.company_name}: {impact.headline} - Stock moves sharply!")
+                    impact_messages.append(f"📰 {impact.company_name}: {impact.news_text} - Stock moves sharply!")
                 self.market_news.pending_impacts.remove(impact)
 
         # Display all market movements
