@@ -342,6 +342,142 @@ class MarketNews:
         return impact_messages
 
 
+class WeeklyGazette:
+    """Handles weekly news outlet that publishes random company news every week"""
+
+    # Weekly gazette news templates - varied company updates
+    WEEKLY_NEWS_TEMPLATES = [
+        # Product and service updates
+        "{company} unveils next-generation product line at {industry} trade show, receiving positive initial feedback from attendees.",
+        "{company} announces minor software update addressing customer-requested features in their flagship platform.",
+        "Sources report {company} is piloting new service offerings in select markets before potential broader rollout.",
+        "{company} quarterly product roadmap hints at upcoming innovations expected to ship later this year.",
+        "Industry publication spotlights {company}'s latest patent filings in {industry} technology space.",
+
+        # Business operations
+        "{company} opens new regional office to support growing customer base in emerging markets.",
+        "Reports indicate {company} is streamlining operations to improve efficiency and reduce overhead costs.",
+        "{company} announces expansion of customer support team as user base continues to grow steadily.",
+        "Supply chain update: {company} diversifies supplier network to enhance operational resilience.",
+        "{company} implements new inventory management system expected to optimize working capital.",
+
+        # Partnerships and collaborations
+        "{company} signs distribution agreement with mid-sized retailer expanding market reach.",
+        "Trade sources note {company} exploring potential collaboration with {industry} research institutions.",
+        "{company} joins industry consortium focused on developing technical standards and best practices.",
+        "Local media reports {company} partnering with community organizations on sustainability initiatives.",
+        "{company} announces co-marketing arrangement with complementary {industry} service provider.",
+
+        # Corporate updates
+        "{company} promotes several senior managers to vice president roles as part of succession planning.",
+        "Investor relations team at {company} schedules additional analyst meetings following earnings release.",
+        "{company} board of directors approves modest share repurchase authorization signaling stability.",
+        "Corporate social responsibility report from {company} highlights progress on environmental commitments.",
+        "{company} announces plans to attend upcoming {industry} investor conference circuit.",
+
+        # Market and competitive position
+        "Market research firm includes {company} in list of notable {industry} sector players to watch.",
+        "{company} gains minor market share in competitive {industry} landscape according to latest data.",
+        "Competitive analysis suggests {company} maintaining steady positioning against industry rivals.",
+        "Customer satisfaction survey ranks {company} favorably compared to peer group average.",
+        "{company} cited in {industry} trend report as company adapting to evolving market dynamics.",
+
+        # Financial and operational metrics
+        "{company} reports in-line quarterly metrics meeting baseline street expectations without major surprises.",
+        "Operating margin analysis shows {company} maintaining stable profitability levels quarter-over-quarter.",
+        "Working capital metrics for {company} remain within normal ranges for {industry} sector companies.",
+        "{company} cash position described as adequate to fund ongoing operations and planned investments.",
+        "Quarterly update indicates {company} capital expenditures tracking to annual guidance projections.",
+
+        # Research and development
+        "{company} R&D team presents findings at {industry} technical symposium garnering peer interest.",
+        "Patent office filings show {company} continuing investment in intellectual property development.",
+        "Engineering blog from {company} discusses technical challenges and solutions in product development.",
+        "{company} announces incremental improvements to manufacturing processes enhancing quality control.",
+        "Innovation pipeline at {company} includes several projects in various stages of development.",
+
+        # Personnel and talent
+        "{company} announces new employee wellness program aimed at improving workplace satisfaction.",
+        "Talent acquisition team at {company} actively recruiting for positions across multiple departments.",
+        "{company} implements updated training protocols to enhance employee skill development.",
+        "Company culture survey at {company} shows stable employee engagement and retention metrics.",
+        "Diversity and inclusion report from {company} outlines ongoing initiatives and progress metrics.",
+
+        # Regulatory and compliance
+        "{company} confirms compliance with updated {industry} sector regulatory requirements.",
+        "Routine regulatory filing by {company} includes standard disclosures without material changes.",
+        "{company} participates in industry working group addressing evolving compliance standards.",
+        "Quality assurance processes at {company} pass routine inspection without significant findings.",
+        "{company} updates corporate governance policies in line with current best practice recommendations.",
+
+        # Customer and market reach
+        "{company} customer testimonial program highlights positive user experiences and use cases.",
+        "Geographic expansion update: {company} establishes presence in additional regional markets.",
+        "{company} digital marketing campaign launches targeting specific customer segments.",
+        "Trade publication features {company} client success story demonstrating product value proposition.",
+        "Market penetration analysis shows {company} reaching new customer demographics incrementally.",
+
+        # Technology and infrastructure
+        "{company} completes routine infrastructure upgrades improving system reliability and performance.",
+        "IT security assessment confirms {company} maintains robust cybersecurity protocols and practices.",
+        "{company} announces adoption of cloud technologies to enhance operational scalability.",
+        "Data center efficiency improvements at {company} reduce energy consumption and operating costs.",
+        "{company} implements enhanced analytics capabilities to support data-driven decision making.",
+
+        # Industry recognition and awards
+        "{company} receives industry recognition for customer service excellence from trade association.",
+        "Professional organization names {company} to annual list of noteworthy {industry} companies.",
+        "{company} executive invited to speak at industry panel discussing {industry} sector trends.",
+        "Third-party certification validates {company} adherence to quality and safety standards.",
+        "{company} featured in industry case study examining operational best practices and outcomes.",
+
+        # Strategic initiatives
+        "{company} announces completion of internal restructuring aimed at organizational efficiency.",
+        "Strategic review at {company} identifies opportunities for incremental business optimization.",
+        "{company} realigns product portfolio to focus resources on core competency areas.",
+        "Long-term planning update from {company} outlines vision for next three to five years.",
+        "{company} evaluates potential acquisition targets to complement existing capabilities.",
+
+        # Routine business updates
+        "{company} schedules routine maintenance window for systems upgrades during off-peak hours.",
+        "Quarterly business review at {company} confirms operations proceeding according to plan.",
+        "{company} renews standard contracts with key vendors and service providers.",
+        "Seasonal business patterns at {company} tracking consistent with historical trends.",
+        "{company} logistics network optimization initiative enters implementation phase.",
+    ]
+
+    def __init__(self):
+        self.weekly_news_history: List[Tuple[int, str]] = []  # (week_number, news_text)
+
+    def to_dict(self) -> dict:
+        """Serialize WeeklyGazette to dictionary"""
+        return {
+            'weekly_news_history': self.weekly_news_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'WeeklyGazette':
+        """Deserialize WeeklyGazette from dictionary"""
+        gazette = WeeklyGazette()
+        gazette.weekly_news_history = [tuple(item) for item in data['weekly_news_history']]
+        return gazette
+
+    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> str:
+        """Generate weekly news for a random company"""
+        # Select random company
+        company_name = random.choice(list(companies.keys()))
+        company = companies[company_name]
+
+        # Select random news template
+        template = random.choice(self.WEEKLY_NEWS_TEMPLATES)
+        news_text = template.format(company=company_name, industry=company.industry)
+
+        # Store in history
+        self.weekly_news_history.append((week_number, news_text))
+
+        return news_text
+
+
 class LiquidityLevel(Enum):
     """Liquidity levels for stocks"""
     LOW = "low"
@@ -631,37 +767,100 @@ class Player:
         is_accurate = random.random() < 0.85
 
         hint_templates = [
-            # Volatility hints
-            ("Technical analysis suggests {company} may experience {level} price swings in coming weeks.",
-             lambda c: {"level": "significant" if c.base_volatility > 7.5 else "moderate" if c.base_volatility > 6 else "mild"}),
+            # Volatility and risk hints
+            ("Technical analysis reveals {company} exhibits {level} beta coefficient, suggesting price movements could be {magnitude} compared to broader market trends.",
+             lambda c: {"level": "an elevated" if c.base_volatility > 7.5 else "a moderate" if c.base_volatility > 6 else "a relatively low",
+                       "magnitude": "substantially amplified" if c.base_volatility > 7.5 else "moderately volatile" if c.base_volatility > 6 else "relatively stable"}),
 
-            # Industry sentiment hints
-            ("Industry insiders are {sentiment} about {industry} sector prospects.",
-             lambda c: {"sentiment": "optimistic" if c.hidden_sentiment > 0 else "pessimistic" if c.hidden_sentiment < 0 else "uncertain", "industry": c.industry}),
+            ("Quantitative risk models indicate {company} displays {pattern} variance patterns with {description} in the {industry} sector.",
+             lambda c: {"pattern": "high-frequency" if c.base_volatility > 8 else "medium-frequency" if c.base_volatility > 6 else "low-frequency",
+                       "description": "significant outlier characteristics" if c.base_volatility > 8 else "typical behavior" if c.base_volatility > 6 else "defensive qualities",
+                       "industry": c.industry}),
 
-            # Fundamental strength hints
-            ("Analyst whispers indicate {company}'s fundamentals appear {strength}.",
-             lambda c: {"strength": "solid" if c.true_strength > 0.65 else "questionable" if c.true_strength < 0.5 else "average"}),
+            # Industry and sector sentiment
+            ("Industry analysts from leading {industry} research firms are {sentiment} about sector tailwinds, citing {factors}.",
+             lambda c: {"industry": c.industry,
+                       "sentiment": "increasingly bullish" if c.hidden_sentiment > 0 else "growing pessimistic" if c.hidden_sentiment < 0 else "cautiously neutral",
+                       "factors": "favorable regulatory environment and strong demand" if c.hidden_sentiment > 0 else "headwinds from competition and margin pressure" if c.hidden_sentiment < 0 else "mixed macroeconomic signals"}),
 
-            # Liquidity hints
-            ("Trading desk reports {company} has {liquidity} market depth.",
-             lambda c: {"liquidity": "excellent" if c.liquidity == LiquidityLevel.HIGH else "limited" if c.liquidity == LiquidityLevel.LOW else "adequate"}),
+            ("Sector rotation analysis suggests {industry} stocks like {company} may be {position} institutional portfolio allocations over the next quarter.",
+             lambda c: {"industry": c.industry,
+                       "position": "entering" if c.hidden_sentiment > 0 else "exiting" if c.hidden_sentiment < 0 else "maintaining stable presence in"}),
 
-            # Price trend hints (based on recent history)
-            ("{company}'s price action shows {trend} momentum recently.",
-             lambda c: {"trend": "bullish" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "bearish" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "sideways"}),
+            # Fundamental strength and valuation
+            ("Deep dive fundamental analysis of {company} reveals {strength} balance sheet metrics, with debt-to-equity ratios {ratio_desc} and cash flow generation {cash_desc}.",
+             lambda c: {"strength": "robust" if c.true_strength > 0.65 else "concerning" if c.true_strength < 0.5 else "adequate",
+                       "ratio_desc": "well below industry averages" if c.true_strength > 0.65 else "elevated compared to peers" if c.true_strength < 0.5 else "in line with sector norms",
+                       "cash_desc": "exceeding expectations" if c.true_strength > 0.65 else "underperforming forecasts" if c.true_strength < 0.5 else "meeting baseline requirements"}),
 
-            # Risk level hints
-            ("Risk assessment models rate {company} as {risk} investment.",
-             lambda c: {"risk": "high-risk" if c.base_volatility > 8 else "moderate-risk" if c.base_volatility > 6 else "lower-risk"}),
+            ("Proprietary valuation models comparing {company} to peer group suggest shares are currently trading at {valuation} relative to intrinsic value estimates.",
+             lambda c: {"valuation": "a discount" if c.true_strength > 0.65 else "a premium" if c.true_strength < 0.5 else "fair value"}),
 
-            # Vague future outlook
-            ("Proprietary models suggest {company} outlook is {outlook} for next month.",
-             lambda c: {"outlook": "favorable" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "concerning" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "mixed"}),
+            ("Management quality assessment for {company} indicates {quality} corporate governance and {execution} track record of strategic execution.",
+             lambda c: {"quality": "exemplary" if c.true_strength > 0.65 else "questionable" if c.true_strength < 0.5 else "acceptable",
+                       "execution": "a strong" if c.true_strength > 0.65 else "a weak" if c.true_strength < 0.5 else "a mixed"}),
 
-            # Trading volume hints
-            ("Order flow analysis indicates {activity} institutional interest in {company}.",
-             lambda c: {"activity": "strong" if c.liquidity == LiquidityLevel.HIGH else "weak" if c.liquidity == LiquidityLevel.LOW else "moderate"}),
+            # Liquidity and market microstructure
+            ("Market microstructure analysis of {company} shows {liquidity} order book depth with bid-ask spreads {spread} and daily trading volumes {volume}.",
+             lambda c: {"liquidity": "exceptional" if c.liquidity == LiquidityLevel.HIGH else "constrained" if c.liquidity == LiquidityLevel.LOW else "moderate",
+                       "spread": "remaining tight" if c.liquidity == LiquidityLevel.HIGH else "widening significantly" if c.liquidity == LiquidityLevel.LOW else "within normal ranges",
+                       "volume": "consistently robust" if c.liquidity == LiquidityLevel.HIGH else "disappointingly thin" if c.liquidity == LiquidityLevel.LOW else "adequate for most positions"}),
+
+            ("Trading desk liquidity report flags {company} as {classification} for large block trades, with estimated market impact costs {impact}.",
+             lambda c: {"classification": "highly favorable" if c.liquidity == LiquidityLevel.HIGH else "challenging" if c.liquidity == LiquidityLevel.LOW else "manageable",
+                       "impact": "minimal even for substantial positions" if c.liquidity == LiquidityLevel.HIGH else "potentially significant for moderate-sized orders" if c.liquidity == LiquidityLevel.LOW else "reasonable for typical retail trades"}),
+
+            # Price momentum and technical analysis
+            ("{company}'s recent price action demonstrates {trend} momentum with {pattern} chart patterns suggesting {direction} pressure.",
+             lambda c: {"trend": "strong bullish" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "bearish" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "sideways consolidation",
+                       "pattern": "continuation" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "reversal" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "indecisive",
+                       "direction": "continued upward" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "downward" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "range-bound"}),
+
+            ("Moving average convergence analysis for {company} indicates {signal} crossover patterns with RSI readings {rsi} and MACD trends {macd}.",
+             lambda c: {"signal": "bullish golden cross" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "bearish death cross" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "neutral",
+                       "rsi": "approaching overbought territory" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "drifting into oversold zones" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "hovering near midpoint",
+                       "macd": "strengthening upward" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "weakening considerably" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "showing no clear direction"}),
+
+            # Comprehensive outlook and forecasting
+            ("Comprehensive research synthesis on {company} yields {outlook} outlook, with analyst price targets {targets} and institutional sentiment {sentiment}.",
+             lambda c: {"outlook": "a constructive" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "a cautious" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "a neutral",
+                       "targets": "skewed to the upside" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "pointing toward downside risk" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "clustered around current levels",
+                       "sentiment": "building conviction" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "exhibiting caution" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "remaining on the sidelines"}),
+
+            ("Multi-factor quantitative scoring places {company} in the {percentile} percentile of our {industry} coverage universe, with {rating} recommendations.",
+             lambda c: {"percentile": "upper" if c.true_strength > 0.65 else "lower" if c.true_strength < 0.5 else "middle",
+                       "industry": c.industry,
+                       "rating": "predominantly buy-side" if c.true_strength > 0.65 else "mostly sell-side" if c.true_strength < 0.5 else "mixed hold and neutral"}),
+
+            # Institutional and insider activity
+            ("Recent SEC filings reveal {activity} institutional ownership changes in {company}, with hedge funds {action} and insider transactions {insider}.",
+             lambda c: {"activity": "notable" if c.liquidity == LiquidityLevel.HIGH else "limited" if c.liquidity == LiquidityLevel.LOW else "moderate",
+                       "action": "accumulating significant positions" if c.liquidity == LiquidityLevel.HIGH else "reducing exposure" if c.liquidity == LiquidityLevel.LOW else "maintaining current stakes",
+                       "insider": "showing confidence through purchases" if c.true_strength > 0.6 else "raising concerns via sales" if c.true_strength < 0.5 else "remaining neutral"}),
+
+            ("Smart money tracker algorithms detect {flow} capital flows into {company}, suggesting {implication} from sophisticated investors.",
+             lambda c: {"flow": "aggressive" if c.liquidity == LiquidityLevel.HIGH and c.true_strength > 0.6 else "weak" if c.liquidity == LiquidityLevel.LOW or c.true_strength < 0.5 else "steady",
+                       "implication": "strong conviction and positive positioning" if c.liquidity == LiquidityLevel.HIGH and c.true_strength > 0.6 else "lack of interest or distributional activity" if c.liquidity == LiquidityLevel.LOW or c.true_strength < 0.5 else "wait-and-see approach"}),
+
+            # Risk-specific insights
+            ("Stress testing scenarios for {company} indicate {resilience} to market shocks, with downside protection {protection} and volatility buffers {buffer}.",
+             lambda c: {"resilience": "strong resilience" if c.base_volatility < 6.5 and c.true_strength > 0.6 else "vulnerability" if c.base_volatility > 8 or c.true_strength < 0.45 else "moderate stability",
+                       "protection": "well-established" if c.base_volatility < 6.5 else "minimal" if c.base_volatility > 8 else "present but limited",
+                       "buffer": "providing substantial cushion" if c.true_strength > 0.6 else "offering little safety margin" if c.true_strength < 0.5 else "adequate for normal conditions"}),
+
+            ("Value-at-risk calculations for {company} suggest {risk} portfolio impact under adverse scenarios, with tail risk exposures {tail}.",
+             lambda c: {"risk": "contained" if c.base_volatility < 7 else "elevated" if c.base_volatility > 8 else "moderate",
+                       "tail": "largely mitigated" if c.base_volatility < 7 else "requiring careful monitoring" if c.base_volatility > 8 else "within acceptable parameters"}),
+
+            # Growth and earnings insights
+            ("Forward earnings projections for {company} show {growth} trajectory with revenue growth {revenue} and margin expansion {margin}.",
+             lambda c: {"growth": "an accelerating" if c.hidden_sentiment > 0 and c.true_strength > 0.6 else "a decelerating" if c.hidden_sentiment < 0 or c.true_strength < 0.5 else "a stable",
+                       "revenue": "outpacing sector averages" if c.hidden_sentiment > 0 else "lagging competitors" if c.hidden_sentiment < 0 else "matching industry benchmarks",
+                       "margin": "expected to improve materially" if c.true_strength > 0.65 else "likely to contract" if c.true_strength < 0.5 else "forecasted to remain steady"}),
+
+            ("Competitive positioning analysis suggests {company} maintains {position} market share with {moat} competitive advantages.",
+             lambda c: {"position": "expanding" if c.true_strength > 0.65 and c.hidden_sentiment > 0 else "eroding" if c.true_strength < 0.5 or c.hidden_sentiment < 0 else "stable",
+                       "moat": "durable and widening" if c.true_strength > 0.65 else "questionable or narrowing" if c.true_strength < 0.5 else "moderate"}),
         ]
 
         # Select random hint template
@@ -1208,6 +1407,8 @@ class InvestmentGame:
         self.market_news = MarketNews()  # Market news system
         self.market_cycle = MarketCycle()  # Market cycle system (every 6 months)
         self.pending_news_display: Optional[NewsReport] = None  # News to display this week
+        self.weekly_gazette = WeeklyGazette()  # Weekly news outlet
+        self.pending_weekly_news: Optional[str] = None  # Weekly news to display
 
         self._initialize_companies()
         self._initialize_players()
@@ -1318,6 +1519,17 @@ class InvestmentGame:
 
             print("="*60)
 
+        # Display weekly gazette news if available
+        if self.pending_weekly_news:
+            print("\n" + "📰 " + "="*58)
+            print("THE BUSINESS GAZETTE - WEEKLY EDITION")
+            print("="*60)
+            print()
+            print("This Week in Business:")
+            print("-" * 60)
+            print(f"  {self.pending_weekly_news}")
+            print("="*60)
+
     def execute_hedge_fund_trades(self):
         """Execute automated trades for all hedge funds"""
         all_actions = []
@@ -1414,6 +1626,9 @@ class InvestmentGame:
             self.pending_news_display = self.market_news.generate_news(self.companies, self.week_number)
         else:
             self.pending_news_display = None
+
+        # Generate weekly gazette news (every week)
+        self.pending_weekly_news = self.weekly_gazette.generate_weekly_news(self.companies, self.week_number)
 
         while True:
             print("\n" + "-"*60)
@@ -1715,7 +1930,9 @@ class InvestmentGame:
                 'hedge_funds': [hf.to_dict() for hf in self.hedge_funds],
                 'market_news': self.market_news.to_dict(),
                 'market_cycle': self.market_cycle.to_dict(),
-                'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None
+                'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None,
+                'weekly_gazette': self.weekly_gazette.to_dict(),
+                'pending_weekly_news': self.pending_weekly_news
             }
 
             with open(filename, 'w') as f:
@@ -1769,6 +1986,10 @@ class InvestmentGame:
                 game.pending_news_display = NewsReport.from_dict(game_state['pending_news_display'])
             else:
                 game.pending_news_display = None
+
+            # Restore weekly gazette
+            game.weekly_gazette = WeeklyGazette.from_dict(game_state.get('weekly_gazette', {'weekly_news_history': []}))
+            game.pending_weekly_news = game_state.get('pending_weekly_news', None)
 
             print(f"\n✅ Game loaded successfully from {filename}!")
             return game
