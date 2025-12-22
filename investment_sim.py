@@ -2444,7 +2444,7 @@ class InvestmentGame:
 
     def _precalculate_future_prices(self):
         """
-        Pre-calculate the next 2 weeks of prices for all companies.
+        Pre-calculate the next 4 weeks of prices for all companies.
         This data is NEVER shown to players, but used for news/research generation.
         """
         import copy
@@ -2457,15 +2457,15 @@ class InvestmentGame:
             future_company_prices = []
 
             # Create a deep copy of game state for simulation
-            for week_ahead in range(1, 3):  # Calculate week+1 and week+2
+            for week_ahead in range(1, 5):  # Calculate week+1 through week+4
                 future_week = self.week_number + week_ahead
 
                 # Start with current price
                 if week_ahead == 1:
                     simulated_price = company.price
                 else:
-                    # Use the previously calculated week+1 price
-                    simulated_price = future_company_prices[0]
+                    # Use the previously calculated week price
+                    simulated_price = future_company_prices[week_ahead - 2]
 
                 # Apply market cycle effects if active or triggering
                 cycle_effect = 0.0
