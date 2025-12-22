@@ -625,7 +625,7 @@ class Player:
         self.treasury_bonds = 0
         # Leverage system
         self.borrowed_amount = 0.0
-        self.max_leverage_ratio = 2.0  # Can borrow up to 2x equity
+        self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
         self.interest_rate_weekly = 0.115  # ~6% annual = 0.115% weekly
         # Research tracking
         self.researched_this_week = False
@@ -775,6 +775,68 @@ class Player:
             return True
 
         return False
+
+    def force_liquidate_margin_call(self, companies: Dict[str, Company], treasury: Treasury) -> List[str]:
+        """
+        Automatically liquidate positions to meet margin requirements.
+        Returns a list of actions taken.
+        """
+        actions = []
+
+        if not self.check_margin_call(companies, treasury):
+            return actions  # No margin call, nothing to do
+
+        actions.append(f"🚨 FORCED LIQUIDATION for {self.name} - Margin call not resolved")
+
+        # Liquidate stocks first
+        # Sort by value (sell largest positions first to minimize transactions)
+        stock_positions = [(name, shares, companies[name].price * shares)
+                          for name, shares in self.portfolio.items()]
+        stock_positions.sort(key=lambda x: x[2], reverse=True)
+
+        for company_name, shares, value in stock_positions:
+            if not self.check_margin_call(companies, treasury):
+                break  # Margin call resolved
+
+            company = companies[company_name]
+            proceeds = shares * company.price
+            self.cash += proceeds
+            self.portfolio[company_name] = 0
+            actions.append(f"   Sold {shares} shares of {company_name} for ${proceeds:.2f}")
+
+            # Use proceeds to repay loan
+            repayment = min(self.cash, self.borrowed_amount)
+            if repayment > 0:
+                self.borrowed_amount -= repayment
+                self.cash -= repayment
+                actions.append(f"   Repaid ${repayment:.2f} of loan")
+
+        # Clean up empty positions
+        self.portfolio = {k: v for k, v in self.portfolio.items() if v > 0}
+
+        # If still in margin call, liquidate treasury bonds
+        if self.check_margin_call(companies, treasury) and self.treasury_bonds > 0:
+            proceeds = self.treasury_bonds * treasury.price
+            self.cash += proceeds
+            actions.append(f"   Sold {self.treasury_bonds} treasury bonds for ${proceeds:.2f}")
+            self.treasury_bonds = 0
+
+            # Use proceeds to repay loan
+            repayment = min(self.cash, self.borrowed_amount)
+            if repayment > 0:
+                self.borrowed_amount -= repayment
+                self.cash -= repayment
+                actions.append(f"   Repaid ${repayment:.2f} of loan")
+
+        # Final status
+        equity = self.calculate_equity(companies, treasury)
+        if self.check_margin_call(companies, treasury):
+            actions.append(f"   ⚠️ WARNING: Still in margin call after full liquidation!")
+            actions.append(f"   Final Equity: ${equity:.2f}, Debt: ${self.borrowed_amount:.2f}")
+        else:
+            actions.append(f"   ✓ Margin call resolved. Equity: ${equity:.2f}, Debt: ${self.borrowed_amount:.2f}")
+
+        return actions
 
     def research_company(self, company: Company, future_price: float = None) -> str:
         """Research a company to get a hint (once per week)"""
@@ -2199,6 +2261,23 @@ class InvestmentGame:
             print("\n" + "="*60)
             print(f"End of Round {self.round_number}")
             print("="*60)
+
+            # Enforce margin calls BEFORE market prices change
+            print("\nProcessing margin calls...")
+            margin_call_actions = []
+            for player in self.players:
+                if player.check_margin_call(self.companies, self.treasury):
+                    actions = player.force_liquidate_margin_call(self.companies, self.treasury)
+                    margin_call_actions.extend(actions)
+
+            if margin_call_actions:
+                print("\n" + "⚠️ "*30)
+                print("AUTOMATIC MARGIN CALL LIQUIDATIONS")
+                print("⚠️ "*30)
+                for action in margin_call_actions:
+                    print(action)
+                print("="*60)
+                input("\nPress Enter to continue...")
 
             # Update market prices
             print("\nUpdating market prices...")
