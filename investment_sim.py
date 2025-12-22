@@ -1080,6 +1080,19 @@ class HedgeFund(Player):
                     if success:
                         actions.append(f"📉 {self.name} cut position, sold {sell_shares} shares of {company_name}")
 
+        # Baseline buying: always try to buy high volatility stocks if we have cash
+        else:
+            if self.cash > 1000:
+                high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
+                for company in high_vol_companies:
+                    if self.cash > 1000:
+                        shares_to_buy = int(min(self.cash * 0.2, 2000) / company.price)
+                        if shares_to_buy > 0:
+                            success, msg = self.buy_stock(company, shares_to_buy)
+                            if success:
+                                actions.append(f"📊 {self.name} bought {shares_to_buy} shares of {company.name}")
+                                break  # Buy one company at a time during neutral markets
+
         return actions
 
     def _value_strategy(self, companies: Dict[str, Company], treasury: Treasury,
@@ -1099,6 +1112,11 @@ class HedgeFund(Player):
         # Focus on low volatility, high liquidity stocks
         stable_companies = [c for c in companies.values()
                           if c.base_volatility < 7.0 and c.liquidity == LiquidityLevel.HIGH]
+
+        # Fallback to medium liquidity if no high liquidity stocks available
+        if not stable_companies:
+            stable_companies = [c for c in companies.values()
+                              if c.base_volatility < 8.0 and c.liquidity in [LiquidityLevel.HIGH, LiquidityLevel.MEDIUM]]
 
         if stable_companies and self.cash > 1000:
             company = random.choice(stable_companies)
@@ -1161,6 +1179,17 @@ class HedgeFund(Player):
                     success, msg = self.sell_stock(company, sell_shares)
                     if success:
                         actions.append(f"💰 {self.name} took profits, sold {sell_shares} shares of {company_name}")
+
+        # Baseline buying: buy random stocks during neutral markets
+        else:
+            if self.cash > 1000:
+                companies_list = list(companies.values())
+                company = random.choice(companies_list)
+                shares_to_buy = int(min(self.cash * 0.25, 2500) / company.price)
+                if shares_to_buy > 0:
+                    success, msg = self.buy_stock(company, shares_to_buy)
+                    if success:
+                        actions.append(f"🎲 {self.name} bought {shares_to_buy} shares of {company.name}")
 
         return actions
 
@@ -1808,12 +1837,10 @@ class InvestmentGame:
             # Show leaderboard
             self.display_leaderboard()
 
-            # Continue to next round
-            continue_game = input("\nContinue to next round? (y/n): ").strip().lower()
-            if continue_game != 'y':
-                break
-
+            # Automatically continue to next round
             self.round_number += 1
+            input("\nPress Enter to continue to next round...")
+
 
         # Final standings
         print("\n" + "="*60)
