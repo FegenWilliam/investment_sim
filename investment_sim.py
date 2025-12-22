@@ -627,6 +627,9 @@ class Player:
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
         self.interest_rate_weekly = 0.115  # ~6% annual = 0.115% weekly
+        # Short selling system
+        self.short_positions: Dict[str, int] = {}  # company_name -> shares borrowed and owed
+        self.short_borrow_fee_weekly = 0.02  # ~1% annual = 0.02% weekly
         # Research tracking
         self.researched_this_week = False
         self.research_history: Dict[str, List[str]] = {}  # company_name -> list of hints received
@@ -680,6 +683,69 @@ class Player:
 
         return True, message
 
+    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury) -> Tuple[bool, str]:
+        """Short sell shares: borrow and sell them, must cover later"""
+        if shares <= 0:
+            return False, "Invalid number of shares!"
+
+        # Calculate effective price with slippage (selling borrowed shares)
+        slippage_factor = company.calculate_slippage(shares, is_buy=False)
+        effective_price = company.price * slippage_factor
+        total_proceeds = effective_price * shares
+
+        # Check margin requirement: need equity >= 1.5x the short position value
+        # This is the initial margin requirement for short selling
+        equity = self.calculate_equity(companies, treasury)
+        short_value = company.price * shares
+        required_margin = short_value * 1.5
+
+        if equity < required_margin:
+            return False, f"Insufficient equity for short sale! Need ${required_margin:.2f} equity, have ${equity:.2f}"
+
+        # Execute short sale
+        self.cash += total_proceeds
+        if company.name in self.short_positions:
+            self.short_positions[company.name] += shares
+        else:
+            self.short_positions[company.name] = shares
+
+        # Calculate and show slippage impact
+        slippage_loss = (company.price - effective_price) * shares
+        if slippage_loss > 0.01:
+            message = f"Short sale successful! Received ${total_proceeds:.2f} (Price slippage: -${slippage_loss:.2f} due to {company.liquidity.value} liquidity)"
+        else:
+            message = f"Short sale successful! Received ${total_proceeds:.2f}"
+
+        return True, message
+
+    def cover_short(self, company: Company, shares: int) -> Tuple[bool, str]:
+        """Cover (close) a short position by buying back the shares"""
+        if company.name not in self.short_positions or self.short_positions[company.name] < shares:
+            return False, "You don't have that many shares shorted!"
+
+        # Calculate effective price with slippage (buying to cover)
+        slippage_factor = company.calculate_slippage(shares, is_buy=True)
+        effective_price = company.price * slippage_factor
+        total_cost = effective_price * shares
+
+        if total_cost > self.cash:
+            return False, "Insufficient funds to cover short position!"
+
+        # Execute cover
+        self.cash -= total_cost
+        self.short_positions[company.name] -= shares
+        if self.short_positions[company.name] == 0:
+            del self.short_positions[company.name]
+
+        # Calculate and show slippage impact
+        slippage_cost = (effective_price - company.price) * shares
+        if slippage_cost > 0.01:
+            message = f"Short position covered! Cost ${total_cost:.2f} (Price slippage: ${slippage_cost:.2f} due to {company.liquidity.value} liquidity)"
+        else:
+            message = f"Short position covered! Cost ${total_cost:.2f}"
+
+        return True, message
+
     def buy_treasury(self, treasury: Treasury, bonds: int) -> bool:
         """Buy treasury bonds"""
         total_cost = treasury.price * bonds
@@ -691,13 +757,18 @@ class Player:
         return True
 
     def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury) -> float:
-        """Calculate total net worth (cash + stocks + bonds)"""
+        """Calculate total net worth (cash + stocks + bonds - short obligations)"""
         net_worth = self.cash
 
-        # Add stock value
+        # Add long stock value
         for company_name, shares in self.portfolio.items():
             if company_name in companies:
                 net_worth += companies[company_name].price * shares
+
+        # Subtract short position obligations (liability to return borrowed shares)
+        for company_name, shares in self.short_positions.items():
+            if company_name in companies:
+                net_worth -= companies[company_name].price * shares
 
         # Add treasury value
         net_worth += self.treasury_bonds * treasury.price
@@ -762,17 +833,47 @@ class Player:
             return interest
         return 0.0
 
+    def apply_short_borrow_fees(self, companies: Dict[str, Company]) -> float:
+        """Apply weekly borrow fees for short positions"""
+        total_fees = 0.0
+        for company_name, shares in self.short_positions.items():
+            if company_name in companies:
+                position_value = companies[company_name].price * shares
+                fee = position_value * (self.short_borrow_fee_weekly / 100)
+                total_fees += fee
+
+        if total_fees > 0:
+            self.cash -= total_fees
+
+        return total_fees
+
     def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury) -> bool:
-        """Check if player is subject to margin call (equity < 30% of total position)"""
-        if self.borrowed_amount == 0:
+        """Check if player is subject to margin call (equity < 30% of total position or maintenance margin for shorts)"""
+        # Check if there's any leverage or short positions
+        has_risk = self.borrowed_amount > 0 or len(self.short_positions) > 0
+        if not has_risk:
             return False
 
         equity = self.calculate_equity(companies, treasury)
-        total_position = equity + self.borrowed_amount
 
-        # Margin call if equity falls below 30% of total position
-        if total_position > 0 and (equity / total_position) < 0.30:
-            return True
+        # Check leverage-based margin call
+        if self.borrowed_amount > 0:
+            total_position = equity + self.borrowed_amount
+            # Margin call if equity falls below 30% of total position
+            if total_position > 0 and (equity / total_position) < 0.30:
+                return True
+
+        # Check short position maintenance margin
+        # Require equity >= 1.25x short position value (125% maintenance margin)
+        if len(self.short_positions) > 0:
+            total_short_value = 0.0
+            for company_name, shares in self.short_positions.items():
+                if company_name in companies:
+                    total_short_value += companies[company_name].price * shares
+
+            required_maintenance = total_short_value * 1.25
+            if equity < required_maintenance:
+                return True
 
         return False
 
@@ -788,7 +889,29 @@ class Player:
 
         actions.append(f"🚨 FORCED LIQUIDATION for {self.name} - Margin call not resolved")
 
-        # Liquidate stocks first
+        # Cover short positions first (highest risk due to unlimited loss potential)
+        # Sort by value (cover largest short positions first to reduce risk fastest)
+        short_positions = [(name, shares, companies[name].price * shares)
+                          for name, shares in self.short_positions.items()]
+        short_positions.sort(key=lambda x: x[2], reverse=True)
+
+        for company_name, shares, value in short_positions:
+            if not self.check_margin_call(companies, treasury):
+                break  # Margin call resolved
+
+            company = companies[company_name]
+            cost = shares * company.price
+
+            if cost <= self.cash:
+                # Cover the short position
+                self.cash -= cost
+                self.short_positions[company_name] = 0
+                actions.append(f"   Covered {shares} shorted shares of {company_name} for ${cost:.2f}")
+
+        # Clean up empty short positions
+        self.short_positions = {k: v for k, v in self.short_positions.items() if v > 0}
+
+        # Liquidate long stocks second
         # Sort by value (sell largest positions first to minimize transactions)
         stock_positions = [(name, shares, companies[name].price * shares)
                           for name, shares in self.portfolio.items()]
@@ -1016,6 +1139,8 @@ class Player:
             'borrowed_amount': self.borrowed_amount,
             'max_leverage_ratio': self.max_leverage_ratio,
             'interest_rate_weekly': self.interest_rate_weekly,
+            'short_positions': self.short_positions,
+            'short_borrow_fee_weekly': self.short_borrow_fee_weekly,
             'researched_this_week': self.researched_this_week,
             'research_history': self.research_history
         }
@@ -1029,6 +1154,8 @@ class Player:
         player.borrowed_amount = data['borrowed_amount']
         player.max_leverage_ratio = data['max_leverage_ratio']
         player.interest_rate_weekly = data['interest_rate_weekly']
+        player.short_positions = data.get('short_positions', {})  # Default to empty dict for backwards compatibility
+        player.short_borrow_fee_weekly = data.get('short_borrow_fee_weekly', 0.02)  # Default value
         player.researched_this_week = data['researched_this_week']
         player.research_history = data['research_history']
         return player
@@ -1059,6 +1186,17 @@ class Player:
                     print(f"  {company_name}: {shares} shares @ ${company.price:.2f} = ${value:.2f}")
         else:
             print("Stocks: None")
+
+        print()
+        if self.short_positions:
+            print("Short Positions (Shares Owed):")
+            for company_name, shares in self.short_positions.items():
+                if company_name in companies:
+                    company = companies[company_name]
+                    obligation = company.price * shares
+                    print(f"  {company_name}: {shares} shares shorted @ ${company.price:.2f} = ${obligation:.2f} owed")
+        else:
+            print("Short Positions: None")
 
         print()
         if self.treasury_bonds > 0:
@@ -1807,6 +1945,11 @@ class InvestmentGame:
         if interest > 0:
             print(f"\n💳 Weekly interest charged on loan: ${interest:.2f}")
 
+        # Apply weekly short borrow fees
+        short_fees = player.apply_short_borrow_fees(self.companies)
+        if short_fees > 0:
+            print(f"📉 Weekly short borrow fees: ${short_fees:.2f}")
+
         # Check for margin call
         if player.check_margin_call(self.companies, self.treasury):
             print("\n" + "⚠️ " + "="*58)
@@ -1838,15 +1981,17 @@ class InvestmentGame:
             print("2. View My Portfolio")
             print("3. Buy Stocks")
             print("4. Sell Stocks")
-            print("5. Buy Treasury Bonds")
-            print("6. Research Company (once per week)")
-            print("7. Borrow Money (Leverage)")
-            print("8. Repay Loan")
-            print("9. Save Game")
-            print("10. End Turn")
+            print("5. Short Sell Stocks")
+            print("6. Cover Short Position")
+            print("7. Buy Treasury Bonds")
+            print("8. Research Company (once per week)")
+            print("9. Borrow Money (Leverage)")
+            print("10. Repay Loan")
+            print("11. Save Game")
+            print("12. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-10): ").strip()
+            choice = input("Enter choice (1-12): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -1861,29 +2006,35 @@ class InvestmentGame:
                 self._sell_stocks_menu(player)
 
             elif choice == "5":
-                self._buy_treasury_menu(player)
+                self._short_sell_menu(player)
 
             elif choice == "6":
-                self._research_company_menu(player)
+                self._cover_short_menu(player)
 
             elif choice == "7":
-                self._borrow_money_menu(player)
+                self._buy_treasury_menu(player)
 
             elif choice == "8":
-                self._repay_loan_menu(player)
+                self._research_company_menu(player)
 
             elif choice == "9":
+                self._borrow_money_menu(player)
+
+            elif choice == "10":
+                self._repay_loan_menu(player)
+
+            elif choice == "11":
                 filename = input("Enter save filename (default: savegame.json): ").strip()
                 if not filename:
                     filename = "savegame.json"
                 self.save_game(filename)
 
-            elif choice == "10":
+            elif choice == "12":
                 print(f"\n{player.name} has ended their turn.")
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 10.")
+                print("Invalid choice! Please enter a number between 1 and 12.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -1969,6 +2120,107 @@ class InvestmentGame:
                 print(f"Total value: ${total_value:.2f}")
 
                 success, message = player.sell_stock(company, shares)
+                print(f"\n{message}")
+            else:
+                print("Invalid choice!")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _short_sell_menu(self, player: Player):
+        """Menu for short selling stocks"""
+        print("\n" + "="*60)
+        print("SHORT SELL STOCKS")
+        print("="*60)
+        print(f"Available Cash: ${player.cash:.2f}")
+        equity = player.calculate_equity(self.companies, self.treasury)
+        print(f"Current Equity: ${equity:.2f}")
+        print()
+        print("⚠️  WARNING: Short selling is risky! Losses can be unlimited if prices rise.")
+        print("Margin Requirement: 150% of short value in equity")
+        print()
+
+        companies_list = list(self.companies.values())
+        for i, company in enumerate(companies_list, 1):
+            print(f"{i}. {company}")
+        print("0. Cancel")
+
+        try:
+            choice = int(input("\nSelect stock to short (0 to cancel): "))
+            if choice == 0:
+                return
+
+            if 1 <= choice <= len(companies_list):
+                company = companies_list[choice - 1]
+                shares = int(input("How many shares to short? "))
+
+                if shares <= 0:
+                    print("Invalid number of shares!")
+                    return
+
+                # Calculate effective price with slippage
+                slippage_factor = company.calculate_slippage(shares, is_buy=False)
+                effective_price = company.price * slippage_factor
+                total_proceeds = effective_price * shares
+                required_equity = company.price * shares * 1.5
+
+                print(f"\nQuoted price: ${company.price:.2f} per share")
+                print(f"Effective price (with slippage): ${effective_price:.2f} per share")
+                print(f"Total proceeds: ${total_proceeds:.2f}")
+                print(f"Required equity: ${required_equity:.2f} (you have ${equity:.2f})")
+
+                success, message = player.short_sell(company, shares, self.companies, self.treasury)
+                print(f"\n{message}")
+            else:
+                print("Invalid choice!")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _cover_short_menu(self, player: Player):
+        """Menu for covering short positions"""
+        print("\n" + "="*60)
+        print("COVER SHORT POSITIONS")
+        print("="*60)
+        print(f"Available Cash: ${player.cash:.2f}")
+        print()
+
+        if not player.short_positions:
+            print("You don't have any short positions!")
+            return
+
+        short_items = list(player.short_positions.items())
+        for i, (company_name, shares) in enumerate(short_items, 1):
+            company = self.companies[company_name]
+            obligation = company.price * shares
+            print(f"{i}. {company_name}: {shares} shares shorted @ ${company.price:.2f} (obligation: ${obligation:.2f})")
+        print("0. Cancel")
+
+        try:
+            choice = int(input("\nSelect short position to cover (0 to cancel): "))
+            if choice == 0:
+                return
+
+            if 1 <= choice <= len(short_items):
+                company_name, shorted_shares = short_items[choice - 1]
+                company = self.companies[company_name]
+
+                shares = int(input(f"How many shares to cover (you have {shorted_shares} shorted)? "))
+
+                if shares <= 0:
+                    print("Invalid number of shares!")
+                    return
+
+                # Calculate effective price with slippage
+                slippage_factor = company.calculate_slippage(shares, is_buy=True)
+                effective_price = company.price * slippage_factor
+                total_cost = effective_price * shares
+
+                print(f"\nQuoted price: ${company.price:.2f} per share")
+                print(f"Effective price (with slippage): ${effective_price:.2f} per share")
+                print(f"Total cost to cover: ${total_cost:.2f}")
+
+                success, message = player.cover_short(company, shares)
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
