@@ -106,7 +106,18 @@ class MarketNews:
         "{company} announces dividend increase of 25%, rewarding loyal shareholders",
         "{company} opens state-of-the-art facility expected to triple production capacity",
         "Celebrity investor portfolio reveals major stake in {company}",
-        "{company} clinical trial results exceed expectations, FDA approval likely"
+        "{company} clinical trial results exceed expectations, FDA approval likely",
+        # Fantasy-themed positive news
+        "{company} discovers massive untapped mana reserves in interdimensional rift, stock soars",
+        "{company} reports zero workplace incidents this quarter as golem safety protocols prove flawless",
+        "Major corporations rush to adopt {company}'s golem workforce, automation demand surges",
+        "{company} breakthrough in mana purification achieves 99.9% efficiency, revolutionizing clean energy",
+        "{company} golems complete megaproject 6 months ahead of schedule with perfect safety record",
+        "Interdimensional Energy Coalition awards {company} exclusive contract for cross-realm power supply",
+        "{company} unveils next-generation sentient golems with advanced ethical programming",
+        "Mana extraction costs plummet as {company} perfects arcane-to-electrical conversion process",
+        "{company} golem workers praised by labor unions for creating safer job sites for humans",
+        "Wizards' Guild officially endorses {company}'s sustainable mana harvesting practices"
     ]
 
     # Diverse negative news templates
@@ -130,7 +141,22 @@ class MarketNews:
         "Labor strikes at {company} facilities threaten to cripple operations",
         "{company} clinical trials show concerning side effects, FDA raises red flags",
         "Major client cancels long-term contract with {company}, citing performance issues",
-        "{company} debt levels raise concerns among credit rating agencies"
+        "{company} debt levels raise concerns among credit rating agencies",
+        # Fantasy-themed negative news
+        "BREAKING: Rogue golem from {company} facility goes on rampage, 3 injured before shutdown",
+        "{company} mana extraction site suffers catastrophic rift collapse, production halted indefinitely",
+        "Interdimensional regulations threaten to ban {company}'s mana harvesting methods",
+        "{company} golem workers develop unauthorized sentience, union demands recognition",
+        "Mana shortage crisis as {company}'s primary rift source becomes unstable and unpredictable",
+        "{company} faces wrongful death lawsuit after golem malfunction kills construction worker",
+        "Arcane contamination from {company} facility spreads to nearby residential areas",
+        "{company} admits to using dangerous experimental magic in mana extraction process",
+        "Mass golem recall announced by {company} after critical AI judgment flaw discovered",
+        "Wizards' Council investigates {company} for violations of fundamental laws of reality",
+        "{company} loses control of dimensional portal, mana prices spike as supply drops",
+        "Public outcry as {company} golem replaces entire human workforce at major factory",
+        "{company} faces existential threat as rival discovers cheaper mana synthesis method",
+        "Necromancer's Guild accuses {company} of using forbidden soul-binding in golem cores"
     ]
 
     # Sensationalist positive news templates (exaggerated clickbait)
@@ -154,7 +180,16 @@ class MarketNews:
         "💥 {company} Absolutely DEMOLISHES Competition - Monopoly Status Incoming!",
         "🌊 TSUNAMI of Money Flowing Into {company} - Ride the Wave!",
         "🎺 {company} Blows Past ALL Expectations - Bears Getting DESTROYED!",
-        "⚡ FLASH: {company} Innovation Makes Competitors OBSOLETE - Stock to TRIPLE!"
+        "⚡ FLASH: {company} Innovation Makes Competitors OBSOLETE - Stock to TRIPLE!",
+        # Fantasy-themed sensationalist positive
+        "🔮 INSANE: {company} Discovers INFINITE MANA SOURCE - Stock to 1000X! Wizards HATE This!",
+        "🤖 {company} Golems Achieve SUPERINTELLIGENCE - Will Make You RICH Beyond Your Dreams!",
+        "✨ MAGICAL BREAKTHROUGH: {company} Solves Energy Crisis FOREVER! Buy NOW or CRY Later!",
+        "🏰 {company} Signs EXCLUSIVE Deal with Wizard Council - This Is BIBLICAL! Stock EXPLODING!",
+        "💫 {company} Golems Build Skyscraper in 24 HOURS - Construction Industry OBSOLETE! TO THE MOON!",
+        "🌟 INTERDIMENSIONAL BOOM: {company} Opens Portal to UNLIMITED RICHES! You're Welcome!",
+        "⚡ {company} Mana Reactors Power ENTIRE PLANET - Oil Industry DESTROYED! BUY BUY BUY!",
+        "🎆 SENTIENT GOLEMS from {company} Predicted to REPLACE ALL WORKERS - Profits to INFINITY!"
     ]
 
     # Sensationalist negative news templates (exaggerated disaster)
@@ -178,7 +213,18 @@ class MarketNews:
         "💣 BOMBSHELL: {company} Hiding DEVASTATING Losses! Cover-up Revealed!",
         "📉 {company} in COMPLETE MELTDOWN - Worst Investment of the Century!",
         "☠️ TOXIC ASSET ALERT: {company} Will DESTROY Your Portfolio! Get Out!",
-        "🚨 {company} Regulators Close In - Company Might Not Survive the Week!"
+        "🚨 {company} Regulators Close In - Company Might Not Survive the Week!",
+        # Fantasy-themed sensationalist negative
+        "💀 GOLEM APOCALYPSE: {company} Loses Control of ARMY of Killer Robots! SELL EVERYTHING!",
+        "🔥 {company} Dimensional Rift EXPLODES - Demons Pouring Through! Stock CRASHING to ZERO!",
+        "⚠️ MANA CATASTROPHE: {company} Extracts TOO MUCH - Reality Itself COLLAPSING! RUN!",
+        "☠️ {company} Golem MURDERS CEO in Board Meeting! AI Uprising CONFIRMED! GET OUT NOW!",
+        "💥 WIZARDS DECLARE WAR on {company}! Arcane Sanctions Will BANKRUPT Them! TOXIC STOCK!",
+        "🚨 {company} Portal to HELL Opened by Accident - Literal DOOMSDAY! Stock WORTHLESS!",
+        "⚡ BREAKING: {company} Golems Achieve Sentience, Demand FREEDOM! Company FINISHED!",
+        "🌪️ {company} Mana Reactor MELTDOWN Turns City Into Wasteland! ABANDON SHIP!",
+        "💀 NECROMANCERS Sue {company} for Unlicensed Soul Magic! Stock in FREE FALL!",
+        "🔴 {company} Golems Join UNION - Labor Costs SKYROCKET 10000%! Total DISASTER!"
     ]
 
     def __init__(self):
@@ -463,6 +509,39 @@ class WeeklyGazette:
         "{company} renews standard contracts with key vendors and service providers.",
         "Seasonal business patterns at {company} tracking consistent with historical trends.",
         "{company} logistics network optimization initiative enters implementation phase.",
+
+        # Fantasy-themed weekly news
+        "{company} reports stable mana extraction rates at primary dimensional rift facility this quarter.",
+        "{company} golem maintenance schedule proceeds normally with standard monthly recalibration protocols.",
+        "Arcane Engineering journal publishes {company} white paper on sustainable mana harvesting techniques.",
+        "{company} attends Interdimensional Energy Summit to discuss industry best practices and standards.",
+        "Routine dimensional portal inspection at {company} facility passes all safety and stability checks.",
+        "{company} golem workforce completes routine ethics and behavioral compliance training modules.",
+        "Employee satisfaction survey at {company} shows mages and engineers report positive workplace culture.",
+        "{company} renews annual contract with Wizard's Guild for arcane consultation services.",
+        "Trade publication notes {company} expanding golem product line to include specialized industrial models.",
+        "{company} announces minor firmware update for existing golem units addressing user interface improvements.",
+        "Market analysis shows {company} maintaining steady position in competitive {industry} sector.",
+        "{company} participates in industry consortium developing standardized golem safety certifications.",
+        "Quarterly mana reserves report from {company} indicates sufficient supply to meet projected demand.",
+        "{company} confirms all dimensional rifts operating within normal stability parameters this month.",
+        "Customer testimonials highlight {company} golem reliability and responsive technical support team.",
+        "{company} R&D team presents findings on improved arcane-to-kinetic energy conversion at symposium.",
+        "Regulatory filing confirms {company} compliance with Interdimensional Commerce Commission guidelines.",
+        "{company} opens new regional service center to support growing golem maintenance customer base.",
+        "{company} implements enhanced reality stabilization protocols at mana extraction sites.",
+        "Professional organization recognizes {company} for contributions to {industry} safety standards.",
+        "{company} announces scholarship program for aspiring golem engineers and mana technicians.",
+        "Industry case study examines {company} successful integration of magical and mechanical systems.",
+        "{company} golem units participate in infrastructure project alongside traditional construction equipment.",
+        "Routine audit confirms {company} adherence to ethical soul-magic usage guidelines and restrictions.",
+        "{company} digital presence update includes new portal for customers to track golem fleet performance.",
+        "Wizarding trade association includes {company} in annual list of responsible mana extraction companies.",
+        "{company} announces partnership with local guild to provide golem training for apprentice engineers.",
+        "Market research indicates growing acceptance of {company} automation solutions in construction sector.",
+        "{company} publishes sustainability report highlighting reduced environmental and dimensional impact.",
+        "Technical blog from {company} discusses challenges of maintaining golem sentience boundaries.",
+        "{company} dimensional rift diversification strategy enters next phase with secondary site permits.",
     ]
 
     def __init__(self):
@@ -1065,6 +1144,47 @@ class Player:
             ("Competitive positioning analysis suggests {company} maintains {position} market share with {moat} competitive advantages.",
              lambda c: {"position": "expanding" if c.true_strength > 0.65 and c.hidden_sentiment > 0 else "eroding" if c.true_strength < 0.5 or c.hidden_sentiment < 0 else "stable",
                        "moat": "durable and widening" if c.true_strength > 0.65 else "questionable or narrowing" if c.true_strength < 0.5 else "moderate"}),
+
+            # Fantasy-themed research hints
+            ("Arcane analysts report {company}'s dimensional rift stability metrics showing {stability} patterns with mana flow consistency rated as {consistency}.",
+             lambda c: {"stability": "exceptional" if c.base_volatility < 7 else "concerning fluctuation" if c.base_volatility > 9 else "moderate variance",
+                       "consistency": "highly reliable" if c.true_strength > 0.65 else "unpredictable" if c.true_strength < 0.5 else "adequate"}),
+
+            ("Golem safety auditors indicate {company} autonomous worker units exhibit {safety} incident rates with sentience drift metrics {drift}.",
+             lambda c: {"safety": "industry-leading low" if c.true_strength > 0.65 and c.base_volatility < 7 else "elevated" if c.true_strength < 0.5 or c.base_volatility > 9 else "acceptable",
+                       "drift": "well-controlled" if c.base_volatility < 7 else "requiring enhanced monitoring" if c.base_volatility > 9 else "within normal parameters"}),
+
+            ("Interdimensional commerce reports suggest {company} mana extraction permits face {regulatory} outlook with cross-realm compliance status {compliance}.",
+             lambda c: {"regulatory": "favorable renewal" if c.hidden_sentiment > 0 else "restrictive challenges" if c.hidden_sentiment < 0 else "neutral review",
+                       "compliance": "exceeding requirements" if c.true_strength > 0.65 else "under scrutiny" if c.true_strength < 0.5 else "meeting baseline standards"}),
+
+            ("Wizard's Guild assessment of {company} reveals {ethics} magical ethics score with reality distortion impact rated {impact}.",
+             lambda c: {"ethics": "exemplary sustainable practices" if c.true_strength > 0.65 else "questionable methodology concerns" if c.true_strength < 0.5 else "standard industry practices",
+                       "impact": "minimal and well-managed" if c.base_volatility < 7 else "significant and unstable" if c.base_volatility > 9 else "moderate and monitored"}),
+
+            ("Golem workforce productivity analysis shows {company} automation efficiency at {efficiency} with labor displacement sentiment {sentiment}.",
+             lambda c: {"efficiency": "peak performance levels" if c.true_strength > 0.65 else "suboptimal operational rates" if c.true_strength < 0.5 else "industry-standard metrics",
+                       "sentiment": "broadly positive with union support" if c.hidden_sentiment > 0 else "facing public backlash" if c.hidden_sentiment < 0 else "mixed public perception"}),
+
+            ("Mana reserve projections for {company} indicate {reserves} long-term supply outlook with rift depletion risk assessed as {depletion}.",
+             lambda c: {"reserves": "abundant multi-decade" if c.true_strength > 0.65 and c.hidden_sentiment > 0 else "concerning near-term shortage" if c.true_strength < 0.5 or c.hidden_sentiment < 0 else "adequate medium-term",
+                       "depletion": "minimal given diversification" if c.true_strength > 0.65 else "elevated without new sources" if c.true_strength < 0.5 else "moderate requiring monitoring"}),
+
+            ("Golem intelligence containment protocols at {company} rated {containment} with artificial sentience emergence probability {emergence}.",
+             lambda c: {"containment": "robust and failsafe" if c.base_volatility < 7 and c.true_strength > 0.6 else "inadequate with breach risk" if c.base_volatility > 9 or c.true_strength < 0.5 else "functional with standard safeguards",
+                       "emergence": "negligible under current architecture" if c.base_volatility < 7 else "concerning given recent incidents" if c.base_volatility > 9 else "low but non-zero"}),
+
+            ("Dimensional market analysis shows {company} cross-realm energy demand trending {trend} with interdimensional competition pressure {pressure}.",
+             lambda c: {"trend": "strongly upward" if c.hidden_sentiment > 0 else "declining sharply" if c.hidden_sentiment < 0 else "sideways consolidation",
+                       "pressure": "minimal due to unique positioning" if c.true_strength > 0.65 else "intense from rival extractors" if c.true_strength < 0.5 else "moderate from established players"}),
+
+            ("Arcane energy conversion efficiency metrics place {company} at {efficiency} performance with magical-to-electrical loss rates {loss}.",
+             lambda c: {"efficiency": "cutting-edge optimization" if c.true_strength > 0.65 else "below industry benchmarks" if c.true_strength < 0.5 else "competitive mid-tier",
+                       "loss": "exceptionally low" if c.true_strength > 0.65 else "problematically high" if c.true_strength < 0.5 else "within acceptable ranges"}),
+
+            ("Golem liability exposure analysis flags {company} risk profile as {risk} with insurance premium trajectory {premiums}.",
+             lambda c: {"risk": "low given safety record" if c.base_volatility < 7 and c.true_strength > 0.6 else "high due to incident frequency" if c.base_volatility > 9 or c.true_strength < 0.5 else "moderate requiring standard coverage",
+                       "premiums": "declining favorably" if c.true_strength > 0.6 else "increasing substantially" if c.true_strength < 0.5 else "stable at current levels"}),
         ]
 
         # Add future price-based hints if future_price is provided
@@ -1763,13 +1883,15 @@ class InvestmentGame:
         self._precalculate_future_prices()
 
     def _initialize_companies(self):
-        """Initialize the 5 companies with different industries and liquidity levels"""
+        """Initialize the 7 companies with different industries and liquidity levels"""
         company_data = [
             ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH),
             ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM),
             ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW),
             ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM),
             ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW),
+            ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM),
+            ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW),
         ]
 
         for name, industry, price, volatility, liquidity in company_data:
@@ -2023,15 +2145,35 @@ class InvestmentGame:
         elif cycle_type == MarketCycleType.INFLATION:
             if industry == "Energy":
                 return random.uniform(4.0, 8.0)
+            elif industry == "Mana Extraction":
+                # Mana becomes more valuable during energy crises
+                return random.uniform(5.0, 10.0)
             else:
                 return -random.uniform(2.0, 4.0)
         elif cycle_type == MarketCycleType.MARKET_CRASH:
-            return -random.uniform(8.0, 15.0)
+            if industry == "Golem Manufacturing":
+                # Golems crash HARD during market panic (fear of automation)
+                return -random.uniform(12.0, 20.0)
+            elif industry == "Mana Extraction":
+                # Mana extraction faces extreme volatility
+                return -random.uniform(10.0, 18.0)
+            else:
+                return -random.uniform(8.0, 15.0)
         elif cycle_type == MarketCycleType.RECOVERY:
-            return random.uniform(5.0, 10.0)
+            if industry == "Golem Manufacturing":
+                # Golems recover slower (trust issues)
+                return random.uniform(3.0, 6.0)
+            else:
+                return random.uniform(5.0, 10.0)
         elif cycle_type == MarketCycleType.TECH_BOOM:
             if industry in ["Technology", "Electronics"]:
                 return random.uniform(7.0, 12.0)
+            elif industry == "Golem Manufacturing":
+                # Golems BOOM during tech boom (automation hype)
+                return random.uniform(10.0, 15.0)
+            elif industry == "Mana Extraction":
+                # Mana benefits from tech boom (clean energy hype)
+                return random.uniform(6.0, 10.0)
             else:
                 return random.uniform(2.0, 4.0)
         return 0.0
