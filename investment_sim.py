@@ -3026,7 +3026,10 @@ class InvestmentGame:
                 'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None,
                 'weekly_gazette': self.weekly_gazette.to_dict(),
                 'pending_weekly_news': self.pending_weekly_news,
-                'future_prices': self.future_prices
+                'future_prices': self.future_prices,
+                'quantum_singularity': self.quantum_singularity.to_dict(),
+                'gold': self.gold.to_dict(),
+                'holy_water': self.holy_water.to_dict()
             }
 
             with open(filename, 'w') as f:
@@ -3092,6 +3095,22 @@ class InvestmentGame:
                 # Old save file - recalculate future prices
                 game.future_prices = {}
                 game._precalculate_future_prices()
+
+            # Restore themed investments (or create new instances if not present in save file)
+            if 'quantum_singularity' in game_state:
+                game.quantum_singularity = QuantumSingularity.from_dict(game_state['quantum_singularity'])
+            else:
+                game.quantum_singularity = QuantumSingularity()
+
+            if 'gold' in game_state:
+                game.gold = Gold.from_dict(game_state['gold'])
+            else:
+                game.gold = Gold()
+
+            if 'holy_water' in game_state:
+                game.holy_water = HolyWater.from_dict(game_state['holy_water'])
+            else:
+                game.holy_water = HolyWater()
 
             print(f"\n✅ Game loaded successfully from {filename}!")
             return game
