@@ -1466,6 +1466,14 @@ class HedgeFund(Player):
         """Execute automated trading based on strategy"""
         actions = []
 
+        # NPCs occasionally research companies (30% chance per week) to make informed decisions
+        if not self.researched_this_week and random.random() < 0.3:
+            # Pick a random company to research
+            company_to_research = random.choice(list(companies.values()))
+            # Research WITHOUT future price (no insider trading!)
+            hint = self.research_company(company_to_research, future_price=None)
+            actions.append(f"🔍 {self.name} researched {company_to_research.name}")
+
         # Aggressive Growth Fund Strategy
         if self.strategy == "aggressive":
             actions.extend(self._aggressive_strategy(companies, treasury, market_cycle))
@@ -1480,10 +1488,41 @@ class HedgeFund(Player):
 
         return actions
 
+    def _check_short_profits(self, companies: Dict[str, Company]) -> List[str]:
+        """Check and take profits on short positions if profitable"""
+        actions = []
+
+        for company_name in list(self.short_positions.keys()):
+            if company_name in companies:
+                company = companies[company_name]
+                shares = self.short_positions.get(company_name, 0)
+
+                if shares > 0:
+                    # Check if we have price history to determine profit
+                    if len(company.price_history) >= 2:
+                        # Find the average price when we likely entered the short
+                        avg_entry_price = sum(company.price_history[-3:]) / min(3, len(company.price_history))
+                        current_price = company.price
+
+                        # If stock fell 8%+ from average entry, take profits on 50% of position
+                        price_change_pct = ((current_price - avg_entry_price) / avg_entry_price) * 100
+                        if price_change_pct < -8:
+                            cover_shares = int(shares * 0.5)
+                            if cover_shares > 0:
+                                success, msg = self.cover_short(company, cover_shares)
+                                if success:
+                                    actions.append(f"💰 {self.name} took profits on short, covered {cover_shares} shares of {company_name}")
+                                    break  # Take profit on one at a time
+
+        return actions
+
     def _aggressive_strategy(self, companies: Dict[str, Company], treasury: Treasury,
                            market_cycle: 'MarketCycle') -> List[str]:
         """Aggressive: High volatility stocks, uses leverage, momentum trading"""
         actions = []
+
+        # Check for profitable short positions and take profits
+        actions.extend(self._check_short_profits(companies))
 
         # Use leverage aggressively if not already maxed out
         equity = self.calculate_equity(companies, treasury)
@@ -1498,6 +1537,19 @@ class HedgeFund(Player):
         if market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
             MarketCycleType.BULL_MARKET, MarketCycleType.RECOVERY, MarketCycleType.TECH_BOOM
         ]:
+            # Cover any existing short positions first (cut losses on shorts during bull market)
+            for company_name, shares in list(self.short_positions.items()):
+                if shares > 0:
+                    company = companies[company_name]
+                    # Cover as much as we can afford (at least 50% if possible)
+                    max_affordable = int(self.cash / (company.price * 1.01))  # Account for slippage
+                    cover_shares = min(shares, max(int(shares * 0.5), max_affordable))
+                    if cover_shares > 0:
+                        success, msg = self.cover_short(company, cover_shares)
+                        if success:
+                            actions.append(f"⬆️ {self.name} covered short position, bought back {cover_shares} shares of {company_name}")
+                            break  # Cover one at a time
+
             # Buy high volatility stocks
             high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
             for company in high_vol_companies:
@@ -1508,7 +1560,7 @@ class HedgeFund(Player):
                         if success:
                             actions.append(f"📈 {self.name} aggressively bought {shares_to_buy} shares of {company.name}")
 
-        # Sell during bear markets or crashes
+        # Sell during bear markets or crashes AND SHORT SELL aggressively
         elif market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
             MarketCycleType.BEAR_MARKET, MarketCycleType.MARKET_CRASH, MarketCycleType.RECESSION
         ]:
@@ -1520,6 +1572,21 @@ class HedgeFund(Player):
                     success, msg = self.sell_stock(company, sell_shares)
                     if success:
                         actions.append(f"📉 {self.name} cut position, sold {sell_shares} shares of {company_name}")
+
+            # SHORT SELL high volatility stocks during downturns (aggressive bet against the market)
+            equity = self.calculate_equity(companies, treasury)
+            if equity > 1000:
+                high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
+                for company in high_vol_companies:
+                    # Don't short if we already have a large short position
+                    current_short = self.short_positions.get(company.name, 0)
+                    if current_short * company.price < equity * 0.3:  # Limit short exposure
+                        shares_to_short = int(min(equity * 0.2, 2000) / company.price)
+                        if shares_to_short > 0:
+                            success, msg = self.short_sell(company, shares_to_short, companies, treasury)
+                            if success:
+                                actions.append(f"🔻 {self.name} shorted {shares_to_short} shares of {company.name} (betting on decline)")
+                                break  # One short at a time
 
         # Baseline buying: always try to buy high volatility stocks if we have cash
         else:
@@ -1540,6 +1607,9 @@ class HedgeFund(Player):
                        market_cycle: 'MarketCycle') -> List[str]:
         """Value: Conservative, low volatility stocks, diversified"""
         actions = []
+
+        # Check for profitable short positions and take profits
+        actions.extend(self._check_short_profits(companies))
 
         # Conservative leverage (only up to 1x equity)
         equity = self.calculate_equity(companies, treasury)
@@ -1585,6 +1655,9 @@ class HedgeFund(Player):
         """Contrarian: Buy fear, sell greed - opposite of market sentiment"""
         actions = []
 
+        # Check for profitable short positions and take profits
+        actions.extend(self._check_short_profits(companies))
+
         # Moderate leverage usage
         equity = self.calculate_equity(companies, treasury)
         if equity > 0 and self.borrowed_amount < equity * 1.2:
@@ -1594,10 +1667,21 @@ class HedgeFund(Player):
                 if success:
                     actions.append(f"🏦 {self.name} borrowed ${borrow_amount:.2f} for contrarian positions")
 
-        # BUY during crashes/recessions (buy fear)
+        # BUY during crashes/recessions (buy fear) and COVER shorts
         if market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
             MarketCycleType.MARKET_CRASH, MarketCycleType.RECESSION, MarketCycleType.BEAR_MARKET
         ]:
+            # Cover short positions first when market is fearful (contrarian: others fear, we close shorts)
+            for company_name, shares in list(self.short_positions.items()):
+                if shares > 0:
+                    cover_shares = int(shares * 0.6)  # Cover 60% of shorts
+                    if cover_shares > 0:
+                        company = companies[company_name]
+                        success, msg = self.cover_short(company, cover_shares)
+                        if success:
+                            actions.append(f"⬆️ {self.name} covered short during panic, bought back {cover_shares} shares of {company_name}")
+                            break  # Cover one at a time
+
             # Buy the most beaten down stocks
             if self.cash > 1000:
                 companies_list = list(companies.values())
@@ -1608,7 +1692,7 @@ class HedgeFund(Player):
                     if success:
                         actions.append(f"🎯 {self.name} bought the dip! {shares_to_buy} shares of {company.name}")
 
-        # SELL during bull markets/recovery (sell greed)
+        # SELL during bull markets/recovery (sell greed) and SHORT
         elif market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
             MarketCycleType.BULL_MARKET, MarketCycleType.RECOVERY
         ]:
@@ -1620,6 +1704,21 @@ class HedgeFund(Player):
                     success, msg = self.sell_stock(company, sell_shares)
                     if success:
                         actions.append(f"💰 {self.name} took profits, sold {sell_shares} shares of {company_name}")
+
+            # SHORT during euphoric bull markets (contrarian: market is too optimistic)
+            equity = self.calculate_equity(companies, treasury)
+            if equity > 1500:
+                # Pick a random stock to short (contrarian doesn't care about volatility, just sentiment)
+                companies_list = list(companies.values())
+                company = random.choice(companies_list)
+                current_short = self.short_positions.get(company.name, 0)
+                # Don't over-short any single company
+                if current_short * company.price < equity * 0.25:
+                    shares_to_short = int(min(equity * 0.15, 1500) / company.price)
+                    if shares_to_short > 0:
+                        success, msg = self.short_sell(company, shares_to_short, companies, treasury)
+                        if success:
+                            actions.append(f"🔻 {self.name} shorted {shares_to_short} shares of {company.name} (contrarian: market too bullish)")
 
         # Baseline buying: buy random stocks during neutral markets
         else:
@@ -1784,8 +1883,14 @@ class InvestmentGame:
         all_actions = []
 
         for hedge_fund in self.hedge_funds:
+            # Reset weekly research at start of turn
+            hedge_fund.reset_weekly_research()
+
             # Apply interest on borrowed amounts
             interest = hedge_fund.apply_interest()
+
+            # Apply short borrow fees
+            short_fees = hedge_fund.apply_short_borrow_fees(self.companies)
 
             # Make automated trades based on strategy
             actions = hedge_fund.make_automated_trade(
