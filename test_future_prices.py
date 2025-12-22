@@ -36,15 +36,19 @@ def test_future_prices_calculation():
 
     # Verify future prices exist
     assert "TestCorp" in game.future_prices, "❌ Future prices not calculated!"
-    assert len(game.future_prices["TestCorp"]) == 2, "❌ Should have 2 weeks of future prices!"
+    assert len(game.future_prices["TestCorp"]) == 4, "❌ Should have 4 weeks of future prices!"
 
     week1_price = game.future_prices["TestCorp"][0]
     week2_price = game.future_prices["TestCorp"][1]
+    week3_price = game.future_prices["TestCorp"][2]
+    week4_price = game.future_prices["TestCorp"][3]
 
     print(f"✅ Future prices calculated successfully!")
     print(f"   Current price: ${test_company.price:.2f}")
     print(f"   Week +1 price: ${week1_price:.2f} (hidden)")
     print(f"   Week +2 price: ${week2_price:.2f} (hidden)")
+    print(f"   Week +3 price: ${week3_price:.2f} (hidden)")
+    print(f"   Week +4 price: ${week4_price:.2f} (hidden)")
 
     # Verify prices are different (they should vary due to volatility)
     # Note: There's a small chance they could be the same, but very unlikely
@@ -70,7 +74,7 @@ def test_news_generation_uses_future_prices():
 
     # Create mock future prices - one going up, one going down
     game.future_prices = {
-        "TestCorp": [110.0, 115.0]  # Stock going up
+        "TestCorp": [110.0, 115.0, 118.0, 120.0]  # Stock going up
     }
 
     # Generate news
