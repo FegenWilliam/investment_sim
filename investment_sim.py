@@ -854,7 +854,7 @@ class Player:
     def __init__(self, name: str, starting_cash: float = 10000.0):
         self.name = name
         self.cash = starting_cash
-        self.portfolio: Dict[str, int] = {}  # company_name -> number of shares
+        self.portfolio: Dict[str, float] = {}  # company_name -> number of shares (fractional)
         self.treasury_bonds = 0
         # New themed investments
         self.quantum_singularity_units = 0  # Permanent investment
@@ -871,52 +871,135 @@ class Player:
         self.researched_this_week = False
         self.research_history: Dict[str, List[str]] = {}  # company_name -> list of hints received
 
-    def buy_stock(self, company: Company, shares: int) -> Tuple[bool, str]:
-        """Buy shares of a company with liquidity slippage"""
-        # Calculate effective price with slippage
+    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None) -> Tuple[bool, str]:
+        """Buy shares of a company using dollar amount with optional leverage
+
+        Args:
+            company: Company to invest in
+            dollar_amount: Dollar amount to invest (before leverage)
+            leverage: Leverage multiplier (e.g., 2.0 = 2x leverage, doubles the investment)
+            companies: Dict of companies (needed for equity calculation with leverage)
+            treasury: Treasury object (needed for equity calculation with leverage)
+        """
+        if dollar_amount <= 0:
+            return False, "Invalid investment amount!"
+
+        # Apply leverage multiplier to investment amount
+        total_investment = dollar_amount * leverage
+        borrowed_for_trade = total_investment - dollar_amount
+
+        # Check if we have enough cash for the base investment
+        if dollar_amount > self.cash:
+            return False, "Insufficient funds for base investment!"
+
+        # If using leverage, check if we can borrow that much
+        if leverage > 1.0:
+            if companies is None or treasury is None:
+                return False, "Cannot calculate leverage without company data!"
+
+            equity = self.calculate_equity(companies, treasury)
+            new_borrowed = self.borrowed_amount + borrowed_for_trade
+
+            if new_borrowed > equity * self.max_leverage_ratio:
+                max_can_borrow = max(0, equity * self.max_leverage_ratio - self.borrowed_amount)
+                max_leverage_possible = (dollar_amount + max_can_borrow) / dollar_amount if dollar_amount > 0 else 1.0
+                return False, f"Exceeds maximum leverage! Max leverage you can use: {max_leverage_possible:.2f}x"
+
+        # Calculate shares we can buy (iterative approach for slippage)
+        # We need to find how many shares we can buy with total_investment considering slippage
+        shares = total_investment / company.price  # Initial estimate
+
+        # Iteratively refine to account for slippage
+        for _ in range(5):  # A few iterations should converge
+            slippage_factor = company.calculate_slippage(shares, is_buy=True)
+            effective_price = company.price * slippage_factor
+            shares = total_investment / effective_price
+
+        # Final calculation
         slippage_factor = company.calculate_slippage(shares, is_buy=True)
         effective_price = company.price * slippage_factor
-        total_cost = effective_price * shares
+        actual_cost = effective_price * shares
 
-        if total_cost > self.cash:
-            return False, "Insufficient funds!"
+        # Execute the trade
+        self.cash -= dollar_amount
+        if leverage > 1.0:
+            self.borrowed_amount += borrowed_for_trade
 
-        self.cash -= total_cost
         if company.name in self.portfolio:
             self.portfolio[company.name] += shares
         else:
             self.portfolio[company.name] = shares
 
-        # Calculate and show slippage impact
+        # Build message
         slippage_cost = (effective_price - company.price) * shares
+        leverage_msg = f" (with {leverage:.1f}x leverage)" if leverage > 1.0 else ""
+
+        message = f"Purchased {shares:.4f} shares for ${dollar_amount:.2f}{leverage_msg}"
+        if leverage > 1.0:
+            message += f"\n  Total position value: ${total_investment:.2f} (borrowed ${borrowed_for_trade:.2f})"
         if slippage_cost > 0.01:
-            message = f"Purchase successful! (Price slippage: ${slippage_cost:.2f} due to {company.liquidity.value} liquidity)"
-        else:
-            message = "Purchase successful!"
+            message += f"\n  Price slippage: ${slippage_cost:.2f} due to {company.liquidity.value} liquidity"
 
         return True, message
 
-    def sell_stock(self, company: Company, shares: int) -> Tuple[bool, str]:
-        """Sell shares of a company with liquidity slippage"""
-        if company.name not in self.portfolio or self.portfolio[company.name] < shares:
-            return False, "You don't own that many shares!"
+    def sell_stock(self, company: Company, dollar_amount: float = None, shares: float = None) -> Tuple[bool, str]:
+        """Sell shares of a company with liquidity slippage
+
+        Args:
+            company: Company to sell
+            dollar_amount: Dollar amount to sell (mutually exclusive with shares)
+            shares: Number of shares to sell (mutually exclusive with dollar_amount)
+        """
+        if company.name not in self.portfolio:
+            return False, "You don't own any shares of this company!"
+
+        owned_shares = self.portfolio[company.name]
+
+        # Determine how many shares to sell
+        if dollar_amount is not None and shares is not None:
+            return False, "Specify either dollar_amount or shares, not both!"
+
+        if dollar_amount is not None:
+            # Calculate shares from dollar amount (iterative for slippage)
+            shares_to_sell = dollar_amount / company.price  # Initial estimate
+
+            # Iteratively refine
+            for _ in range(5):
+                if shares_to_sell > owned_shares:
+                    shares_to_sell = owned_shares
+                    break
+                slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False)
+                effective_price = company.price * slippage_factor
+                shares_to_sell = dollar_amount / effective_price
+
+            shares_to_sell = min(shares_to_sell, owned_shares)
+        elif shares is not None:
+            shares_to_sell = shares
+        else:
+            return False, "Must specify either dollar_amount or shares!"
+
+        if shares_to_sell <= 0:
+            return False, "Invalid amount!"
+
+        if shares_to_sell > owned_shares:
+            return False, f"You don't own that many shares! You own {owned_shares:.4f} shares."
 
         # Calculate effective price with slippage
-        slippage_factor = company.calculate_slippage(shares, is_buy=False)
+        slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False)
         effective_price = company.price * slippage_factor
-        total_value = effective_price * shares
+        total_value = effective_price * shares_to_sell
 
         self.cash += total_value
-        self.portfolio[company.name] -= shares
-        if self.portfolio[company.name] == 0:
+        self.portfolio[company.name] -= shares_to_sell
+        if self.portfolio[company.name] < 0.0001:  # Clean up very small amounts
             del self.portfolio[company.name]
 
         # Calculate and show slippage impact
-        slippage_loss = (company.price - effective_price) * shares
+        slippage_loss = (company.price - effective_price) * shares_to_sell
+
+        message = f"Sold {shares_to_sell:.4f} shares for ${total_value:.2f}"
         if slippage_loss > 0.01:
-            message = f"Sale successful! (Price slippage: -${slippage_loss:.2f} due to {company.liquidity.value} liquidity)"
-        else:
-            message = "Sale successful!"
+            message += f"\n  Price slippage: -${slippage_loss:.2f} due to {company.liquidity.value} liquidity"
 
         return True, message
 
@@ -1546,7 +1629,7 @@ class Player:
                 if company_name in companies:
                     company = companies[company_name]
                     value = company.price * shares
-                    print(f"  {company_name}: {shares} shares @ ${company.price:.2f} = ${value:.2f}")
+                    print(f"  {company_name}: {shares:.4f} shares @ ${company.price:.2f} = ${value:.2f}")
         else:
             print("Stocks: None")
 
@@ -1942,11 +2025,11 @@ class HedgeFund(Player):
             high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
             for company in high_vol_companies:
                 if self.cash > 1000:
-                    shares_to_buy = int(min(self.cash * 0.3, 3000) / company.price)
-                    if shares_to_buy > 0:
-                        success, msg = self.buy_stock(company, shares_to_buy)
+                    dollar_amount = min(self.cash * 0.3, 3000)
+                    if dollar_amount > 0:
+                        success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                         if success:
-                            actions.append(f"📈 {self.name} aggressively bought {shares_to_buy} shares of {company.name}")
+                            actions.append(f"📈 {self.name} aggressively invested ${dollar_amount:.2f} in {company.name}")
 
         # Sell during bear markets or crashes AND SHORT SELL aggressively
         elif market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
@@ -1954,12 +2037,12 @@ class HedgeFund(Player):
         ]:
             # Sell positions to cut losses
             for company_name, shares in list(self.portfolio.items()):
-                sell_shares = int(shares * 0.4)  # Sell 40% of position
+                sell_shares = shares * 0.4  # Sell 40% of position
                 if sell_shares > 0:
                     company = companies[company_name]
-                    success, msg = self.sell_stock(company, sell_shares)
+                    success, msg = self.sell_stock(company, shares=sell_shares)
                     if success:
-                        actions.append(f"📉 {self.name} cut position, sold {sell_shares} shares of {company_name}")
+                        actions.append(f"📉 {self.name} cut position, sold {sell_shares:.4f} shares of {company_name}")
 
             # SHORT SELL high volatility stocks during downturns (aggressive bet against the market)
             equity = self.calculate_equity(companies, treasury)
@@ -1982,11 +2065,11 @@ class HedgeFund(Player):
                 high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
                 for company in high_vol_companies:
                     if self.cash > 1000:
-                        shares_to_buy = int(min(self.cash * 0.2, 2000) / company.price)
-                        if shares_to_buy > 0:
-                            success, msg = self.buy_stock(company, shares_to_buy)
+                        dollar_amount = min(self.cash * 0.2, 2000)
+                        if dollar_amount > 0:
+                            success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                             if success:
-                                actions.append(f"📊 {self.name} bought {shares_to_buy} shares of {company.name}")
+                                actions.append(f"📊 {self.name} invested ${dollar_amount:.2f} in {company.name}")
                                 break  # Buy one company at a time during neutral markets
 
         return actions
@@ -2019,11 +2102,11 @@ class HedgeFund(Player):
 
         if stable_companies and self.cash > 1000:
             company = random.choice(stable_companies)
-            shares_to_buy = int(min(self.cash * 0.2, 2000) / company.price)
-            if shares_to_buy > 0:
-                success, msg = self.buy_stock(company, shares_to_buy)
+            dollar_amount = min(self.cash * 0.2, 2000)
+            if dollar_amount > 0:
+                success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                 if success:
-                    actions.append(f"💎 {self.name} added {shares_to_buy} shares of {company.name} (value play)")
+                    actions.append(f"💎 {self.name} invested ${dollar_amount:.2f} in {company.name} (value play)")
 
         # Buy treasury bonds for safety during volatile times
         if market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
@@ -2074,11 +2157,11 @@ class HedgeFund(Player):
             if self.cash > 1000:
                 companies_list = list(companies.values())
                 company = random.choice(companies_list)
-                shares_to_buy = int(min(self.cash * 0.4, 3500) / company.price)
-                if shares_to_buy > 0:
-                    success, msg = self.buy_stock(company, shares_to_buy)
+                dollar_amount = min(self.cash * 0.4, 3500)
+                if dollar_amount > 0:
+                    success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                     if success:
-                        actions.append(f"🎯 {self.name} bought the dip! {shares_to_buy} shares of {company.name}")
+                        actions.append(f"🎯 {self.name} bought the dip! Invested ${dollar_amount:.2f} in {company.name}")
 
         # SELL during bull markets/recovery (sell greed) and SHORT
         elif market_cycle.active_cycle and market_cycle.active_cycle.cycle_type in [
@@ -2086,12 +2169,12 @@ class HedgeFund(Player):
         ]:
             # Sell profitable positions
             for company_name, shares in list(self.portfolio.items()):
-                if shares > 10:
-                    sell_shares = int(shares * 0.5)  # Sell 50% when market is euphoric
+                if shares > 0.01:
+                    sell_shares = shares * 0.5  # Sell 50% when market is euphoric
                     company = companies[company_name]
-                    success, msg = self.sell_stock(company, sell_shares)
+                    success, msg = self.sell_stock(company, shares=sell_shares)
                     if success:
-                        actions.append(f"💰 {self.name} took profits, sold {sell_shares} shares of {company_name}")
+                        actions.append(f"💰 {self.name} took profits, sold {sell_shares:.4f} shares of {company_name}")
 
             # SHORT during euphoric bull markets (contrarian: market is too optimistic)
             equity = self.calculate_equity(companies, treasury)
@@ -2113,11 +2196,11 @@ class HedgeFund(Player):
             if self.cash > 1000:
                 companies_list = list(companies.values())
                 company = random.choice(companies_list)
-                shares_to_buy = int(min(self.cash * 0.25, 2500) / company.price)
-                if shares_to_buy > 0:
-                    success, msg = self.buy_stock(company, shares_to_buy)
+                dollar_amount = min(self.cash * 0.25, 2500)
+                if dollar_amount > 0:
+                    success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                     if success:
-                        actions.append(f"🎲 {self.name} bought {shares_to_buy} shares of {company.name}")
+                        actions.append(f"🎲 {self.name} invested ${dollar_amount:.2f} in {company.name}")
 
         return actions
 
@@ -2584,6 +2667,10 @@ class InvestmentGame:
         print("BUY STOCKS")
         print("="*60)
         print(f"Available Cash: ${player.cash:.2f}")
+        equity = player.calculate_equity(self.companies, self.treasury)
+        print(f"Current Equity: ${equity:.2f}")
+        max_can_borrow = max(0, equity * player.max_leverage_ratio - player.borrowed_amount)
+        print(f"Max additional leverage: ${max_can_borrow:.2f}")
         print()
 
         companies_list = list(self.companies.values())
@@ -2598,22 +2685,46 @@ class InvestmentGame:
 
             if 1 <= choice <= len(companies_list):
                 company = companies_list[choice - 1]
-                shares = int(input(f"How many shares of {company.name}? "))
 
-                if shares <= 0:
-                    print("Invalid number of shares!")
+                # Get dollar amount to invest
+                dollar_input = input(f"How much $ to invest in {company.name}? ")
+                dollar_amount = float(dollar_input)
+
+                if dollar_amount <= 0:
+                    print("Invalid amount!")
                     return
 
-                # Calculate effective price with slippage
-                slippage_factor = company.calculate_slippage(shares, is_buy=True)
-                effective_price = company.price * slippage_factor
-                total_cost = effective_price * shares
+                if dollar_amount > player.cash:
+                    print(f"Insufficient funds! You have ${player.cash:.2f}")
+                    return
 
-                print(f"\nQuoted price: ${company.price:.2f} per share")
-                print(f"Effective price (with slippage): ${effective_price:.2f} per share")
-                print(f"Total cost: ${total_cost:.2f}")
+                # Get leverage
+                leverage_input = input("Leverage multiplier (1.0 = no leverage, 2.0 = 2x, etc.): ")
+                leverage = float(leverage_input) if leverage_input.strip() else 1.0
 
-                success, message = player.buy_stock(company, shares)
+                if leverage < 1.0:
+                    print("Leverage must be at least 1.0!")
+                    return
+
+                # Show preview
+                total_investment = dollar_amount * leverage
+                borrowed_amount = total_investment - dollar_amount
+                estimated_shares = total_investment / company.price
+
+                print(f"\nInvestment Preview:")
+                print(f"  Your cash: ${dollar_amount:.2f}")
+                if leverage > 1.0:
+                    print(f"  Borrowed: ${borrowed_amount:.2f}")
+                    print(f"  Total investment: ${total_investment:.2f} ({leverage:.1f}x leverage)")
+                print(f"  Current price: ${company.price:.2f} per share")
+                print(f"  Estimated shares: ~{estimated_shares:.4f}")
+
+                confirm = input("\nConfirm purchase? (y/n): ")
+                if confirm.lower() != 'y':
+                    print("Purchase cancelled.")
+                    return
+
+                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury)
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
@@ -2634,7 +2745,8 @@ class InvestmentGame:
         portfolio_items = list(player.portfolio.items())
         for i, (company_name, shares) in enumerate(portfolio_items, 1):
             company = self.companies[company_name]
-            print(f"{i}. {company_name}: {shares} shares @ ${company.price:.2f}")
+            position_value = shares * company.price
+            print(f"{i}. {company_name}: {shares:.4f} shares @ ${company.price:.2f} (Value: ${position_value:.2f})")
         print("0. Cancel")
 
         try:
@@ -2645,23 +2757,29 @@ class InvestmentGame:
             if 1 <= choice <= len(portfolio_items):
                 company_name, owned_shares = portfolio_items[choice - 1]
                 company = self.companies[company_name]
+                position_value = owned_shares * company.price
 
-                shares = int(input(f"How many shares to sell (you own {owned_shares})? "))
+                print(f"\nYou own {owned_shares:.4f} shares (Value: ${position_value:.2f})")
+                print("Enter amount to sell:")
+                print("  - Dollar amount (e.g., 1000)")
+                print("  - 'all' to sell entire position")
 
-                if shares <= 0:
-                    print("Invalid number of shares!")
-                    return
+                sell_input = input("Amount: ").strip().lower()
 
-                # Calculate effective price with slippage
-                slippage_factor = company.calculate_slippage(shares, is_buy=False)
-                effective_price = company.price * slippage_factor
-                total_value = effective_price * shares
+                if sell_input == 'all':
+                    success, message = player.sell_stock(company, shares=owned_shares)
+                else:
+                    try:
+                        dollar_amount = float(sell_input)
+                        if dollar_amount <= 0:
+                            print("Invalid amount!")
+                            return
 
-                print(f"\nQuoted price: ${company.price:.2f} per share")
-                print(f"Effective price (with slippage): ${effective_price:.2f} per share")
-                print(f"Total value: ${total_value:.2f}")
+                        success, message = player.sell_stock(company, dollar_amount=dollar_amount)
+                    except ValueError:
+                        print("Invalid input!")
+                        return
 
-                success, message = player.sell_stock(company, shares)
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
