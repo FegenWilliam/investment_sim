@@ -250,17 +250,36 @@ class MarketNews:
             insider_flipped=insider_flipped
         )
 
-    def generate_news(self, companies: Dict[str, 'Company'], week_number: int) -> Optional[NewsReport]:
-        """Generate market news for a random company"""
+    def generate_news(self, companies: Dict[str, 'Company'], week_number: int, future_prices: Dict[str, List[float]]) -> Optional[NewsReport]:
+        """Generate market news for a random company based on future price movements"""
         # Select random company
         company_name = random.choice(list(companies.keys()))
         company = companies[company_name]
 
-        # Randomly choose positive or negative sentiment
-        sentiment = random.choice([NewsSentiment.POSITIVE, NewsSentiment.NEGATIVE])
+        # Determine TRUE sentiment based on future price movement
+        # Look at the next 2 weeks average to determine trend
+        current_price = company.price
+        future_avg = sum(future_prices[company_name]) / len(future_prices[company_name])
+        price_change_percent = ((future_avg - current_price) / current_price) * 100
+
+        # TRUE sentiment based on actual future movement
+        if price_change_percent > 2.0:  # Stock going up significantly
+            true_sentiment = NewsSentiment.POSITIVE
+        elif price_change_percent < -2.0:  # Stock going down significantly
+            true_sentiment = NewsSentiment.NEGATIVE
+        else:
+            # Small movement - randomly choose
+            true_sentiment = random.choice([NewsSentiment.POSITIVE, NewsSentiment.NEGATIVE])
 
         # Determine if news is real or hoax (70% real, 30% hoax)
         is_real = random.random() < 0.7
+
+        # If hoax, flip the sentiment (news lies about the future)
+        if is_real:
+            sentiment = true_sentiment
+        else:
+            # Hoax - report opposite of truth
+            sentiment = NewsSentiment.NEGATIVE if true_sentiment == NewsSentiment.POSITIVE else NewsSentiment.POSITIVE
 
         # Generate news from all three sources
         news_report = self._generate_news_report(company_name, company.industry, sentiment, is_real)
@@ -757,12 +776,12 @@ class Player:
 
         return False
 
-    def research_company(self, company: Company) -> str:
+    def research_company(self, company: Company, future_price: float = None) -> str:
         """Research a company to get a hint (once per week)"""
         if self.researched_this_week:
             return "You've already researched a company this week!"
 
-        # Generate a hint based on company fundamentals
+        # Generate a hint based on company fundamentals AND future price movements
         # Hints are "mostly true" - 85% accuracy
         is_accurate = random.random() < 0.85
 
@@ -862,6 +881,29 @@ class Player:
              lambda c: {"position": "expanding" if c.true_strength > 0.65 and c.hidden_sentiment > 0 else "eroding" if c.true_strength < 0.5 or c.hidden_sentiment < 0 else "stable",
                        "moat": "durable and widening" if c.true_strength > 0.65 else "questionable or narrowing" if c.true_strength < 0.5 else "moderate"}),
         ]
+
+        # Add future price-based hints if future_price is provided
+        if future_price is not None:
+            price_change_pct = ((future_price - company.price) / company.price) * 100
+
+            # Create a lambda that captures the future price movement
+            def future_momentum_data(c):
+                return {
+                    "trend": "accelerating upward" if price_change_pct > 3 else "declining" if price_change_pct < -3 else "consolidating",
+                    "direction": "positive" if price_change_pct > 1 else "negative" if price_change_pct < -1 else "neutral",
+                    "strength": "strong" if abs(price_change_pct) > 5 else "moderate" if abs(price_change_pct) > 2 else "weak"
+                }
+
+            hint_templates.extend([
+                ("Our proprietary momentum indicators suggest {company} is showing {trend} momentum with {strength} directional signals in the near term.",
+                 future_momentum_data),
+
+                ("Algorithmic trading models detect {direction} flow patterns for {company}, with institutional positioning suggesting {trend} price action ahead.",
+                 future_momentum_data),
+
+                ("Short-term predictive analytics for {company} indicate {trend} momentum, with our quant models flagging {strength} probability of continuation.",
+                 future_momentum_data),
+            ])
 
         # Select random hint template
         template, data_func = random.choice(hint_templates)
@@ -1410,9 +1452,16 @@ class InvestmentGame:
         self.weekly_gazette = WeeklyGazette()  # Weekly news outlet
         self.pending_weekly_news: Optional[str] = None  # Weekly news to display
 
+        # Future price pre-calculation (hidden from players)
+        # Stores next 2 weeks of calculated prices: {company_name: [week+1 price, week+2 price]}
+        self.future_prices: Dict[str, List[float]] = {}
+
         self._initialize_companies()
         self._initialize_players()
         self._initialize_hedge_funds()
+
+        # Pre-calculate initial future prices
+        self._precalculate_future_prices()
 
     def _initialize_companies(self):
         """Initialize the 5 companies with different industries and liquidity levels"""
@@ -1593,6 +1642,95 @@ class InvestmentGame:
             for company in self.companies.values():
                 company.update_price()
 
+        # Recalculate future prices after market update
+        self._precalculate_future_prices()
+
+    def _precalculate_future_prices(self):
+        """
+        Pre-calculate the next 2 weeks of prices for all companies.
+        This data is NEVER shown to players, but used for news/research generation.
+        """
+        import copy
+
+        # Clear existing future prices
+        self.future_prices = {}
+
+        # For each company, calculate future prices
+        for company_name, company in self.companies.items():
+            future_company_prices = []
+
+            # Create a deep copy of game state for simulation
+            for week_ahead in range(1, 3):  # Calculate week+1 and week+2
+                future_week = self.week_number + week_ahead
+
+                # Start with current price
+                if week_ahead == 1:
+                    simulated_price = company.price
+                else:
+                    # Use the previously calculated week+1 price
+                    simulated_price = future_company_prices[0]
+
+                # Apply market cycle effects if active or triggering
+                cycle_effect = 0.0
+                if self.market_cycle.active_cycle:
+                    # Check if cycle will still be active
+                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                    if weeks_left > 0:
+                        cycle_type = self.market_cycle.active_cycle.cycle_type
+                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+
+                # Check if a new cycle will trigger at this future week
+                elif future_week > 0 and future_week % 24 == 0:
+                    # A new cycle would trigger - we don't know which type, so use average effect
+                    cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+
+                # Apply cycle effect
+                if cycle_effect != 0:
+                    simulated_price *= (1 + cycle_effect / 100)
+                else:
+                    # Random walk if no cycle
+                    change_percent = random.uniform(-company.base_volatility, company.base_volatility)
+                    simulated_price *= (1 + change_percent / 100)
+
+                # Apply pending news impacts that will occur in this future week
+                for impact in self.market_news.pending_impacts:
+                    if impact.company_name == company_name:
+                        weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                        if weeks_until == 0:
+                            # This impact will apply in this future week
+                            if impact.is_real:
+                                simulated_price *= (1 + impact.impact_magnitude / 100)
+
+                # Ensure price stays positive
+                simulated_price = max(0.01, simulated_price)
+                future_company_prices.append(simulated_price)
+
+            self.future_prices[company_name] = future_company_prices
+
+    def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str) -> float:
+        """Get the average price change effect for a cycle type"""
+        if cycle_type == MarketCycleType.BULL_MARKET:
+            return random.uniform(3.0, 7.0)
+        elif cycle_type == MarketCycleType.BEAR_MARKET:
+            return -random.uniform(2.0, 5.0)
+        elif cycle_type == MarketCycleType.RECESSION:
+            return -random.uniform(4.0, 8.0)
+        elif cycle_type == MarketCycleType.INFLATION:
+            if industry == "Energy":
+                return random.uniform(4.0, 8.0)
+            else:
+                return -random.uniform(2.0, 4.0)
+        elif cycle_type == MarketCycleType.MARKET_CRASH:
+            return -random.uniform(8.0, 15.0)
+        elif cycle_type == MarketCycleType.RECOVERY:
+            return random.uniform(5.0, 10.0)
+        elif cycle_type == MarketCycleType.TECH_BOOM:
+            if industry in ["Technology", "Electronics"]:
+                return random.uniform(7.0, 12.0)
+            else:
+                return random.uniform(2.0, 4.0)
+        return 0.0
+
     def player_turn(self, player: Player):
         """Execute a single player's turn"""
         print(f"\n\n{'#'*60}")
@@ -1623,7 +1761,7 @@ class InvestmentGame:
 
         # Generate news every 4 weeks (monthly)
         if self.week_number % 4 == 0:
-            self.pending_news_display = self.market_news.generate_news(self.companies, self.week_number)
+            self.pending_news_display = self.market_news.generate_news(self.companies, self.week_number, self.future_prices)
         else:
             self.pending_news_display = None
 
@@ -1897,7 +2035,9 @@ class InvestmentGame:
                 print(f"RESEARCH REPORT: {company.name}")
                 print("="*60)
 
-                hint = player.research_company(company)
+                # Get future price for next week (hidden from player, used for hint generation)
+                future_price = self.future_prices.get(company.name, [None])[0]
+                hint = player.research_company(company, future_price)
                 print(f"\n🔍 {hint}")
 
                 print("\n" + "="*60)
@@ -1932,7 +2072,8 @@ class InvestmentGame:
                 'market_cycle': self.market_cycle.to_dict(),
                 'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None,
                 'weekly_gazette': self.weekly_gazette.to_dict(),
-                'pending_weekly_news': self.pending_weekly_news
+                'pending_weekly_news': self.pending_weekly_news,
+                'future_prices': self.future_prices
             }
 
             with open(filename, 'w') as f:
@@ -1990,6 +2131,14 @@ class InvestmentGame:
             # Restore weekly gazette
             game.weekly_gazette = WeeklyGazette.from_dict(game_state.get('weekly_gazette', {'weekly_news_history': []}))
             game.pending_weekly_news = game_state.get('pending_weekly_news', None)
+
+            # Restore future prices (or recalculate if not present in save file)
+            if 'future_prices' in game_state:
+                game.future_prices = game_state['future_prices']
+            else:
+                # Old save file - recalculate future prices
+                game.future_prices = {}
+                game._precalculate_future_prices()
 
             print(f"\n✅ Game loaded successfully from {filename}!")
             return game
