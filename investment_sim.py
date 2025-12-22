@@ -1076,6 +1076,16 @@ class Player:
         self.treasury_bonds += bonds
         return True
 
+    def sell_treasury(self, treasury: Treasury, bonds: int) -> Tuple[bool, str]:
+        """Sell treasury bonds"""
+        if self.treasury_bonds < bonds:
+            return False, "You don't own that many bonds!"
+
+        total_value = treasury.price * bonds
+        self.cash += total_value
+        self.treasury_bonds -= bonds
+        return True, f"Sale successful! Sold {bonds} treasury bonds for ${total_value:.2f}"
+
     def buy_quantum_singularity(self, quantum_singularity: QuantumSingularity, units: int) -> Tuple[bool, str]:
         """Buy Quantum Singularity units - permanent investment, cannot be sold"""
         total_cost = quantum_singularity.price * units
@@ -2689,16 +2699,17 @@ class InvestmentGame:
             print("5. Short Sell Stocks")
             print("6. Cover Short Position")
             print("7. Buy Treasury Bonds")
-            print("8. Buy Themed Investments (Gold, Holy Water, Quantum Singularity)")
-            print("9. Sell Themed Investments (Gold, Holy Water)")
-            print("10. Research Company (once per week)")
-            print("11. Borrow Money (Leverage)")
-            print("12. Repay Loan")
-            print("13. Save Game")
-            print("14. End Turn")
+            print("8. Sell Treasury Bonds")
+            print("9. Buy Themed Investments (Gold, Holy Water, Quantum Singularity)")
+            print("10. Sell Themed Investments (Gold, Holy Water)")
+            print("11. Research Company (once per week)")
+            print("12. Borrow Money (Leverage)")
+            print("13. Repay Loan")
+            print("14. Save Game")
+            print("15. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-14): ").strip()
+            choice = input("Enter choice (1-15): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -2722,32 +2733,35 @@ class InvestmentGame:
                 self._buy_treasury_menu(player)
 
             elif choice == "8":
-                self._buy_themed_investments_menu(player)
+                self._sell_treasury_menu(player)
 
             elif choice == "9":
-                self._sell_themed_investments_menu(player)
+                self._buy_themed_investments_menu(player)
 
             elif choice == "10":
-                self._research_company_menu(player)
+                self._sell_themed_investments_menu(player)
 
             elif choice == "11":
-                self._borrow_money_menu(player)
+                self._research_company_menu(player)
 
             elif choice == "12":
-                self._repay_loan_menu(player)
+                self._borrow_money_menu(player)
 
             elif choice == "13":
+                self._repay_loan_menu(player)
+
+            elif choice == "14":
                 filename = input("Enter save filename (default: savegame.json): ").strip()
                 if not filename:
                     filename = "savegame.json"
                 self.save_game(filename)
 
-            elif choice == "14":
+            elif choice == "15":
                 print(f"\n{player.name} has ended their turn.")
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 14.")
+                print("Invalid choice! Please enter a number between 1 and 15.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -2999,6 +3013,35 @@ class InvestmentGame:
                 print(f"Successfully purchased {bonds} treasury bonds!")
             else:
                 print("Insufficient funds!")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _sell_treasury_menu(self, player: Player):
+        """Menu for selling treasury bonds"""
+        print("\n" + "="*60)
+        print("SELL TREASURY BONDS")
+        print("="*60)
+        print(f"Your Holdings: {player.treasury_bonds} bonds")
+        print(f"{self.treasury}")
+        print()
+
+        if player.treasury_bonds == 0:
+            print("You don't own any treasury bonds!")
+            return
+
+        try:
+            bonds = int(input(f"How many bonds to sell (you have {player.treasury_bonds})? "))
+
+            if bonds <= 0:
+                print("Invalid number of bonds!")
+                return
+
+            total_value = self.treasury.price * bonds
+            print(f"\nTotal value: ${total_value:.2f}")
+
+            success, msg = player.sell_treasury(self.treasury, bonds)
+            print(msg)
 
         except ValueError:
             print("Invalid input!")
