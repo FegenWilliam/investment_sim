@@ -2757,6 +2757,42 @@ class InvestmentGame:
                 self.save_game(filename)
 
             elif choice == "15":
+                # Check for margin call warning before ending turn
+                if player.check_margin_call(self.companies, self.treasury):
+                    print("\n" + "⚠️ " + "="*58)
+                    print("⚠️  MARGIN CALL WARNING!")
+                    print("="*60)
+                    print("If you end your turn now, you will be subject to FORCED LIQUIDATION!")
+                    print("Your equity has fallen below the required maintenance margin.")
+                    print()
+                    equity = player.calculate_equity(self.companies, self.treasury)
+                    print(f"Current Equity: ${equity:.2f}")
+                    print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
+                    if player.borrowed_amount > 0:
+                        total_position = equity + player.borrowed_amount
+                        if total_position > 0:
+                            equity_ratio = (equity / total_position) * 100
+                            print(f"Equity Ratio: {equity_ratio:.1f}% (Minimum Required: 30%)")
+
+                    if len(player.short_positions) > 0:
+                        short_value = sum(player.short_positions[name] * self.companies[name].price
+                                        for name in player.short_positions)
+                        required_equity = short_value * 1.25
+                        print(f"Short Position Value: ${short_value:.2f}")
+                        print(f"Required Equity for Shorts: ${required_equity:.2f} (125% maintenance margin)")
+
+                    print()
+                    print("Recommended actions:")
+                    print("• Deposit cash or sell assets to improve equity")
+                    print("• Repay loans to reduce leverage")
+                    print("• Cover short positions")
+                    print("="*60)
+
+                    confirm = input("\nAre you SURE you want to end your turn? (yes/no): ").strip().lower()
+                    if confirm != "yes":
+                        print("Turn not ended. You can continue trading.")
+                        continue
+
                 print(f"\n{player.name} has ended their turn.")
                 break
 
