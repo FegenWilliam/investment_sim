@@ -1588,7 +1588,10 @@ class Player:
             'short_positions': self.short_positions,
             'short_borrow_fee_weekly': self.short_borrow_fee_weekly,
             'researched_this_week': self.researched_this_week,
-            'research_history': self.research_history
+            'research_history': self.research_history,
+            'quantum_singularity_units': self.quantum_singularity_units,
+            'gold_ounces': self.gold_ounces,
+            'holy_water_vials': self.holy_water_vials
         }
 
     @staticmethod
@@ -1604,6 +1607,9 @@ class Player:
         player.short_borrow_fee_weekly = data.get('short_borrow_fee_weekly', 0.02)  # Default value
         player.researched_this_week = data['researched_this_week']
         player.research_history = data['research_history']
+        player.quantum_singularity_units = data.get('quantum_singularity_units', 0)  # Default to 0 for backwards compatibility
+        player.gold_ounces = data.get('gold_ounces', 0)  # Default to 0 for backwards compatibility
+        player.holy_water_vials = data.get('holy_water_vials', 0)  # Default to 0 for backwards compatibility
         return player
 
     def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None):
