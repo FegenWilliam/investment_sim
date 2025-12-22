@@ -1792,7 +1792,9 @@ class InvestmentGame:
             # Each player takes their turn
             for player in self.players:
                 self.player_turn(player)
-                self.week_number += 1  # Increment week after each player's turn
+
+            # Increment week after all players have taken their turn
+            self.week_number += 1
 
             # End of round
             print("\n" + "="*60)
