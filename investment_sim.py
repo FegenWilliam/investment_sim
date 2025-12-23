@@ -1061,8 +1061,10 @@ class VoidCatalyst:
         if player_name in self.players_owned_this_cycle:
             # Check if we should reset the cycle (all players have owned it)
             if len(self.players_owned_this_cycle) >= len(all_human_players):
-                # Cycle complete, reset
+                # Cycle complete, reset for next time
                 self.players_owned_this_cycle.clear()
+                # But still block THIS purchase - player must wait for next opportunity
+                return False, "You already used your turn this cycle. Availability has been reset - try again!"
             else:
                 # Still waiting for other players
                 remaining_players = set(all_human_players) - self.players_owned_this_cycle
