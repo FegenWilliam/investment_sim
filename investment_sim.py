@@ -1955,8 +1955,8 @@ class Player:
         if not has_risk:
             return False
 
-        # Calculate equity excluding Quantum Singularity (it doesn't count for margin purposes)
-        equity = self.calculate_equity(companies, treasury, gold, holy_water, None, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        # Calculate equity including all assets
+        equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
 
         # Check leverage-based margin call
         if self.borrowed_amount > 0:
@@ -3424,7 +3424,7 @@ class InvestmentGame:
             print("="*60)
             print("Your equity has fallen below 30% of your total position!")
             print("You must either deposit cash or sell assets to reduce leverage.")
-            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, None, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
             print(f"Current Equity: ${equity:.2f}")
             print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
             print(f"Required Action: Increase equity or repay loan immediately!")
