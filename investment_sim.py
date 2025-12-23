@@ -859,6 +859,283 @@ class HolyWater:
         return f"{self.name} - ${self.price:.2f}/vial (Volatility: {self.base_volatility}%){trend}{blessing_status}"
 
 
+class ElfQueenWater:
+    """Represents Elf Queen's 'Water' - a coveted meme commodity"""
+
+    def __init__(self):
+        self.name = "Elf Queen's \"Water\""
+        self.price = 4000.0  # $4000 per vial
+        self.price_history: List[float] = []
+        self.weeks_since_change = 0  # Track weeks since last price change
+        self.description = "Coveted by some... men. If you know, you know."
+
+    def update_price(self):
+        """Update price - every 6 weeks, randomly doubles or halves (50/50)"""
+        self.weeks_since_change += 1
+
+        if self.weeks_since_change >= 6:
+            # 50/50 chance to double or halve
+            if random.random() < 0.5:
+                self.price *= 2.0  # Double
+            else:
+                self.price *= 0.5  # Halve
+            self.weeks_since_change = 0  # Reset counter
+
+        self.price_history.append(self.price)
+        if len(self.price_history) > 52:  # Keep 52 weeks of history
+            self.price_history.pop(0)
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'price': self.price,
+            'price_history': self.price_history,
+            'weeks_since_change': self.weeks_since_change
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'ElfQueenWater':
+        """Deserialize from dictionary"""
+        eqw = ElfQueenWater()
+        eqw.price = data['price']
+        eqw.price_history = data.get('price_history', [])
+        eqw.weeks_since_change = data.get('weeks_since_change', 0)
+        return eqw
+
+    def __str__(self):
+        weeks_until_change = 6 - self.weeks_since_change
+        return f"{self.name} - ${self.price:.2f}/vial (Next change in {weeks_until_change} weeks)"
+
+
+class GoldCoin:
+    """Represents Gold Coin - common fantasy currency, crypto-like but stable"""
+
+    def __init__(self):
+        self.name = "Gold Coin"
+        self.price = 2.0  # $2 starting price
+        self.base_volatility = 1.5  # Low volatility (1.5%) - more stable than regular crypto
+        self.price_history: List[float] = []
+        self.description = "Common currency in the fantasy world - like crypto but more stable"
+
+    def update_price(self):
+        """Update price with low volatility (stable crypto behavior)"""
+        # Stable behavior with small random walks
+        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
+        self.price *= (1 + change_percent / 100)
+        self.price = max(self.price, 0.10)  # Floor price at 10 cents
+        self.price_history.append(self.price)
+        if len(self.price_history) > 52:  # Keep 52 weeks of history
+            self.price_history.pop(0)
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'price': self.price,
+            'base_volatility': self.base_volatility,
+            'price_history': self.price_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'GoldCoin':
+        """Deserialize from dictionary"""
+        gc = GoldCoin()
+        gc.price = data['price']
+        gc.base_volatility = data.get('base_volatility', 1.5)
+        gc.price_history = data.get('price_history', [])
+        return gc
+
+    def __str__(self):
+        trend = ""
+        if len(self.price_history) >= 2:
+            if self.price > self.price_history[-2]:
+                trend = " ↗️"
+            elif self.price < self.price_history[-2]:
+                trend = " ↘️"
+            else:
+                trend = " ➡️"
+        return f"{self.name} - ${self.price:.2f}/coin (Volatility: {self.base_volatility}%){trend}"
+
+
+class VoidStocks:
+    """Represents Void Stocks - copies company stock prices, becomes 0 every other week"""
+
+    def __init__(self, companies: Dict[str, 'Company']):
+        self.name = "Void Stocks"
+        self.price = 0.0  # Start at $0
+        self.companies = companies
+        self.weeks_elapsed = 0  # Track weeks
+        self.current_company_index = 0  # Which company we're copying
+        self.company_names = []  # Will be populated when we have companies
+        self.description = "Mysterious stocks that copy companies, then disappear into the void"
+        self.is_void_week = True  # Start in void state
+
+    def update_price(self):
+        """Update price - alternates between copying a company and being $0"""
+        self.weeks_elapsed += 1
+
+        # Update company names list if needed
+        if not self.company_names and self.companies:
+            self.company_names = sorted(list(self.companies.keys()))
+
+        if self.weeks_elapsed % 2 == 1:
+            # Odd weeks (1, 3, 5, ...): Copy a company's stock
+            self.is_void_week = False
+            if self.company_names:
+                company_name = self.company_names[self.current_company_index % len(self.company_names)]
+                self.price = self.companies[company_name].price
+                # Move to next company for next active week
+                self.current_company_index += 1
+            else:
+                self.price = 0.0  # No companies available
+        else:
+            # Even weeks (2, 4, 6, ...): Become void ($0)
+            self.is_void_week = True
+            self.price = 0.0
+
+    def get_current_company_name(self) -> str:
+        """Get the name of the company currently being copied (if any)"""
+        if self.is_void_week or not self.company_names:
+            return "VOID"
+        # Get the company from the previous index since we increment after copying
+        idx = (self.current_company_index - 1) % len(self.company_names)
+        return self.company_names[idx]
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'price': self.price,
+            'weeks_elapsed': self.weeks_elapsed,
+            'current_company_index': self.current_company_index,
+            'company_names': self.company_names,
+            'is_void_week': self.is_void_week
+        }
+
+    @staticmethod
+    def from_dict(data: dict, companies: Dict[str, 'Company']) -> 'VoidStocks':
+        """Deserialize from dictionary"""
+        vs = VoidStocks(companies)
+        vs.price = data['price']
+        vs.weeks_elapsed = data.get('weeks_elapsed', 0)
+        vs.current_company_index = data.get('current_company_index', 0)
+        vs.company_names = data.get('company_names', [])
+        vs.is_void_week = data.get('is_void_week', True)
+        return vs
+
+    def __str__(self):
+        if self.is_void_week:
+            return f"{self.name} - ${self.price:.2f}/share [VOID STATE]"
+        else:
+            company = self.get_current_company_name()
+            return f"{self.name} - ${self.price:.2f}/share [Copying: {company}]"
+
+
+class VoidCatalyst:
+    """Represents Void Catalyst - unique asset that auto-sells after 4 weeks"""
+
+    def __init__(self):
+        self.name = "Void Catalyst"
+        self.price = 100000.0  # $100k starting price
+        self.is_owned = False  # Track if someone owns it
+        self.owner_name = None  # Who owns it
+        self.weeks_owned = 0  # How long has it been owned
+        self.players_owned_this_cycle: set = set()  # Track which players have owned it this cycle
+        self.description = "Unique asset - only 1 exists. Price always increases. Auto-sells after 4 weeks. Fair rotation among players."
+
+    def update_price(self, player_name: str = None):
+        """Update price - always goes up. Auto-sell after 4 weeks if owned."""
+        # Price always increases by 5-10%
+        increase_percent = random.uniform(5.0, 10.0)
+        self.price *= (1 + increase_percent / 100)
+
+        # Track ownership time
+        if self.is_owned:
+            self.weeks_owned += 1
+
+    def can_player_buy(self, player_name: str, all_human_players: List[str]) -> Tuple[bool, str]:
+        """Check if a player is allowed to buy the Void Catalyst"""
+        # If already owned by someone, can't buy
+        if self.is_owned:
+            return False, f"Void Catalyst is already owned by {self.owner_name}!"
+
+        # If this player already owned it this cycle, can't buy again until cycle resets
+        if player_name in self.players_owned_this_cycle:
+            # Check if we should reset the cycle (all players have owned it)
+            if len(self.players_owned_this_cycle) >= len(all_human_players):
+                # Cycle complete, reset
+                self.players_owned_this_cycle.clear()
+            else:
+                # Still waiting for other players
+                remaining_players = set(all_human_players) - self.players_owned_this_cycle
+                return False, f"You already owned the Void Catalyst this cycle. Waiting for: {', '.join(sorted(remaining_players))}"
+
+        return True, "OK"
+
+    def buy(self, player_name: str, all_human_players: List[str]) -> Tuple[bool, str]:
+        """Attempt to buy the Void Catalyst"""
+        # Check if player can buy
+        can_buy, reason = self.can_player_buy(player_name, all_human_players)
+        if not can_buy:
+            return False, reason
+
+        self.is_owned = True
+        self.owner_name = player_name
+        self.weeks_owned = 0
+        self.players_owned_this_cycle.add(player_name)
+
+        # Check if cycle will reset after this purchase
+        if len(self.players_owned_this_cycle) >= len(all_human_players):
+            cycle_msg = " [All players have now owned it - cycle will reset when it's available again]"
+        else:
+            cycle_msg = ""
+
+        return True, f"You now own the Void Catalyst! It will auto-sell in 4 weeks.{cycle_msg}"
+
+    def check_auto_sell(self) -> Tuple[bool, str, float]:
+        """Check if auto-sell should trigger. Returns (should_sell, message, sell_price)"""
+        if self.is_owned and self.weeks_owned >= 4:
+            sell_price = self.price
+            owner = self.owner_name
+
+            # Auto-sell happens
+            self.is_owned = False
+            self.owner_name = None
+            self.weeks_owned = 0
+
+            return True, f"Void Catalyst auto-sold for ${sell_price:.2f}!", sell_price
+        return False, "", 0.0
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary"""
+        return {
+            'price': self.price,
+            'is_owned': self.is_owned,
+            'owner_name': self.owner_name,
+            'weeks_owned': self.weeks_owned,
+            'players_owned_this_cycle': list(self.players_owned_this_cycle)
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'VoidCatalyst':
+        """Deserialize from dictionary"""
+        vc = VoidCatalyst()
+        vc.price = data['price']
+        vc.is_owned = data.get('is_owned', False)
+        vc.owner_name = data.get('owner_name', None)
+        vc.weeks_owned = data.get('weeks_owned', 0)
+        vc.players_owned_this_cycle = set(data.get('players_owned_this_cycle', []))
+        return vc
+
+    def __str__(self):
+        if self.is_owned:
+            weeks_left = 4 - self.weeks_owned
+            return f"{self.name} - ${self.price:.2f} [OWNED by {self.owner_name}, Auto-sells in {weeks_left} weeks]"
+        else:
+            if self.players_owned_this_cycle:
+                return f"{self.name} - ${self.price:.2f} [AVAILABLE - Rotation: {len(self.players_owned_this_cycle)} players have owned it this cycle]"
+            else:
+                return f"{self.name} - ${self.price:.2f} [AVAILABLE - 1 unit only]"
+
+
 class Player:
     """Represents a player in the game"""
 
@@ -871,6 +1148,10 @@ class Player:
         self.quantum_singularity_units = 0  # Permanent investment
         self.gold_ounces = 0  # Physical gold
         self.holy_water_vials = 0  # Fantasy blessed commodity
+        self.elf_queen_water_vials = 0  # Elf Queen's "Water"
+        self.gold_coins = 0  # Gold Coins (fantasy currency)
+        self.void_stocks_shares = 0  # Void Stocks shares
+        self.void_catalyst_owned = False  # Void Catalyst (only 1 exists)
         # Leverage system
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
@@ -1158,6 +1439,103 @@ class Player:
             blessing_msg = " The buyer looks nervous... 💀"
         return True, f"Sale successful! Sold {vials} vials of Holy Water for ${total_value:.2f}{blessing_msg}"
 
+    def buy_elf_queen_water(self, elf_queen_water: ElfQueenWater, vials: int) -> Tuple[bool, str]:
+        """Buy Elf Queen's Water vials"""
+        total_cost = elf_queen_water.price * vials
+        if total_cost > self.cash:
+            return False, "Insufficient funds!"
+
+        self.cash -= total_cost
+        self.elf_queen_water_vials += vials
+        return True, f"Purchase successful! Bought {vials} vials of Elf Queen's \"Water\" for ${total_cost:.2f}. If you know, you know."
+
+    def sell_elf_queen_water(self, elf_queen_water: ElfQueenWater, vials: int) -> Tuple[bool, str]:
+        """Sell Elf Queen's Water vials"""
+        if self.elf_queen_water_vials < vials:
+            return False, "You don't own that many vials!"
+
+        total_value = elf_queen_water.price * vials
+        self.cash += total_value
+        self.elf_queen_water_vials -= vials
+        return True, f"Sale successful! Sold {vials} vials of Elf Queen's \"Water\" for ${total_value:.2f}"
+
+    def buy_gold_coin(self, gold_coin: GoldCoin, coins: int) -> Tuple[bool, str]:
+        """Buy Gold Coins"""
+        total_cost = gold_coin.price * coins
+        if total_cost > self.cash:
+            return False, "Insufficient funds!"
+
+        self.cash -= total_cost
+        self.gold_coins += coins
+        return True, f"Purchase successful! Bought {coins} Gold Coins for ${total_cost:.2f}"
+
+    def sell_gold_coin(self, gold_coin: GoldCoin, coins: int) -> Tuple[bool, str]:
+        """Sell Gold Coins"""
+        if self.gold_coins < coins:
+            return False, "You don't own that many Gold Coins!"
+
+        total_value = gold_coin.price * coins
+        self.cash += total_value
+        self.gold_coins -= coins
+        return True, f"Sale successful! Sold {coins} Gold Coins for ${total_value:.2f}"
+
+    def buy_void_stocks(self, void_stocks: VoidStocks, shares: int) -> Tuple[bool, str]:
+        """Buy Void Stocks"""
+        if void_stocks.is_void_week:
+            return False, "Cannot buy Void Stocks during VOID STATE (price is $0)!"
+
+        total_cost = void_stocks.price * shares
+        if total_cost > self.cash:
+            return False, "Insufficient funds!"
+
+        self.cash -= total_cost
+        self.void_stocks_shares += shares
+        company = void_stocks.get_current_company_name()
+        return True, f"Purchase successful! Bought {shares} Void Stocks for ${total_cost:.2f} (Currently copying {company})"
+
+    def sell_void_stocks(self, void_stocks: VoidStocks, shares: int) -> Tuple[bool, str]:
+        """Sell Void Stocks"""
+        if self.void_stocks_shares < shares:
+            return False, "You don't own that many Void Stocks!"
+
+        total_value = void_stocks.price * shares
+        self.cash += total_value
+        self.void_stocks_shares -= shares
+
+        if void_stocks.is_void_week:
+            return True, f"Sale successful! Sold {shares} Void Stocks for ${total_value:.2f} (VOID STATE - worthless!)"
+        else:
+            company = void_stocks.get_current_company_name()
+            return True, f"Sale successful! Sold {shares} Void Stocks for ${total_value:.2f} (Was copying {company})"
+
+    def buy_void_catalyst(self, void_catalyst: VoidCatalyst, all_human_players: List[str]) -> Tuple[bool, str]:
+        """Buy the Void Catalyst (only 1 exists)"""
+        if self.void_catalyst_owned:
+            return False, "You already own the Void Catalyst!"
+
+        if void_catalyst.price > self.cash:
+            return False, "Insufficient funds!"
+
+        success, msg = void_catalyst.buy(self.name, all_human_players)
+        if not success:
+            return False, msg
+
+        self.cash -= void_catalyst.price
+        self.void_catalyst_owned = True
+        return True, f"Purchase successful! Bought Void Catalyst for ${void_catalyst.price:.2f}. {msg.split('!', 1)[1] if '!' in msg else ''}"
+
+    def process_void_catalyst_auto_sell(self, void_catalyst: VoidCatalyst) -> Tuple[bool, str, float]:
+        """Process auto-sell of Void Catalyst if needed. Returns (was_sold, message, amount)"""
+        if not self.void_catalyst_owned:
+            return False, "", 0.0
+
+        should_sell, msg, sell_price = void_catalyst.check_auto_sell()
+        if should_sell:
+            self.cash += sell_price
+            self.void_catalyst_owned = False
+            return True, msg, sell_price
+        return False, "", 0.0
+
     def apply_quantum_singularity_income(self, quantum_singularity: QuantumSingularity) -> float:
         """Apply monthly passive income from Quantum Singularity (called every 4 weeks)"""
         if self.quantum_singularity_units > 0:
@@ -1166,7 +1544,7 @@ class Player:
             return income
         return 0.0
 
-    def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None) -> float:
+    def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate total net worth (cash + stocks + bonds - short obligations)"""
         net_worth = self.cash
 
@@ -1190,14 +1568,22 @@ class Player:
             net_worth += self.holy_water_vials * holy_water.price
         if quantum_singularity and self.quantum_singularity_units > 0:
             net_worth += self.quantum_singularity_units * quantum_singularity.price
+        if elf_queen_water and self.elf_queen_water_vials > 0:
+            net_worth += self.elf_queen_water_vials * elf_queen_water.price
+        if gold_coin and self.gold_coins > 0:
+            net_worth += self.gold_coins * gold_coin.price
+        if void_stocks and self.void_stocks_shares > 0:
+            net_worth += self.void_stocks_shares * void_stocks.price
+        if void_catalyst and self.void_catalyst_owned:
+            net_worth += void_catalyst.price
 
         return net_worth
 
-    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None) -> float:
+    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate equity (net worth minus debt)"""
-        return self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity) - self.borrowed_amount
+        return self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst) - self.borrowed_amount
 
-    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None) -> float:
+    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate total portfolio value (not including cash, only investments)"""
         assets = 0.0
 
@@ -1216,6 +1602,14 @@ class Player:
             assets += self.holy_water_vials * holy_water.price
         if quantum_singularity and self.quantum_singularity_units > 0:
             assets += self.quantum_singularity_units * quantum_singularity.price
+        if elf_queen_water and self.elf_queen_water_vials > 0:
+            assets += self.elf_queen_water_vials * elf_queen_water.price
+        if gold_coin and self.gold_coins > 0:
+            assets += self.gold_coins * gold_coin.price
+        if void_stocks and self.void_stocks_shares > 0:
+            assets += self.void_stocks_shares * void_stocks.price
+        if void_catalyst and self.void_catalyst_owned:
+            assets += void_catalyst.price
 
         return assets
 
@@ -1612,7 +2006,11 @@ class Player:
             'research_history': self.research_history,
             'quantum_singularity_units': self.quantum_singularity_units,
             'gold_ounces': self.gold_ounces,
-            'holy_water_vials': self.holy_water_vials
+            'holy_water_vials': self.holy_water_vials,
+            'elf_queen_water_vials': self.elf_queen_water_vials,
+            'gold_coins': self.gold_coins,
+            'void_stocks_shares': self.void_stocks_shares,
+            'void_catalyst_owned': self.void_catalyst_owned
         }
 
     @staticmethod
@@ -1631,9 +2029,13 @@ class Player:
         player.quantum_singularity_units = data.get('quantum_singularity_units', 0)  # Default to 0 for backwards compatibility
         player.gold_ounces = data.get('gold_ounces', 0)  # Default to 0 for backwards compatibility
         player.holy_water_vials = data.get('holy_water_vials', 0)  # Default to 0 for backwards compatibility
+        player.elf_queen_water_vials = data.get('elf_queen_water_vials', 0)
+        player.gold_coins = data.get('gold_coins', 0)
+        player.void_stocks_shares = data.get('void_stocks_shares', 0)
+        player.void_catalyst_owned = data.get('void_catalyst_owned', False)
         return player
 
-    def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None):
+    def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None):
         """Display player's portfolio"""
         print(f"\n{'='*60}")
         print(f"{self.name}'s Portfolio")
@@ -1700,11 +2102,31 @@ class Player:
                 blessing_status = " 💀"
             print(f"  Holy Water: {self.holy_water_vials} vials @ ${holy_water.price:.2f} = ${value:.2f}{blessing_status}")
             has_themed = True
+
+        if elf_queen_water and self.elf_queen_water_vials > 0:
+            value = self.elf_queen_water_vials * elf_queen_water.price
+            print(f"  Elf Queen's \"Water\": {self.elf_queen_water_vials} vials @ ${elf_queen_water.price:.2f} = ${value:.2f}")
+            has_themed = True
+        if gold_coin and self.gold_coins > 0:
+            value = self.gold_coins * gold_coin.price
+            print(f"  Gold Coin: {self.gold_coins} coins @ ${gold_coin.price:.2f} = ${value:.2f}")
+            has_themed = True
+        if void_stocks and self.void_stocks_shares > 0:
+            value = self.void_stocks_shares * void_stocks.price
+            status = "[VOID]" if void_stocks.is_void_week else f"[{void_stocks.get_current_company_name()}]"
+            print(f"  Void Stocks: {self.void_stocks_shares} shares @ ${void_stocks.price:.2f} = ${value:.2f} {status}")
+            has_themed = True
+        if void_catalyst and self.void_catalyst_owned:
+            value = void_catalyst.price
+            weeks_left = 4 - void_catalyst.weeks_owned
+            print(f"  Void Catalyst: 1 unit @ ${void_catalyst.price:.2f} = ${value:.2f} (Auto-sells in {weeks_left} weeks)")
+            has_themed = True
+
         if not has_themed:
             print("  None")
 
         print()
-        net_worth = self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity)
+        net_worth = self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
         print(f"Total Net Worth: ${net_worth:.2f}")
         print(f"{'='*60}")
 
@@ -2258,6 +2680,13 @@ class InvestmentGame:
         self.future_prices: Dict[str, List[float]] = {}
 
         self._initialize_companies()
+
+        # Initialize new themed investments (after companies are initialized for VoidStocks)
+        self.elf_queen_water = ElfQueenWater()
+        self.gold_coin = GoldCoin()
+        self.void_stocks = VoidStocks(self.companies)
+        self.void_catalyst = VoidCatalyst()
+
         self._initialize_players()
         self._initialize_hedge_funds()
 
@@ -2337,6 +2766,10 @@ class InvestmentGame:
         print(f"  {self.quantum_singularity}")
         print(f"  {self.gold}")
         print(f"  {self.holy_water}")
+        print(f"  {self.elf_queen_water}")
+        print(f"  {self.gold_coin}")
+        print(f"  {self.void_stocks}")
+        print(f"  {self.void_catalyst}")
         print()
         print("  Liquidity: 💧 = Low | 💧💧 = Medium | 💧💧💧 = High")
         print("  (Lower liquidity = higher price impact on large trades)")
@@ -2476,6 +2909,21 @@ class InvestmentGame:
         # Update themed investment prices
         self.gold.update_price()
         self.holy_water.update_price()
+        self.elf_queen_water.update_price()
+        self.gold_coin.update_price()
+        self.void_stocks.update_price()
+        self.void_catalyst.update_price()
+
+        # Check for Void Catalyst auto-sell
+        for player in self.players:
+            was_sold, msg, amount = player.process_void_catalyst_auto_sell(self.void_catalyst)
+            if was_sold:
+                print(f"\n{'='*60}")
+                print(f"VOID CATALYST AUTO-SELL - {player.name}")
+                print(f"{'='*60}")
+                print(msg)
+                print(f"{'='*60}")
+                input("\nPress Enter to continue...")
 
         # Update future prices: shift array and calculate new week+4
         # If a cycle was triggered or ended, recalculate all future prices
@@ -2723,7 +3171,7 @@ class InvestmentGame:
                 self.display_market()
 
             elif choice == "2":
-                player.display_portfolio(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity)
+                player.display_portfolio(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
 
             elif choice == "3":
                 self._buy_stocks_menu(player)
@@ -3097,6 +3545,10 @@ class InvestmentGame:
         print("1. " + str(self.quantum_singularity))
         print("2. " + str(self.gold))
         print("3. " + str(self.holy_water))
+        print("4. " + str(self.elf_queen_water))
+        print("5. " + str(self.gold_coin))
+        print("6. " + str(self.void_stocks))
+        print("7. " + str(self.void_catalyst))
         print("0. Cancel")
         print()
 
@@ -3129,6 +3581,38 @@ class InvestmentGame:
                     return
                 success, msg = player.buy_holy_water(self.holy_water, vials)
                 print(msg)
+            elif choice == 4:
+                # Elf Queen's Water
+                vials = int(input("How many vials to purchase? "))
+                if vials <= 0:
+                    print("Invalid number of vials!")
+                    return
+                success, msg = player.buy_elf_queen_water(self.elf_queen_water, vials)
+                print(msg)
+            elif choice == 5:
+                # Gold Coin
+                coins = int(input("How many coins to purchase? "))
+                if coins <= 0:
+                    print("Invalid number of coins!")
+                    return
+                success, msg = player.buy_gold_coin(self.gold_coin, coins)
+                print(msg)
+            elif choice == 6:
+                # Void Stocks
+                shares = int(input("How many shares to purchase? "))
+                if shares <= 0:
+                    print("Invalid number of shares!")
+                    return
+                success, msg = player.buy_void_stocks(self.void_stocks, shares)
+                print(msg)
+            elif choice == 7:
+                # Void Catalyst
+                confirm = input(f"Buy Void Catalyst for ${self.void_catalyst.price:.2f}? (y/n): ")
+                if confirm.lower() == 'y':
+                    # Get list of all human player names (excluding NPCs)
+                    human_players = [p.name for p in self.players]
+                    success, msg = player.buy_void_catalyst(self.void_catalyst, human_players)
+                    print(msg)
             else:
                 print("Invalid choice!")
 
@@ -3136,18 +3620,24 @@ class InvestmentGame:
             print("Invalid input!")
 
     def _sell_themed_investments_menu(self, player: Player):
-        """Menu for selling themed investments (Gold and Holy Water only)"""
+        """Menu for selling themed investments"""
         print("\n" + "="*60)
         print("SELL THEMED INVESTMENTS")
         print("="*60)
-        print(f"Note: Quantum Singularity cannot be sold (permanent investment)")
+        print(f"Note: Quantum Singularity & Void Catalyst cannot be sold manually")
         print()
         print(f"Your Holdings:")
         print(f"  Gold: {player.gold_ounces} oz @ ${self.gold.price:.2f}")
         print(f"  Holy Water: {player.holy_water_vials} vials @ ${self.holy_water.price:.2f}")
+        print(f"  Elf Queen's Water: {player.elf_queen_water_vials} vials @ ${self.elf_queen_water.price:.2f}")
+        print(f"  Gold Coin: {player.gold_coins} coins @ ${self.gold_coin.price:.2f}")
+        print(f"  Void Stocks: {player.void_stocks_shares} shares @ ${self.void_stocks.price:.2f}")
         print()
         print("1. Sell Gold")
         print("2. Sell Holy Water")
+        print("3. Sell Elf Queen's Water")
+        print("4. Sell Gold Coin")
+        print("5. Sell Void Stocks")
         print("0. Cancel")
         print()
 
@@ -3177,6 +3667,39 @@ class InvestmentGame:
                     print("Invalid number of vials!")
                     return
                 success, msg = player.sell_holy_water(self.holy_water, vials)
+                print(msg)
+            elif choice == 3:
+                # Elf Queen's Water
+                if player.elf_queen_water_vials == 0:
+                    print("You don't own any Elf Queen's Water!")
+                    return
+                vials = int(input(f"How many vials to sell (you have {player.elf_queen_water_vials})? "))
+                if vials <= 0:
+                    print("Invalid number of vials!")
+                    return
+                success, msg = player.sell_elf_queen_water(self.elf_queen_water, vials)
+                print(msg)
+            elif choice == 4:
+                # Gold Coin
+                if player.gold_coins == 0:
+                    print("You don't own any Gold Coins!")
+                    return
+                coins = int(input(f"How many coins to sell (you have {player.gold_coins})? "))
+                if coins <= 0:
+                    print("Invalid number of coins!")
+                    return
+                success, msg = player.sell_gold_coin(self.gold_coin, coins)
+                print(msg)
+            elif choice == 5:
+                # Void Stocks
+                if player.void_stocks_shares == 0:
+                    print("You don't own any Void Stocks!")
+                    return
+                shares = int(input(f"How many shares to sell (you have {player.void_stocks_shares})? "))
+                if shares <= 0:
+                    print("Invalid number of shares!")
+                    return
+                success, msg = player.sell_void_stocks(self.void_stocks, shares)
                 print(msg)
             else:
                 print("Invalid choice!")
@@ -3320,7 +3843,11 @@ class InvestmentGame:
                 'random_state': list(random.getstate()),  # Save random state for deterministic futures
                 'quantum_singularity': self.quantum_singularity.to_dict(),
                 'gold': self.gold.to_dict(),
-                'holy_water': self.holy_water.to_dict()
+                'holy_water': self.holy_water.to_dict(),
+                'elf_queen_water': self.elf_queen_water.to_dict(),
+                'gold_coin': self.gold_coin.to_dict(),
+                'void_stocks': self.void_stocks.to_dict(),
+                'void_catalyst': self.void_catalyst.to_dict()
             }
 
             with open(filename, 'w') as f:
@@ -3415,6 +3942,26 @@ class InvestmentGame:
                 game.holy_water = HolyWater.from_dict(game_state['holy_water'])
             else:
                 game.holy_water = HolyWater()
+
+            if 'elf_queen_water' in game_state:
+                game.elf_queen_water = ElfQueenWater.from_dict(game_state['elf_queen_water'])
+            else:
+                game.elf_queen_water = ElfQueenWater()
+
+            if 'gold_coin' in game_state:
+                game.gold_coin = GoldCoin.from_dict(game_state['gold_coin'])
+            else:
+                game.gold_coin = GoldCoin()
+
+            if 'void_stocks' in game_state:
+                game.void_stocks = VoidStocks.from_dict(game_state['void_stocks'], game.companies)
+            else:
+                game.void_stocks = VoidStocks(game.companies)
+
+            if 'void_catalyst' in game_state:
+                game.void_catalyst = VoidCatalyst.from_dict(game_state['void_catalyst'])
+            else:
+                game.void_catalyst = VoidCatalyst()
 
             print(f"\n✅ Game loaded successfully from {filename}!")
             return game
