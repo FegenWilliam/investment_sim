@@ -609,7 +609,7 @@ class WeeklyGazette:
     ]
 
     def __init__(self):
-        self.weekly_news_history: List[Tuple[int, str]] = []  # (week_number, news_text)
+        self.weekly_news_history: List[Tuple[int, str, bool]] = []  # (week_number, news_text, is_real)
 
     def to_dict(self) -> dict:
         """Serialize WeeklyGazette to dictionary"""
@@ -621,21 +621,43 @@ class WeeklyGazette:
     def from_dict(data: dict) -> 'WeeklyGazette':
         """Deserialize WeeklyGazette from dictionary"""
         gazette = WeeklyGazette()
-        gazette.weekly_news_history = [tuple(item) for item in data['weekly_news_history']]
+        # Handle both old format (2-tuple) and new format (3-tuple)
+        gazette.weekly_news_history = []
+        for item in data.get('weekly_news_history', []):
+            if len(item) == 2:
+                # Old format: (week_number, news_text) - assume all were real
+                gazette.weekly_news_history.append((item[0], item[1], True))
+            else:
+                # New format: (week_number, news_text, is_real)
+                gazette.weekly_news_history.append(tuple(item))
         return gazette
 
-    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[str]:
-        """Generate weekly news for all companies"""
+    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[Tuple[str, bool]]:
+        """Generate weekly news for all companies, with hoaxes using same rate as monthly news"""
         news_items = []
+
+        # Determine hoax rate using same 12-week cycle as monthly news
+        cycle_position = (week_number - 1) % 12
+        if cycle_position < 3:
+            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
+        elif cycle_position < 6:
+            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
+        elif cycle_position < 9:
+            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
+        else:
+            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
 
         for company_name, company in companies.items():
             # Select random news template for each company
             template = random.choice(self.WEEKLY_NEWS_TEMPLATES)
             news_text = template.format(company=company_name, industry=company.industry)
 
+            # Determine if news is real or hoax
+            is_real = random.random() < trust_threshold
+
             # Store in history
-            self.weekly_news_history.append((week_number, news_text))
-            news_items.append(news_text)
+            self.weekly_news_history.append((week_number, news_text, is_real))
+            news_items.append((news_text, is_real))
 
         return news_items
 
@@ -2740,7 +2762,7 @@ class InvestmentGame:
         self.market_cycle = MarketCycle()  # Market cycle system (every 6 months)
         self.pending_news_display: Optional[NewsReport] = None  # News to display this week
         self.weekly_gazette = WeeklyGazette()  # Weekly news outlet
-        self.pending_weekly_news: Optional[List[str]] = None  # Weekly news to display
+        self.pending_weekly_news: Optional[List[Tuple[str, bool]]] = None  # Weekly news to display (text, is_real)
 
         # Future price pre-calculation (hidden from players)
         # Stores next 2 weeks of calculated prices: {company_name: [week+1 price, week+2 price]}
@@ -2881,8 +2903,10 @@ class InvestmentGame:
             print("\n" + "📰 " + "="*58)
             print("THE BUSINESS GAZETTE - WEEKLY EDITION")
             print("="*60)
-            for news_item in self.pending_weekly_news:
-                print(f"• {news_item}")
+            for news_text, is_real in self.pending_weekly_news:
+                # Add subtle indicator for hoaxes (players won't know what it means initially)
+                indicator = "" if is_real else "⚠️  "
+                print(f"• {indicator}{news_text}")
             print("="*60)
 
     def execute_hedge_fund_trades(self):
