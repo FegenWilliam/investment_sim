@@ -317,19 +317,8 @@ class MarketNews:
             # Small movement - randomly choose
             true_sentiment = random.choice([NewsSentiment.POSITIVE, NewsSentiment.NEGATIVE])
 
-        # Determine if news is real or hoax - PREDICTABLY CYCLES to make players second-guess themselves
-        # 12-week cycle with varying trust levels
-        cycle_position = (week_number - 1) % 12
-        if cycle_position < 3:
-            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
-        elif cycle_position < 6:
-            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
-        elif cycle_position < 9:
-            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
-        else:
-            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
-
-        is_real = random.random() < trust_threshold
+        # Market movements are always real - no hoaxes for major market news
+        is_real = True
 
         # If hoax, flip the sentiment (news lies about the future)
         if is_real:
@@ -3150,8 +3139,8 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Generate news every 4 weeks (monthly)
-        if self.week_number % 4 == 0:
+        # Generate news every 12 weeks (quarterly)
+        if self.week_number % 12 == 0:
             self.pending_news_display = self.market_news.generate_news(self.companies, self.week_number, self.future_prices)
         else:
             self.pending_news_display = None
