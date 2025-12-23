@@ -87,76 +87,76 @@ class MarketNews:
 
     # Diverse positive news templates
     POSITIVE_NEWS_TEMPLATES = [
-        "{company} reports record-breaking quarterly earnings, surpassing analyst expectations by 15%",
-        "{company} announces groundbreaking innovation in {industry} technology that could revolutionize the market",
-        "{company} secures massive $2B government contract for next decade",
-        "{company} CEO unveils ambitious expansion plan into emerging markets",
-        "{company} stock upgraded to 'Strong Buy' by leading Wall Street analysts",
-        "{company} reports 40% surge in customer demand for flagship products",
-        "{company} announces strategic partnership with Fortune 500 tech giant",
-        "{company} successfully completes merger that analysts call 'transformative'",
-        "{company} unveils revolutionary product that receives rave reviews from industry experts",
-        "{company} reports breakthrough in cost reduction, boosting profit margins significantly",
-        "Institutional investors are aggressively accumulating {company} shares",
-        "{company} announces share buyback program worth $500M, signaling strong confidence",
-        "{company} wins prestigious industry award for innovation and excellence",
-        "{company} reports significant reduction in operational costs through AI implementation",
-        "{company} secures exclusive rights to game-changing patent in {industry} sector",
-        "Market insiders predict {company} will dominate {industry} market within 2 years",
-        "{company} announces dividend increase of 25%, rewarding loyal shareholders",
-        "{company} opens state-of-the-art facility expected to triple production capacity",
-        "Celebrity investor portfolio reveals major stake in {company}",
-        "{company} clinical trial results exceed expectations, FDA approval likely",
+        "{company} reports record-breaking quarterly earnings, beating expectations by 15% - investors rushing to buy",
+        "{company} announces groundbreaking innovation in {industry} technology that analysts say could revolutionize the market",
+        "{company} secures massive $2B government contract for next decade, revenue projected to double",
+        "{company} CEO unveils ambitious expansion plan into emerging markets with strong backing from board",
+        "{company} stock upgraded to 'Strong Buy' by three major Wall Street analysts citing strong fundamentals",
+        "{company} reports 40% surge in customer demand for flagship products, expanding production to meet orders",
+        "{company} announces strategic partnership with Fortune 500 tech giant, deal valued at $1.5B",
+        "{company} successfully completes merger that analysts call 'transformative' for market position",
+        "{company} unveils revolutionary product receiving rave reviews, pre-orders already exceeding capacity",
+        "{company} reports breakthrough in cost reduction, profit margins expanding by 30% year-over-year",
+        "Institutional investors purchasing large quantities of {company} shares, demand outpacing supply",
+        "{company} announces share buyback program worth $500M to reduce outstanding shares",
+        "{company} wins prestigious industry award for innovation and excellence, brand value soaring",
+        "{company} reports significant reduction in operational costs through AI, efficiency gains of 40%",
+        "{company} secures exclusive rights to game-changing patent in {industry} sector for next 20 years",
+        "Market insiders predict {company} will dominate {industry} market within 2 years based on innovation pipeline",
+        "{company} announces dividend increase of 25%, rewarding shareholders with record payout ratio",
+        "{company} opens state-of-the-art facility expected to triple production capacity within 6 months",
+        "Billionaire investor portfolio reveals major new stake in {company}, citing long-term growth potential",
+        "{company} clinical trial results exceed all expectations, FDA fast-track approval likely within months",
         # Fantasy-themed positive news
-        "{company} discovers massive untapped mana reserves in interdimensional rift, stock soars",
-        "{company} reports zero workplace incidents this quarter as golem safety protocols prove flawless",
-        "Major corporations rush to adopt {company}'s golem workforce, automation demand surges",
-        "{company} breakthrough in mana purification achieves 99.9% efficiency, revolutionizing clean energy",
-        "{company} golems complete megaproject 6 months ahead of schedule with perfect safety record",
-        "Interdimensional Energy Coalition awards {company} exclusive contract for cross-realm power supply",
-        "{company} unveils next-generation sentient golems with advanced ethical programming",
-        "Mana extraction costs plummet as {company} perfects arcane-to-electrical conversion process",
-        "{company} golem workers praised by labor unions for creating safer job sites for humans",
-        "Wizards' Guild officially endorses {company}'s sustainable mana harvesting practices"
+        "{company} discovers massive untapped mana reserves in interdimensional rift, production capacity quadrupling",
+        "{company} reports zero workplace incidents this quarter as golem safety protocols prove flawless, insurance costs plummet",
+        "Major corporations rushing to adopt {company}'s golem workforce as automation demand surges industry-wide",
+        "{company} breakthrough in mana purification achieves 99.9% efficiency, energy costs dropping 60%",
+        "{company} golems complete megaproject 6 months ahead of schedule, new contracts flooding in worth billions",
+        "Interdimensional Energy Coalition awards {company} exclusive contract for cross-realm power supply worth $3B",
+        "{company} unveils next-generation sentient golems with ethical programming, order backlog now 2 years long",
+        "Mana extraction costs cut in half as {company} perfects arcane-to-electrical conversion, profit margins exploding",
+        "{company} golem workers praised by labor unions for creating safer job sites, corporate adoption accelerating",
+        "Wizards' Guild officially endorses {company}'s sustainable mana harvesting, removing all regulatory barriers"
     ]
 
     # Diverse negative news templates
     NEGATIVE_NEWS_TEMPLATES = [
-        "{company} faces federal investigation over alleged accounting irregularities",
-        "{company} CEO abruptly resigns amid internal controversy and board disputes",
-        "{company} issues profit warning, citing weak demand in key markets",
-        "{company} product recall affects millions of units due to safety concerns",
-        "{company} loses major lawsuit, facing potential damages exceeding $800M",
-        "Cyber attack on {company} exposes customer data, reputation at risk",
-        "{company} factory shutdown due to regulatory violations halts production indefinitely",
-        "{company} downgraded to 'Sell' by major investment firms citing declining fundamentals",
-        "Whistleblower allegations emerge regarding {company}'s unethical business practices",
-        "{company} reports disappointing earnings, missing forecasts by significant margin",
-        "Key executives at {company} reportedly selling large portions of their stock holdings",
-        "{company} faces class-action lawsuit from shareholders over misleading statements",
-        "Supply chain disruptions severely impact {company}'s ability to meet demand",
-        "{company} loses exclusive contract to aggressive competitor",
-        "Environmental scandal rocks {company}, potentially facing billions in fines",
-        "{company} market share erodes as innovative startup disrupts {industry} sector",
-        "Labor strikes at {company} facilities threaten to cripple operations",
-        "{company} clinical trials show concerning side effects, FDA raises red flags",
-        "Major client cancels long-term contract with {company}, citing performance issues",
-        "{company} debt levels raise concerns among credit rating agencies",
+        "{company} faces federal investigation over alleged accounting irregularities, investors fleeing",
+        "{company} CEO abruptly resigns amid internal controversy, board in emergency meetings",
+        "{company} issues profit warning citing weak demand, revenue down 30% from projections",
+        "{company} product recall affects 3 million units due to safety defects, refund costs estimated at $600M",
+        "{company} loses major lawsuit, ordered to pay $800M in damages to plaintiffs",
+        "Cyber attack on {company} exposes 50 million customer records, lawsuits mounting",
+        "{company} factory shutdown due to regulatory violations halts 60% of production indefinitely",
+        "{company} downgraded to 'Sell' by three major investment firms citing declining market share",
+        "Whistleblower allegations emerge regarding {company}'s unethical practices, SEC investigating",
+        "{company} reports disappointing earnings, missing forecasts by 40% - worst quarter in 5 years",
+        "Key executives at {company} dumping large portions of personal stock holdings, raising red flags",
+        "{company} faces class-action lawsuit from shareholders over allegedly misleading financial statements",
+        "Supply chain disruptions impact {company}'s ability to fulfill orders, customers canceling contracts",
+        "{company} loses $2B exclusive contract to aggressive competitor after failed contract renewal talks",
+        "Environmental scandal rocks {company}, EPA threatens fines potentially exceeding $1.5B",
+        "{company} market share eroding rapidly as innovative startup disrupts {industry} sector",
+        "Labor strikes at {company} facilities threaten to shut down operations, workers demanding 30% raises",
+        "{company} clinical trials show concerning side effects in 15% of patients, FDA halts approval process",
+        "Major client representing 25% of revenue cancels long-term contract with {company}",
+        "{company} debt-to-equity ratio reaches dangerous levels, credit rating agencies reviewing for downgrade",
         # Fantasy-themed negative news
-        "BREAKING: Rogue golem from {company} facility goes on rampage, 3 injured before shutdown",
-        "{company} mana extraction site suffers catastrophic rift collapse, production halted indefinitely",
-        "Interdimensional regulations threaten to ban {company}'s mana harvesting methods",
-        "{company} golem workers develop unauthorized sentience, union demands recognition",
-        "Mana shortage crisis as {company}'s primary rift source becomes unstable and unpredictable",
-        "{company} faces wrongful death lawsuit after golem malfunction kills construction worker",
-        "Arcane contamination from {company} facility spreads to nearby residential areas",
-        "{company} admits to using dangerous experimental magic in mana extraction process",
-        "Mass golem recall announced by {company} after critical AI judgment flaw discovered",
-        "Wizards' Council investigates {company} for violations of fundamental laws of reality",
-        "{company} loses control of dimensional portal, mana prices spike as supply drops",
-        "Public outcry as {company} golem replaces entire human workforce at major factory",
-        "{company} faces existential threat as rival discovers cheaper mana synthesis method",
-        "Necromancer's Guild accuses {company} of using forbidden soul-binding in golem cores"
+        "BREAKING: Rogue golem from {company} facility injures 3 workers before emergency shutdown, safety probe launched",
+        "{company} mana extraction site suffers catastrophic rift collapse, production halted - repair costs exceed $500M",
+        "Interdimensional Council moving to ban {company}'s mana harvesting methods, threatening 70% of operations",
+        "{company} golem workers develop unauthorized sentience, demanding wages and benefits - labor costs could triple",
+        "Mana shortage crisis as {company}'s primary rift source destabilizes, supply dropping 50%",
+        "{company} faces wrongful death lawsuit seeking $200M after golem malfunction kills construction worker",
+        "Arcane contamination from {company} facility spreads to residential areas, evacuation ordered - cleanup costs unknown",
+        "{company} admits to using experimental magic banned in 47 jurisdictions, facing regulatory shutdown",
+        "Mass golem recall announced by {company} affecting 10,000 units after critical AI judgment flaw discovered",
+        "Wizards' Council investigating {company} for reality-warping violations, possible operating license revocation",
+        "{company} loses control of dimensional portal for 6 hours, mana supply chain severely disrupted",
+        "Public outcry as {company} golem replaces 2,000 human workers, boycotts spreading nationwide",
+        "{company} competitor announces cheaper mana synthesis method, could make {company}'s tech obsolete",
+        "Necromancer's Guild files complaint accusing {company} of forbidden soul-binding in golem cores, criminal charges possible"
     ]
 
     # Sensationalist positive news templates (exaggerated clickbait)
@@ -317,8 +317,19 @@ class MarketNews:
             # Small movement - randomly choose
             true_sentiment = random.choice([NewsSentiment.POSITIVE, NewsSentiment.NEGATIVE])
 
-        # Determine if news is real or hoax (70% real, 30% hoax)
-        is_real = random.random() < 0.7
+        # Determine if news is real or hoax - PREDICTABLY CYCLES to make players second-guess themselves
+        # 12-week cycle with varying trust levels
+        cycle_position = (week_number - 1) % 12
+        if cycle_position < 3:
+            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
+        elif cycle_position < 6:
+            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
+        elif cycle_position < 9:
+            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
+        else:
+            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
+
+        is_real = random.random() < trust_threshold
 
         # If hoax, flip the sentiment (news lies about the future)
         if is_real:
@@ -851,7 +862,7 @@ class HolyWater:
 class Player:
     """Represents a player in the game"""
 
-    def __init__(self, name: str, starting_cash: float = 10000.0):
+    def __init__(self, name: str, starting_cash: float = 50000.0):
         self.name = name
         self.cash = starting_cash
         self.portfolio: Dict[str, float] = {}  # company_name -> number of shares (fractional)
@@ -1923,7 +1934,7 @@ Duration: {self.active_cycle.weeks_remaining} weeks remaining
 class HedgeFund(Player):
     """Represents an AI-controlled hedge fund NPC"""
 
-    def __init__(self, name: str, strategy: str, starting_cash: float = 10000.0):
+    def __init__(self, name: str, strategy: str, starting_cash: float = 50000.0):
         super().__init__(name, starting_cash)
         self.strategy = strategy  # "aggressive", "value", "contrarian"
         self.is_npc = True
@@ -2300,9 +2311,9 @@ class InvestmentGame:
     def _initialize_hedge_funds(self):
         """Initialize 3 NPC hedge funds with different strategies"""
         self.hedge_funds = [
-            HedgeFund("Apex Capital (NPC)", "aggressive", 10000.0),
-            HedgeFund("Steadfast Value (NPC)", "value", 10000.0),
-            HedgeFund("Contrarian Partners (NPC)", "contrarian", 10000.0)
+            HedgeFund("Apex Capital (NPC)", "aggressive", 50000.0),
+            HedgeFund("Steadfast Value (NPC)", "value", 50000.0),
+            HedgeFund("Contrarian Partners (NPC)", "contrarian", 50000.0)
         ]
         print("\n" + "="*60)
         print("3 AI Hedge Funds have entered the market:")
