@@ -1563,7 +1563,7 @@ class Player:
 
         return True, message
 
-    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury) -> Tuple[bool, str]:
+    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> Tuple[bool, str]:
         """Short sell shares: borrow and sell them, must cover later"""
         if shares <= 0:
             return False, "Invalid number of shares!"
@@ -1575,7 +1575,7 @@ class Player:
 
         # Check margin requirement: need equity >= 1.5x the short position value
         # This is the initial margin requirement for short selling
-        equity = self.calculate_equity(companies, treasury)
+        equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
         short_value = company.price * shares
         required_margin = short_value * 1.5
 
@@ -3685,7 +3685,7 @@ class InvestmentGame:
         print("SHORT SELL STOCKS")
         print("="*60)
         print(f"Available Cash: ${player.cash:.2f}")
-        equity = player.calculate_equity(self.companies, self.treasury)
+        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
         print(f"Current Equity: ${equity:.2f}")
         print()
         print("⚠️  WARNING: Short selling is risky! Losses can be unlimited if prices rise.")
@@ -3721,7 +3721,7 @@ class InvestmentGame:
                 print(f"Total proceeds: ${total_proceeds:.2f}")
                 print(f"Required equity: ${required_equity:.2f} (you have ${equity:.2f})")
 
-                success, message = player.short_sell(company, shares, self.companies, self.treasury)
+                success, message = player.short_sell(company, shares, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
