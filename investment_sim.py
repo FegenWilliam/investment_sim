@@ -4207,11 +4207,35 @@ class InvestmentGame:
 
             # Restore weekly gazette
             game.weekly_gazette = WeeklyGazette.from_dict(game_state.get('weekly_gazette', {'weekly_news_history': []}))
-            game.pending_weekly_news = game_state.get('pending_weekly_news', None)
+            # Convert pending_weekly_news from history format (3-tuple) to display format (2-tuple) if needed
+            pending_weekly_raw = game_state.get('pending_weekly_news', None)
+            if pending_weekly_raw:
+                game.pending_weekly_news = []
+                for item in pending_weekly_raw:
+                    if len(item) == 3:
+                        # History format: (week_number, news_text, is_real) -> display format: (news_text, is_real)
+                        game.pending_weekly_news.append((item[1], item[2]))
+                    else:
+                        # Already in display format: (news_text, is_real)
+                        game.pending_weekly_news.append(tuple(item))
+            else:
+                game.pending_weekly_news = None
 
             # Restore market chronicle
             game.market_chronicle = MarketChronicle.from_dict(game_state.get('market_chronicle', {'chronicle_news_history': []}))
-            game.pending_chronicle_news = game_state.get('pending_chronicle_news', None)
+            # Convert pending_chronicle_news from history format (3-tuple) to display format (2-tuple) if needed
+            pending_chronicle_raw = game_state.get('pending_chronicle_news', None)
+            if pending_chronicle_raw:
+                game.pending_chronicle_news = []
+                for item in pending_chronicle_raw:
+                    if len(item) == 3:
+                        # History format: (week_number, news_text, is_real) -> display format: (news_text, is_real)
+                        game.pending_chronicle_news.append((item[1], item[2]))
+                    else:
+                        # Already in display format: (news_text, is_real)
+                        game.pending_chronicle_news.append(tuple(item))
+            else:
+                game.pending_chronicle_news = None
 
             # Restore future prices (or recalculate if not present in save file)
             if 'future_prices' in game_state:
