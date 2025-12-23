@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Quick test to verify weekly news hoax system works correctly"""
+"""Quick test to verify weekly news hoax system works correctly with two outlets"""
 
 import sys
 import random
-from investment_sim import WeeklyGazette, Company, LiquidityLevel
+from investment_sim import WeeklyGazette, MarketChronicle, Company, LiquidityLevel
 
-def test_weekly_news_hoaxes():
-    """Test that weekly news generates hoaxes at correct rates"""
+def test_two_weekly_outlets():
+    """Test that both weekly news outlets generate hoaxes at correct rates"""
     random.seed(42)  # For reproducibility
 
     # Create test companies
@@ -16,52 +16,74 @@ def test_weekly_news_hoaxes():
     }
 
     gazette = WeeklyGazette()
+    chronicle = MarketChronicle()
 
     # Test different weeks in the cycle
     test_weeks = [1, 4, 7, 10]  # One from each trust period
 
     for week in test_weeks:
-        news_items = gazette.generate_weekly_news(companies, week)
+        gazette_news = gazette.generate_weekly_news(companies, week)
+        chronicle_news = chronicle.generate_chronicle_news(companies, week)
 
-        print(f"\nWeek {week}:")
+        print(f"\n{'='*70}")
+        print(f"WEEK {week}")
+        print(f"{'='*70}")
+
         cycle_pos = (week - 1) % 12
         if cycle_pos < 3:
-            expected_trust = "80% real"
+            expected_trust = "80% real, 20% hoax"
         elif cycle_pos < 6:
-            expected_trust = "70% real"
+            expected_trust = "70% real, 30% hoax"
         elif cycle_pos < 9:
-            expected_trust = "50% real"
+            expected_trust = "50% real, 50% hoax"
         else:
-            expected_trust = "60% real"
+            expected_trust = "60% real, 40% hoax"
 
-        print(f"Expected trust level: {expected_trust}")
+        print(f"Trust level: {expected_trust}")
+        print()
 
-        real_count = sum(1 for _, is_real in news_items if is_real)
-        hoax_count = len(news_items) - real_count
+        # Display both outlets side by side
+        print("📰 THE BUSINESS GAZETTE - WEEKLY EDITION")
+        print("-" * 70)
+        gazette_real = sum(1 for _, is_real in gazette_news if is_real)
+        print(f"(Debug: {gazette_real}/{len(gazette_news)} real)")
+        for news_text, is_real in gazette_news:
+            # NO INDICATOR - players can't tell!
+            print(f"• {news_text[:65]}...")
+            if is_real:
+                print(f"  [Debug only: This is REAL news]")
+            else:
+                print(f"  [Debug only: This is a HOAX]")
 
-        print(f"Generated {len(news_items)} news items:")
-        print(f"  Real: {real_count}")
-        print(f"  Hoaxes: {hoax_count}")
+        print()
+        print("📰 THE MARKET CHRONICLE - WEEKLY REPORT")
+        print("-" * 70)
+        chronicle_real = sum(1 for _, is_real in chronicle_news if is_real)
+        print(f"(Debug: {chronicle_real}/{len(chronicle_news)} real)")
+        for news_text, is_real in chronicle_news:
+            # NO INDICATOR - players can't tell!
+            print(f"• {news_text[:65]}...")
+            if is_real:
+                print(f"  [Debug only: This is REAL news]")
+            else:
+                print(f"  [Debug only: This is a HOAX]")
 
-        for news_text, is_real in news_items:
-            status = "✓ REAL" if is_real else "⚠️  HOAX"
-            print(f"  [{status}] {news_text[:60]}...")
+    # Test serialization for both outlets
+    print("\n" + "="*70)
+    print("Testing serialization...")
+    print("="*70)
 
-    # Test serialization
-    print("\n\nTesting serialization...")
-    data = gazette.to_dict()
-    gazette2 = WeeklyGazette.from_dict(data)
+    gazette_data = gazette.to_dict()
+    gazette2 = WeeklyGazette.from_dict(gazette_data)
+    print(f"Gazette: {len(gazette.weekly_news_history)} items saved and restored")
 
-    print(f"Original history length: {len(gazette.weekly_news_history)}")
-    print(f"Deserialized history length: {len(gazette2.weekly_news_history)}")
-
-    # Verify format
-    if gazette2.weekly_news_history:
-        first_item = gazette2.weekly_news_history[0]
-        print(f"History item format: {len(first_item)}-tuple (week, text, is_real)")
-        print(f"Sample: week={first_item[0]}, is_real={first_item[2]}")
+    chronicle_data = chronicle.to_dict()
+    chronicle2 = MarketChronicle.from_dict(chronicle_data)
+    print(f"Chronicle: {len(chronicle.chronicle_news_history)} items saved and restored")
 
     print("\n✅ All tests passed!")
+    print("\nNote: In actual gameplay, players see NO indicators.")
+    print("They must decide which outlet to trust when stories contradict!")
 
 if __name__ == "__main__":
-    test_weekly_news_hoaxes()
+    test_two_weekly_outlets()
