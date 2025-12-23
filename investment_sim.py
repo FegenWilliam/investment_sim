@@ -1431,7 +1431,7 @@ class Player:
         self.researched_this_week = False
         self.research_history: Dict[str, List[str]] = {}  # company_name -> list of hints received
 
-    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None) -> Tuple[bool, str]:
+    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None) -> Tuple[bool, str]:
         """Buy shares of a company using dollar amount with optional leverage
 
         Args:
@@ -1440,6 +1440,7 @@ class Player:
             leverage: Leverage multiplier (e.g., 2.0 = 2x leverage, doubles the investment)
             companies: Dict of companies (needed for equity calculation with leverage)
             treasury: Treasury object (needed for equity calculation with leverage)
+            gold, holy_water, etc: Special assets (needed for accurate equity calculation)
         """
         if dollar_amount <= 0:
             return False, "Invalid investment amount!"
@@ -1457,7 +1458,7 @@ class Player:
             if companies is None or treasury is None:
                 return False, "Cannot calculate leverage without company data!"
 
-            equity = self.calculate_equity(companies, treasury)
+            equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
             new_borrowed = self.borrowed_amount + borrowed_for_trade
 
             if new_borrowed > equity * self.max_leverage_ratio:
@@ -1893,12 +1894,12 @@ class Player:
 
         return assets
 
-    def borrow_money(self, amount: float, companies: Dict[str, Company], treasury: Treasury) -> Tuple[bool, str]:
+    def borrow_money(self, amount: float, companies: Dict[str, Company], treasury: Treasury, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None) -> Tuple[bool, str]:
         """Borrow money using leverage"""
         if amount <= 0:
             return False, "Invalid amount!"
 
-        equity = self.calculate_equity(companies, treasury)
+        equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
 
         # Check if borrowing would exceed max leverage
         new_borrowed = self.borrowed_amount + amount
@@ -2326,7 +2327,7 @@ class Player:
         # Show leverage info
         if self.borrowed_amount > 0:
             print(f"💳 Borrowed (Leverage): ${self.borrowed_amount:.2f}")
-            equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity)
+            equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
             print(f"💰 Equity (Net - Debt): ${equity:.2f}")
             current_leverage = self.borrowed_amount / max(0.01, equity)
             print(f"📊 Leverage Ratio: {current_leverage:.2f}x (Max: {self.max_leverage_ratio:.2f}x)")
@@ -3560,7 +3561,7 @@ class InvestmentGame:
         print("BUY STOCKS")
         print("="*60)
         print(f"Available Cash: ${player.cash:.2f}")
-        equity = player.calculate_equity(self.companies, self.treasury)
+        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
         print(f"Current Equity: ${equity:.2f}")
         max_can_borrow = max(0, equity * player.max_leverage_ratio - player.borrowed_amount)
         print(f"Max additional leverage: ${max_can_borrow:.2f}")
@@ -3617,7 +3618,7 @@ class InvestmentGame:
                     print("Purchase cancelled.")
                     return
 
-                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury)
+                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
@@ -4015,7 +4016,7 @@ class InvestmentGame:
         print("BORROW MONEY (LEVERAGE)")
         print("="*60)
 
-        equity = player.calculate_equity(self.companies, self.treasury)
+        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
         max_can_borrow = max(0, equity * player.max_leverage_ratio - player.borrowed_amount)
 
         print(f"Your Equity: ${equity:.2f}")
@@ -4036,7 +4037,7 @@ class InvestmentGame:
                 print("Invalid amount!")
                 return
 
-            success, message = player.borrow_money(amount, self.companies, self.treasury)
+            success, message = player.borrow_money(amount, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
             print(f"\n{message}")
 
         except ValueError:
