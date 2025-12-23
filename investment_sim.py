@@ -560,20 +560,20 @@ class WeeklyGazette:
         gazette.weekly_news_history = [tuple(item) for item in data['weekly_news_history']]
         return gazette
 
-    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> str:
-        """Generate weekly news for a random company"""
-        # Select random company
-        company_name = random.choice(list(companies.keys()))
-        company = companies[company_name]
+    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[str]:
+        """Generate weekly news for all companies"""
+        news_items = []
 
-        # Select random news template
-        template = random.choice(self.WEEKLY_NEWS_TEMPLATES)
-        news_text = template.format(company=company_name, industry=company.industry)
+        for company_name, company in companies.items():
+            # Select random news template for each company
+            template = random.choice(self.WEEKLY_NEWS_TEMPLATES)
+            news_text = template.format(company=company_name, industry=company.industry)
 
-        # Store in history
-        self.weekly_news_history.append((week_number, news_text))
+            # Store in history
+            self.weekly_news_history.append((week_number, news_text))
+            news_items.append(news_text)
 
-        return news_text
+        return news_items
 
 
 class LiquidityLevel(Enum):
@@ -2240,7 +2240,7 @@ class InvestmentGame:
         self.market_cycle = MarketCycle()  # Market cycle system (every 6 months)
         self.pending_news_display: Optional[NewsReport] = None  # News to display this week
         self.weekly_gazette = WeeklyGazette()  # Weekly news outlet
-        self.pending_weekly_news: Optional[str] = None  # Weekly news to display
+        self.pending_weekly_news: Optional[List[str]] = None  # Weekly news to display
 
         # Future price pre-calculation (hidden from players)
         # Stores next 2 weeks of calculated prices: {company_name: [week+1 price, week+2 price]}
@@ -2370,10 +2370,8 @@ class InvestmentGame:
             print("\n" + "📰 " + "="*58)
             print("THE BUSINESS GAZETTE - WEEKLY EDITION")
             print("="*60)
-            print()
-            print("This Week in Business:")
-            print("-" * 60)
-            print(f"  {self.pending_weekly_news}")
+            for news_item in self.pending_weekly_news:
+                print(f"• {news_item}")
             print("="*60)
 
     def execute_hedge_fund_trades(self):
@@ -2702,14 +2700,13 @@ class InvestmentGame:
             print("8. Sell Treasury Bonds")
             print("9. Buy Themed Investments (Gold, Holy Water, Quantum Singularity)")
             print("10. Sell Themed Investments (Gold, Holy Water)")
-            print("11. Research Company (once per week)")
-            print("12. Borrow Money (Leverage)")
-            print("13. Repay Loan")
-            print("14. Save Game")
-            print("15. End Turn")
+            print("11. Borrow Money (Leverage)")
+            print("12. Repay Loan")
+            print("13. Save Game")
+            print("14. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-15): ").strip()
+            choice = input("Enter choice (1-14): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -2742,21 +2739,18 @@ class InvestmentGame:
                 self._sell_themed_investments_menu(player)
 
             elif choice == "11":
-                self._research_company_menu(player)
-
-            elif choice == "12":
                 self._borrow_money_menu(player)
 
-            elif choice == "13":
+            elif choice == "12":
                 self._repay_loan_menu(player)
 
-            elif choice == "14":
+            elif choice == "13":
                 filename = input("Enter save filename (default: savegame.json): ").strip()
                 if not filename:
                     filename = "savegame.json"
                 self.save_game(filename)
 
-            elif choice == "15":
+            elif choice == "14":
                 # Check for margin call warning before ending turn
                 if player.check_margin_call(self.companies, self.treasury):
                     print("\n" + "⚠️ " + "="*58)
