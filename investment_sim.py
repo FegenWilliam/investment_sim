@@ -344,12 +344,65 @@ class MarketNews:
         # Use trustworthy source text for history (or sensationalist if trustworthy is empty)
         news_text = news_report.trustworthy_source if news_report.trustworthy_source else news_report.sensationalist_source
 
-        # Determine impact magnitude (5% to 15% change)
-        base_impact = random.uniform(5.0, 15.0)
+        # Determine impact magnitude for monthly news (small impact: 2% to 5% change)
+        base_impact = random.uniform(2.0, 5.0)
         impact_magnitude = base_impact if sentiment == NewsSentiment.POSITIVE else -base_impact
 
         # Determine when impact will occur (1-4 weeks from now)
         weeks_until_impact = random.randint(1, 4)
+
+        # Create pending impact
+        pending_impact = PendingNewsImpact(
+            company_name=company_name,
+            sentiment=sentiment,
+            impact_magnitude=impact_magnitude,
+            weeks_until_impact=weeks_until_impact,
+            is_real=is_real,
+            news_text=news_text,
+            news_report=news_report
+        )
+
+        self.pending_impacts.append(pending_impact)
+        self.news_history.append((week_number, news_text))
+
+        return news_report
+
+    def generate_market_movement(self, companies: Dict[str, 'Company'], week_number: int, future_prices: Dict[str, List[float]]) -> Optional[NewsReport]:
+        """Generate quarterly market movement - always real, large impact"""
+        # Select random company
+        company_name = random.choice(list(companies.keys()))
+        company = companies[company_name]
+
+        # Determine TRUE sentiment based on future price movement
+        current_price = company.price
+        future_avg = sum(future_prices[company_name]) / len(future_prices[company_name])
+        price_change_percent = ((future_avg - current_price) / current_price) * 100
+
+        # TRUE sentiment based on actual future movement
+        if price_change_percent > 2.0:  # Stock going up significantly
+            true_sentiment = NewsSentiment.POSITIVE
+        elif price_change_percent < -2.0:  # Stock going down significantly
+            true_sentiment = NewsSentiment.NEGATIVE
+        else:
+            # Small movement - randomly choose
+            true_sentiment = random.choice([NewsSentiment.POSITIVE, NewsSentiment.NEGATIVE])
+
+        # Market movements are ALWAYS real - no hoaxes
+        is_real = True
+        sentiment = true_sentiment
+
+        # Generate news from all three sources
+        news_report = self._generate_news_report(company_name, company.industry, sentiment, is_real)
+
+        # Use trustworthy source text for history
+        news_text = news_report.trustworthy_source if news_report.trustworthy_source else news_report.sensationalist_source
+
+        # Determine impact magnitude for market movements (LARGE impact: 10% to 20% change)
+        base_impact = random.uniform(10.0, 20.0)
+        impact_magnitude = base_impact if sentiment == NewsSentiment.POSITIVE else -base_impact
+
+        # Determine when impact will occur (1-3 weeks from now)
+        weeks_until_impact = random.randint(1, 3)
 
         # Create pending impact
         pending_impact = PendingNewsImpact(
@@ -3150,11 +3203,16 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Generate news every 4 weeks (monthly)
+        # Generate monthly news every 4 weeks (can have hoaxes, small impact)
         if self.week_number % 4 == 0:
             self.pending_news_display = self.market_news.generate_news(self.companies, self.week_number, self.future_prices)
         else:
             self.pending_news_display = None
+
+        # Generate quarterly market movements every 12 weeks (always real, large impact)
+        if self.week_number % 12 == 0:
+            # Market movements override monthly news if both occur same week
+            self.pending_news_display = self.market_news.generate_market_movement(self.companies, self.week_number, self.future_prices)
 
         # Generate weekly gazette news (every week)
         self.pending_weekly_news = self.weekly_gazette.generate_weekly_news(self.companies, self.week_number)
