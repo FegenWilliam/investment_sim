@@ -1520,9 +1520,21 @@ class Player:
         if not success:
             return False, msg
 
-        self.cash -= void_catalyst.price
+        purchase_price = void_catalyst.price
+        self.cash -= purchase_price
         self.void_catalyst_owned = True
-        return True, f"Purchase successful! Bought Void Catalyst for ${void_catalyst.price:.2f}. {msg.split('!', 1)[1] if '!' in msg else ''}"
+
+        # 10% chance of immediate auto-sell (no gain, no loss)
+        if random.random() < 0.10:
+            # Auto-sell immediately - player gets their money back
+            self.cash += purchase_price
+            self.void_catalyst_owned = False
+            void_catalyst.is_owned = False
+            void_catalyst.owner_name = None
+            void_catalyst.weeks_owned = 0
+            return True, f"Purchase successful! Bought Void Catalyst for ${purchase_price:.2f}... but it IMMEDIATELY auto-sold for ${purchase_price:.2f}! The void is fickle. (No money gained or lost)"
+
+        return True, f"Purchase successful! Bought Void Catalyst for ${purchase_price:.2f}. {msg.split('!', 1)[1] if '!' in msg else ''}"
 
     def process_void_catalyst_auto_sell(self, void_catalyst: VoidCatalyst) -> Tuple[bool, str, float]:
         """Process auto-sell of Void Catalyst if needed. Returns (was_sold, message, amount)"""
