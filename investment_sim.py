@@ -4215,9 +4215,12 @@ class InvestmentGame:
                     if len(item) == 3:
                         # History format: (week_number, news_text, is_real) -> display format: (news_text, is_real)
                         game.pending_weekly_news.append((item[1], item[2]))
-                    else:
+                    elif len(item) == 2:
                         # Already in display format: (news_text, is_real)
                         game.pending_weekly_news.append(tuple(item))
+                    else:
+                        # Unexpected format - skip this item to prevent crashes
+                        print(f"Warning: Skipping malformed weekly news item with {len(item)} elements")
             else:
                 game.pending_weekly_news = None
 
@@ -4231,9 +4234,12 @@ class InvestmentGame:
                     if len(item) == 3:
                         # History format: (week_number, news_text, is_real) -> display format: (news_text, is_real)
                         game.pending_chronicle_news.append((item[1], item[2]))
-                    else:
+                    elif len(item) == 2:
                         # Already in display format: (news_text, is_real)
                         game.pending_chronicle_news.append(tuple(item))
+                    else:
+                        # Unexpected format - skip this item to prevent crashes
+                        print(f"Warning: Skipping malformed chronicle news item with {len(item)} elements")
             else:
                 game.pending_chronicle_news = None
 
