@@ -1947,14 +1947,15 @@ class Player:
 
         return total_fees
 
-    def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury) -> bool:
+    def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> bool:
         """Check if player is subject to margin call (equity < 30% of total position or maintenance margin for shorts)"""
         # Check if there's any leverage or short positions
         has_risk = self.borrowed_amount > 0 or len(self.short_positions) > 0
         if not has_risk:
             return False
 
-        equity = self.calculate_equity(companies, treasury)
+        # Calculate equity excluding Quantum Singularity (it doesn't count for margin purposes)
+        equity = self.calculate_equity(companies, treasury, gold, holy_water, None, elf_queen_water, gold_coin, void_stocks, void_catalyst)
 
         # Check leverage-based margin call
         if self.borrowed_amount > 0:
@@ -1977,14 +1978,14 @@ class Player:
 
         return False
 
-    def force_liquidate_margin_call(self, companies: Dict[str, Company], treasury: Treasury) -> List[str]:
+    def force_liquidate_margin_call(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> List[str]:
         """
         Automatically liquidate positions to meet margin requirements.
         Returns a list of actions taken.
         """
         actions = []
 
-        if not self.check_margin_call(companies, treasury):
+        if not self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
             return actions  # No margin call, nothing to do
 
         actions.append(f"🚨 FORCED LIQUIDATION for {self.name} - Margin call not resolved")
@@ -1996,7 +1997,7 @@ class Player:
         short_positions.sort(key=lambda x: x[2], reverse=True)
 
         for company_name, shares, value in short_positions:
-            if not self.check_margin_call(companies, treasury):
+            if not self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
                 break  # Margin call resolved
 
             company = companies[company_name]
@@ -2018,7 +2019,7 @@ class Player:
         stock_positions.sort(key=lambda x: x[2], reverse=True)
 
         for company_name, shares, value in stock_positions:
-            if not self.check_margin_call(companies, treasury):
+            if not self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
                 break  # Margin call resolved
 
             company = companies[company_name]
@@ -2038,7 +2039,7 @@ class Player:
         self.portfolio = {k: v for k, v in self.portfolio.items() if v > 0}
 
         # If still in margin call, liquidate treasury bonds
-        if self.check_margin_call(companies, treasury) and self.treasury_bonds > 0:
+        if self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst) and self.treasury_bonds > 0:
             proceeds = self.treasury_bonds * treasury.price
             self.cash += proceeds
             actions.append(f"   Sold {self.treasury_bonds} treasury bonds for ${proceeds:.2f}")
@@ -2052,8 +2053,8 @@ class Player:
                 actions.append(f"   Repaid ${repayment:.2f} of loan")
 
         # Final status
-        equity = self.calculate_equity(companies, treasury)
-        if self.check_margin_call(companies, treasury):
+        equity = self.calculate_equity(companies, treasury, gold, holy_water, None, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        if self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
             actions.append(f"   ⚠️ WARNING: Still in margin call after full liquidation!")
             actions.append(f"   Final Equity: ${equity:.2f}, Debt: ${self.borrowed_amount:.2f}")
         else:
@@ -3416,13 +3417,13 @@ class InvestmentGame:
                 print(f"\n⚛️ Quantum Singularity passive income: ${qs_income:.2f}")
 
         # Check for margin call
-        if player.check_margin_call(self.companies, self.treasury):
+        if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
             print("\n" + "⚠️ " + "="*58)
             print("MARGIN CALL ALERT!")
             print("="*60)
             print("Your equity has fallen below 30% of your total position!")
             print("You must either deposit cash or sell assets to reduce leverage.")
-            equity = player.calculate_equity(self.companies, self.treasury)
+            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, None, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
             print(f"Current Equity: ${equity:.2f}")
             print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
             print(f"Required Action: Increase equity or repay loan immediately!")
@@ -3512,14 +3513,14 @@ class InvestmentGame:
 
             elif choice == "14":
                 # Check for margin call warning before ending turn
-                if player.check_margin_call(self.companies, self.treasury):
+                if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
                     print("\n" + "⚠️ " + "="*58)
                     print("⚠️  MARGIN CALL WARNING!")
                     print("="*60)
                     print("If you end your turn now, you will be subject to FORCED LIQUIDATION!")
                     print("Your equity has fallen below the required maintenance margin.")
                     print()
-                    equity = player.calculate_equity(self.companies, self.treasury)
+                    equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, None, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
                     print(f"Current Equity: ${equity:.2f}")
                     print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
                     if player.borrowed_amount > 0:
@@ -4364,8 +4365,8 @@ class InvestmentGame:
             print("\nProcessing margin calls...")
             margin_call_actions = []
             for player in self.players:
-                if player.check_margin_call(self.companies, self.treasury):
-                    actions = player.force_liquidate_margin_call(self.companies, self.treasury)
+                if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
+                    actions = player.force_liquidate_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
                     margin_call_actions.extend(actions)
 
             if margin_call_actions:
