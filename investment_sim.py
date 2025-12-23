@@ -609,7 +609,7 @@ class WeeklyGazette:
     ]
 
     def __init__(self):
-        self.weekly_news_history: List[Tuple[int, str]] = []  # (week_number, news_text)
+        self.weekly_news_history: List[Tuple[int, str, bool]] = []  # (week_number, news_text, is_real)
 
     def to_dict(self) -> dict:
         """Serialize WeeklyGazette to dictionary"""
@@ -621,21 +621,234 @@ class WeeklyGazette:
     def from_dict(data: dict) -> 'WeeklyGazette':
         """Deserialize WeeklyGazette from dictionary"""
         gazette = WeeklyGazette()
-        gazette.weekly_news_history = [tuple(item) for item in data['weekly_news_history']]
+        # Handle both old format (2-tuple) and new format (3-tuple)
+        gazette.weekly_news_history = []
+        for item in data.get('weekly_news_history', []):
+            if len(item) == 2:
+                # Old format: (week_number, news_text) - assume all were real
+                gazette.weekly_news_history.append((item[0], item[1], True))
+            else:
+                # New format: (week_number, news_text, is_real)
+                gazette.weekly_news_history.append(tuple(item))
         return gazette
 
-    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[str]:
-        """Generate weekly news for all companies"""
+    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[Tuple[str, bool]]:
+        """Generate weekly news for all companies, with hoaxes using same rate as monthly news"""
         news_items = []
+
+        # Determine hoax rate using same 12-week cycle as monthly news
+        cycle_position = (week_number - 1) % 12
+        if cycle_position < 3:
+            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
+        elif cycle_position < 6:
+            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
+        elif cycle_position < 9:
+            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
+        else:
+            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
 
         for company_name, company in companies.items():
             # Select random news template for each company
             template = random.choice(self.WEEKLY_NEWS_TEMPLATES)
             news_text = template.format(company=company_name, industry=company.industry)
 
+            # Determine if news is real or hoax
+            is_real = random.random() < trust_threshold
+
             # Store in history
-            self.weekly_news_history.append((week_number, news_text))
-            news_items.append(news_text)
+            self.weekly_news_history.append((week_number, news_text, is_real))
+            news_items.append((news_text, is_real))
+
+        return news_items
+
+
+class MarketChronicle:
+    """Second weekly news outlet with different perspective on company news"""
+
+    # Market Chronicle news templates - alternative takes on company news
+    CHRONICLE_NEWS_TEMPLATES = [
+        # Product and service updates
+        "{company} showcases updated product lineup at recent {industry} industry event with mixed analyst reactions.",
+        "{company} rolls out software patch addressing technical issues reported by user community.",
+        "Industry observers note {company} testing new service model in limited geographic areas.",
+        "{company} product development roadmap suggests multiple initiatives in various planning stages.",
+        "Patent analysis reveals {company} filing applications related to {industry} sector innovations.",
+
+        # Business operations
+        "{company} expands operational footprint with new facility to serve growing customer demand.",
+        "Cost optimization program at {company} aims to improve margins through operational changes.",
+        "{company} bolsters support infrastructure as platform usage metrics show steady growth.",
+        "Supply chain review: {company} adjusting procurement strategy to mitigate operational risks.",
+        "{company} deploys new logistics software seeking improved inventory turnover efficiency.",
+
+        # Partnerships and collaborations
+        "{company} finalizes distribution partnership expanding presence in retail channels.",
+        "Market watchers report {company} in discussions with {industry} research partners.",
+        "{company} becomes member of industry standards group addressing technical specifications.",
+        "Community partnerships announced by {company} focusing on environmental initiatives.",
+        "{company} enters marketing partnership with related {industry} service company.",
+
+        # Corporate updates
+        "{company} elevates multiple executives to senior leadership positions in succession plan.",
+        "Analyst outreach program at {company} increases following quarterly financial disclosure.",
+        "{company} board authorizes share buyback program as capital allocation strategy.",
+        "Sustainability report from {company} details environmental and social governance metrics.",
+        "{company} confirms participation in upcoming investor conferences across major cities.",
+
+        # Market and competitive position
+        "Industry analysts include {company} in coverage reports on {industry} sector outlook.",
+        "{company} shows modest market share gains in competitive {industry} environment.",
+        "Market positioning analysis places {company} in middle tier of industry peer group.",
+        "Customer feedback surveys show {company} performance tracking peer company averages.",
+        "{company} mentioned in sector trend analysis examining {industry} market dynamics.",
+
+        # Financial and operational metrics
+        "{company} quarterly results align with analyst consensus without significant variances.",
+        "Profitability analysis indicates {company} margin stability compared to prior periods.",
+        "Balance sheet metrics for {company} show working capital levels consistent with industry norms.",
+        "{company} liquidity position adequate for operational needs and investment commitments.",
+        "Capital spending update from {company} indicates expenditures matching guidance ranges.",
+
+        # Research and development
+        "{company} engineering team shares technical insights at {industry} conference.",
+        "Intellectual property filings indicate {company} ongoing R&D investment priorities.",
+        "Technical discussion from {company} addresses development challenges and approaches.",
+        "{company} announces process improvements targeting quality enhancement objectives.",
+        "Product development pipeline at {company} includes multiple initiatives under evaluation.",
+
+        # Personnel and talent
+        "{company} introduces wellness program as part of employee retention strategy.",
+        "Hiring activity at {company} continues across various functional departments.",
+        "{company} rolls out updated employee training focusing on skill development.",
+        "Workplace culture assessment at {company} reveals stable engagement trends.",
+        "Diversity metrics from {company} show progress on workforce composition goals.",
+
+        # Regulatory and compliance
+        "{company} maintains compliance with latest {industry} regulatory framework updates.",
+        "Standard regulatory disclosure by {company} filed without unusual items or changes.",
+        "{company} engaged in industry dialogue on emerging compliance requirements.",
+        "Inspection results for {company} operations show adherence to quality standards.",
+        "{company} governance framework updated following best practice review.",
+
+        # Customer and market reach
+        "{company} case studies highlight customer applications and deployment scenarios.",
+        "Regional expansion continues as {company} targets new geographical markets.",
+        "{company} marketing initiatives aim to reach emerging customer segments.",
+        "Case study publication features {company} implementation at client organization.",
+        "Market analysis shows {company} attracting diverse customer demographics.",
+
+        # Technology and infrastructure
+        "{company} infrastructure modernization improves operational reliability metrics.",
+        "Security audit validates {company} cybersecurity controls and procedures.",
+        "{company} cloud migration initiative progresses toward operational scalability.",
+        "Energy efficiency gains at {company} data facilities reduce operational expenses.",
+        "{company} analytics platform enhancement enables improved business intelligence.",
+
+        # Industry recognition and awards
+        "{company} honored by industry group for service quality achievements.",
+        "Annual industry ranking includes {company} among notable {industry} companies.",
+        "{company} leadership participates in panel discussion on sector challenges.",
+        "Standards certification confirms {company} quality and safety compliance.",
+        "{company} operational practices examined in industry case study analysis.",
+
+        # Strategic initiatives
+        "{company} concludes organizational realignment focused on efficiency objectives.",
+        "Business review at {company} highlights incremental optimization opportunities.",
+        "{company} portfolio strategy emphasizes core business focus areas.",
+        "Strategic planning at {company} outlines multi-year business objectives.",
+        "{company} examines potential acquisition opportunities for capability expansion.",
+
+        # Routine business updates
+        "{company} plans scheduled maintenance activities during low-traffic periods.",
+        "Business review confirms {company} operations aligned with established plans.",
+        "{company} extends existing vendor agreements and service contracts.",
+        "Business patterns at {company} follow typical seasonal trend lines.",
+        "{company} logistics optimization moves into active deployment phase.",
+
+        # Fantasy-themed chronicle news
+        "{company} maintains consistent mana yields at dimensional extraction operations.",
+        "{company} routine golem servicing follows established maintenance protocols.",
+        "Technical journal features {company} research on sustainable rift management.",
+        "{company} representatives attend interdimensional commerce industry forum.",
+        "Portal stability assessment at {company} sites confirms normal operational parameters.",
+        "{company} automated workforce undergoes standard compliance training cycle.",
+        "Internal survey shows {company} workforce satisfaction levels remain stable.",
+        "{company} continues advisory relationship with Wizard's Guild on arcane matters.",
+        "Market analysis notes {company} product diversification in golem sector.",
+        "{company} releases interface improvements for current golem product line.",
+        "Sector report places {company} at steady position within {industry} market.",
+        "{company} joins working group on golem safety certification standards.",
+        "Resource report from {company} indicates adequate mana reserves for operations.",
+        "{company} rift operations maintain stability within acceptable threshold ranges.",
+        "User feedback highlights {company} product reliability and support responsiveness.",
+        "{company} researchers present energy conversion efficiency findings.",
+        "Compliance documentation confirms {company} adherence to commerce regulations.",
+        "{company} establishes additional service location for maintenance operations.",
+        "{company} upgrades stabilization systems at dimensional extraction facilities.",
+        "Industry recognition for {company} contributions to {industry} safety protocols.",
+        "Educational program from {company} supports technical workforce development.",
+        "Implementation study analyzes {company} magical-mechanical integration approach.",
+        "{company} automation equipment deployed in infrastructure construction projects.",
+        "Ethics audit confirms {company} compliance with soul-magic usage restrictions.",
+        "{company} enhances customer portal for fleet monitoring capabilities.",
+        "Responsible extraction practices list includes {company} among member companies.",
+        "{company} partners with engineering guild on technical training initiatives.",
+        "Adoption trends show growing {industry} sector acceptance of {company} solutions.",
+        "Environmental report from {company} highlights dimensional impact reduction efforts.",
+        "Engineering blog from {company} explores golem consciousness limitation challenges.",
+        "Diversification plan at {company} advances with additional extraction site approvals.",
+    ]
+
+    def __init__(self):
+        self.chronicle_news_history: List[Tuple[int, str, bool]] = []  # (week_number, news_text, is_real)
+
+    def to_dict(self) -> dict:
+        """Serialize MarketChronicle to dictionary"""
+        return {
+            'chronicle_news_history': self.chronicle_news_history
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'MarketChronicle':
+        """Deserialize MarketChronicle from dictionary"""
+        chronicle = MarketChronicle()
+        # Handle both old format (2-tuple) and new format (3-tuple)
+        chronicle.chronicle_news_history = []
+        for item in data.get('chronicle_news_history', []):
+            if len(item) == 2:
+                # Old format: (week_number, news_text) - assume all were real
+                chronicle.chronicle_news_history.append((item[0], item[1], True))
+            else:
+                # New format: (week_number, news_text, is_real)
+                chronicle.chronicle_news_history.append(tuple(item))
+        return chronicle
+
+    def generate_chronicle_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[Tuple[str, bool]]:
+        """Generate chronicle news for all companies, with hoaxes using same rate as weekly gazette"""
+        news_items = []
+
+        # Determine hoax rate using same 12-week cycle as monthly news
+        cycle_position = (week_number - 1) % 12
+        if cycle_position < 3:
+            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
+        elif cycle_position < 6:
+            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
+        elif cycle_position < 9:
+            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
+        else:
+            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
+
+        for company_name, company in companies.items():
+            # Select random news template for each company
+            template = random.choice(self.CHRONICLE_NEWS_TEMPLATES)
+            news_text = template.format(company=company_name, industry=company.industry)
+
+            # Determine if news is real or hoax
+            is_real = random.random() < trust_threshold
+
+            # Store in history
+            self.chronicle_news_history.append((week_number, news_text, is_real))
+            news_items.append((news_text, is_real))
 
         return news_items
 
@@ -2739,8 +2952,10 @@ class InvestmentGame:
         self.market_news = MarketNews()  # Market news system
         self.market_cycle = MarketCycle()  # Market cycle system (every 6 months)
         self.pending_news_display: Optional[NewsReport] = None  # News to display this week
-        self.weekly_gazette = WeeklyGazette()  # Weekly news outlet
-        self.pending_weekly_news: Optional[List[str]] = None  # Weekly news to display
+        self.weekly_gazette = WeeklyGazette()  # Weekly news outlet #1
+        self.market_chronicle = MarketChronicle()  # Weekly news outlet #2
+        self.pending_weekly_news: Optional[List[Tuple[str, bool]]] = None  # Weekly news to display (text, is_real)
+        self.pending_chronicle_news: Optional[List[Tuple[str, bool]]] = None  # Chronicle news to display (text, is_real)
 
         # Future price pre-calculation (hidden from players)
         # Stores next 2 weeks of calculated prices: {company_name: [week+1 price, week+2 price]}
@@ -2881,8 +3096,19 @@ class InvestmentGame:
             print("\n" + "📰 " + "="*58)
             print("THE BUSINESS GAZETTE - WEEKLY EDITION")
             print("="*60)
-            for news_item in self.pending_weekly_news:
-                print(f"• {news_item}")
+            for news_text, is_real in self.pending_weekly_news:
+                # Don't show any indicator - players must figure out hoaxes themselves!
+                print(f"• {news_text}")
+            print("="*60)
+
+        # Display second weekly outlet news if available
+        if self.pending_chronicle_news:
+            print("\n" + "📰 " + "="*58)
+            print("THE MARKET CHRONICLE - WEEKLY REPORT")
+            print("="*60)
+            for news_text, is_real in self.pending_chronicle_news:
+                # Don't show any indicator - players must figure out hoaxes themselves!
+                print(f"• {news_text}")
             print("="*60)
 
     def execute_hedge_fund_trades(self):
@@ -3216,6 +3442,9 @@ class InvestmentGame:
 
         # Generate weekly gazette news (every week)
         self.pending_weekly_news = self.weekly_gazette.generate_weekly_news(self.companies, self.week_number)
+
+        # Generate market chronicle news (every week)
+        self.pending_chronicle_news = self.market_chronicle.generate_chronicle_news(self.companies, self.week_number)
 
         while True:
             print("\n" + "-"*60)
@@ -3910,7 +4139,9 @@ class InvestmentGame:
                 'market_cycle': self.market_cycle.to_dict(),
                 'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None,
                 'weekly_gazette': self.weekly_gazette.to_dict(),
+                'market_chronicle': self.market_chronicle.to_dict(),
                 'pending_weekly_news': self.pending_weekly_news,
+                'pending_chronicle_news': self.pending_chronicle_news,
                 'future_prices': self.future_prices,
                 'random_state': list(random.getstate()),  # Save random state for deterministic futures
                 'quantum_singularity': self.quantum_singularity.to_dict(),
@@ -3977,6 +4208,10 @@ class InvestmentGame:
             # Restore weekly gazette
             game.weekly_gazette = WeeklyGazette.from_dict(game_state.get('weekly_gazette', {'weekly_news_history': []}))
             game.pending_weekly_news = game_state.get('pending_weekly_news', None)
+
+            # Restore market chronicle
+            game.market_chronicle = MarketChronicle.from_dict(game_state.get('market_chronicle', {'chronicle_news_history': []}))
+            game.pending_chronicle_news = game_state.get('pending_chronicle_news', None)
 
             # Restore future prices (or recalculate if not present in save file)
             if 'future_prices' in game_state:
