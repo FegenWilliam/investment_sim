@@ -1038,7 +1038,8 @@ class VoidCatalyst:
         self.is_owned = False  # Track if someone owns it
         self.owner_name = None  # Who owns it
         self.weeks_owned = 0  # How long has it been owned
-        self.description = "Unique asset - only 1 exists. Price always increases. Auto-sells after 4 weeks."
+        self.players_owned_this_cycle: set = set()  # Track which players have owned it this cycle
+        self.description = "Unique asset - only 1 exists. Price always increases. Auto-sells after 4 weeks. Fair rotation among players."
 
     def update_price(self, player_name: str = None):
         """Update price - always goes up. Auto-sell after 4 weeks if owned."""
@@ -1050,24 +1051,56 @@ class VoidCatalyst:
         if self.is_owned:
             self.weeks_owned += 1
 
-    def buy(self, player_name: str) -> Tuple[bool, str]:
-        """Attempt to buy the Void Catalyst"""
+    def can_player_buy(self, player_name: str, all_human_players: List[str]) -> Tuple[bool, str]:
+        """Check if a player is allowed to buy the Void Catalyst"""
+        # If already owned by someone, can't buy
         if self.is_owned:
             return False, f"Void Catalyst is already owned by {self.owner_name}!"
+
+        # If this player already owned it this cycle, can't buy again until cycle resets
+        if player_name in self.players_owned_this_cycle:
+            # Check if we should reset the cycle (all players have owned it)
+            if len(self.players_owned_this_cycle) >= len(all_human_players):
+                # Cycle complete, reset
+                self.players_owned_this_cycle.clear()
+            else:
+                # Still waiting for other players
+                remaining_players = set(all_human_players) - self.players_owned_this_cycle
+                return False, f"You already owned the Void Catalyst this cycle. Waiting for: {', '.join(sorted(remaining_players))}"
+
+        return True, "OK"
+
+    def buy(self, player_name: str, all_human_players: List[str]) -> Tuple[bool, str]:
+        """Attempt to buy the Void Catalyst"""
+        # Check if player can buy
+        can_buy, reason = self.can_player_buy(player_name, all_human_players)
+        if not can_buy:
+            return False, reason
 
         self.is_owned = True
         self.owner_name = player_name
         self.weeks_owned = 0
-        return True, f"You now own the Void Catalyst! It will auto-sell in 4 weeks."
+        self.players_owned_this_cycle.add(player_name)
+
+        # Check if cycle will reset after this purchase
+        if len(self.players_owned_this_cycle) >= len(all_human_players):
+            cycle_msg = " [All players have now owned it - cycle will reset when it's available again]"
+        else:
+            cycle_msg = ""
+
+        return True, f"You now own the Void Catalyst! It will auto-sell in 4 weeks.{cycle_msg}"
 
     def check_auto_sell(self) -> Tuple[bool, str, float]:
         """Check if auto-sell should trigger. Returns (should_sell, message, sell_price)"""
         if self.is_owned and self.weeks_owned >= 4:
             sell_price = self.price
             owner = self.owner_name
+
+            # Auto-sell happens
             self.is_owned = False
             self.owner_name = None
             self.weeks_owned = 0
+
             return True, f"Void Catalyst auto-sold for ${sell_price:.2f}!", sell_price
         return False, "", 0.0
 
@@ -1077,7 +1110,8 @@ class VoidCatalyst:
             'price': self.price,
             'is_owned': self.is_owned,
             'owner_name': self.owner_name,
-            'weeks_owned': self.weeks_owned
+            'weeks_owned': self.weeks_owned,
+            'players_owned_this_cycle': list(self.players_owned_this_cycle)
         }
 
     @staticmethod
@@ -1088,6 +1122,7 @@ class VoidCatalyst:
         vc.is_owned = data.get('is_owned', False)
         vc.owner_name = data.get('owner_name', None)
         vc.weeks_owned = data.get('weeks_owned', 0)
+        vc.players_owned_this_cycle = set(data.get('players_owned_this_cycle', []))
         return vc
 
     def __str__(self):
@@ -1095,7 +1130,10 @@ class VoidCatalyst:
             weeks_left = 4 - self.weeks_owned
             return f"{self.name} - ${self.price:.2f} [OWNED by {self.owner_name}, Auto-sells in {weeks_left} weeks]"
         else:
-            return f"{self.name} - ${self.price:.2f} [AVAILABLE - 1 unit only]"
+            if self.players_owned_this_cycle:
+                return f"{self.name} - ${self.price:.2f} [AVAILABLE - Rotation: {len(self.players_owned_this_cycle)} players have owned it this cycle]"
+            else:
+                return f"{self.name} - ${self.price:.2f} [AVAILABLE - 1 unit only]"
 
 
 class Player:
@@ -1470,7 +1508,7 @@ class Player:
             company = void_stocks.get_current_company_name()
             return True, f"Sale successful! Sold {shares} Void Stocks for ${total_value:.2f} (Was copying {company})"
 
-    def buy_void_catalyst(self, void_catalyst: VoidCatalyst) -> Tuple[bool, str]:
+    def buy_void_catalyst(self, void_catalyst: VoidCatalyst, all_human_players: List[str]) -> Tuple[bool, str]:
         """Buy the Void Catalyst (only 1 exists)"""
         if self.void_catalyst_owned:
             return False, "You already own the Void Catalyst!"
@@ -1478,13 +1516,13 @@ class Player:
         if void_catalyst.price > self.cash:
             return False, "Insufficient funds!"
 
-        success, msg = void_catalyst.buy(self.name)
+        success, msg = void_catalyst.buy(self.name, all_human_players)
         if not success:
             return False, msg
 
         self.cash -= void_catalyst.price
         self.void_catalyst_owned = True
-        return True, f"Purchase successful! Bought Void Catalyst for ${void_catalyst.price:.2f}. It will auto-sell in 4 weeks."
+        return True, f"Purchase successful! Bought Void Catalyst for ${void_catalyst.price:.2f}. {msg.split('!', 1)[1] if '!' in msg else ''}"
 
     def process_void_catalyst_auto_sell(self, void_catalyst: VoidCatalyst) -> Tuple[bool, str, float]:
         """Process auto-sell of Void Catalyst if needed. Returns (was_sold, message, amount)"""
@@ -3571,7 +3609,9 @@ class InvestmentGame:
                 # Void Catalyst
                 confirm = input(f"Buy Void Catalyst for ${self.void_catalyst.price:.2f}? (y/n): ")
                 if confirm.lower() == 'y':
-                    success, msg = player.buy_void_catalyst(self.void_catalyst)
+                    # Get list of all human player names (excluding NPCs)
+                    human_players = [p.name for p in self.players]
+                    success, msg = player.buy_void_catalyst(self.void_catalyst, human_players)
                     print(msg)
             else:
                 print("Invalid choice!")
