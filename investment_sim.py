@@ -5051,6 +5051,12 @@ class InvestmentGame:
                     actions = player.force_liquidate_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
                     margin_call_actions.extend(actions)
 
+            # Enforce margin calls for NPCs (hedge funds) too
+            for hedge_fund in self.hedge_funds:
+                if hedge_fund.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
+                    actions = hedge_fund.force_liquidate_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                    margin_call_actions.extend(actions)
+
             if margin_call_actions:
                 print("\n" + "⚠️ "*30)
                 print("AUTOMATIC MARGIN CALL LIQUIDATIONS")
