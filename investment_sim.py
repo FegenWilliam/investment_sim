@@ -863,13 +863,14 @@ class LiquidityLevel(Enum):
 class Company:
     """Represents a publicly traded company"""
 
-    def __init__(self, name: str, industry: str, initial_price: float, volatility: float, liquidity: LiquidityLevel = LiquidityLevel.MEDIUM):
+    def __init__(self, name: str, industry: str, initial_price: float, volatility: float, liquidity: LiquidityLevel = LiquidityLevel.MEDIUM, market_cap: float = 10000000.0):
         self.name = name
         self.industry = industry
         self.price = initial_price
         self.base_volatility = volatility
         self.price_history = [initial_price]
         self.liquidity = liquidity
+        self.market_cap = market_cap  # Market capitalization in dollars
         # Hidden fundamentals for research hints (not directly visible to players)
         self.true_strength = random.uniform(0.3, 0.9)  # 0-1 scale, affects hint accuracy
         self.hidden_sentiment = random.choice([-1, 0, 1])  # -1: bearish, 0: neutral, 1: bullish
@@ -883,24 +884,58 @@ class Company:
         self.price_history.append(self.price)
 
     def calculate_slippage(self, shares: int, is_buy: bool) -> float:
-        """Calculate price slippage based on liquidity and trade size"""
-        # Base slippage percentages by liquidity level
-        if self.liquidity == LiquidityLevel.HIGH:
-            base_slippage = 0.0005  # 0.05% per 100 shares
-        elif self.liquidity == LiquidityLevel.MEDIUM:
-            base_slippage = 0.002  # 0.2% per 100 shares
-        else:  # LOW
-            base_slippage = 0.005  # 0.5% per 100 shares
+        """Calculate price slippage based on market cap and trade size
 
-        # Calculate slippage based on trade size
-        slippage_multiplier = shares / 100.0
-        total_slippage = base_slippage * slippage_multiplier
+        Slippage is determined by:
+        1. Trade value as a % of market cap
+        2. Square root scaling for more realistic impact
+        3. Smaller caps = much higher slippage
+        """
+        # Calculate trade value relative to market cap
+        trade_value = shares * self.price
+        trade_pct_of_market = trade_value / self.market_cap
+
+        # Apply square root scaling to make slippage increase less than linearly
+        # This makes large trades expensive but not impossibly so
+        # Base slippage: sqrt(trade_pct) gives good scaling
+        # For example: 1% of market cap = ~10% slippage, 0.1% = ~3.16% slippage
+        base_slippage = (trade_pct_of_market ** 0.5) * 10.0
+
+        # Cap maximum slippage at 50% to prevent extreme cases
+        total_slippage = min(base_slippage, 0.5)
 
         # Slippage goes against the trader (increases buy price, decreases sell price)
         if is_buy:
             return 1 + total_slippage
         else:
             return 1 - total_slippage
+
+    def apply_market_impact(self, shares: int, is_buy: bool) -> float:
+        """Apply permanent market impact from a trade
+
+        Large trades permanently move the market price
+        Returns the new price after market impact
+        """
+        # Calculate trade value relative to market cap
+        trade_value = shares * self.price
+        trade_pct_of_market = trade_value / self.market_cap
+
+        # Market impact is smaller than slippage (about 1/4 of slippage effect)
+        # This represents the permanent price shift from supply/demand
+        impact_multiplier = (trade_pct_of_market ** 0.5) * 2.5
+
+        # Cap at 20% price movement
+        impact_multiplier = min(impact_multiplier, 0.20)
+
+        # Apply impact to current price
+        if is_buy:
+            # Buying pushes price up
+            new_price = self.price * (1 + impact_multiplier)
+        else:
+            # Selling pushes price down
+            new_price = self.price * (1 - impact_multiplier)
+
+        return new_price
 
     def get_liquidity_indicator(self) -> str:
         """Get visual indicator for liquidity"""
@@ -920,6 +955,7 @@ class Company:
             'base_volatility': self.base_volatility,
             'price_history': self.price_history,
             'liquidity': self.liquidity.value,
+            'market_cap': self.market_cap,
             'true_strength': self.true_strength,
             'hidden_sentiment': self.hidden_sentiment
         }
@@ -932,7 +968,8 @@ class Company:
             industry=data['industry'],
             initial_price=data['price'],
             volatility=data['base_volatility'],
-            liquidity=LiquidityLevel(data['liquidity'])
+            liquidity=LiquidityLevel(data['liquidity']),
+            market_cap=data.get('market_cap', 10000000.0)  # Default for old saves
         )
         company.price = data['price']
         company.price_history = data['price_history']
@@ -941,7 +978,12 @@ class Company:
         return company
 
     def __str__(self):
-        return f"{self.name} ({self.industry}) - ${self.price:.2f} {self.get_liquidity_indicator()}"
+        # Format market cap in millions or billions
+        if self.market_cap >= 1_000_000_000:
+            market_cap_str = f"${self.market_cap / 1_000_000_000:.1f}B"
+        else:
+            market_cap_str = f"${self.market_cap / 1_000_000:.1f}M"
+        return f"{self.name} ({self.industry}) - ${self.price:.2f} {self.get_liquidity_indicator()} [Cap: {market_cap_str}]"
 
 
 class Treasury:
@@ -1492,15 +1534,23 @@ class Player:
         else:
             self.portfolio[company.name] = shares
 
+        # Apply market impact (buying pushes price up)
+        old_price = company.price
+        new_price = company.apply_market_impact(shares, is_buy=True)
+        company.price = new_price
+        price_impact = new_price - old_price
+
         # Build message
-        slippage_cost = (effective_price - company.price) * shares
+        slippage_cost = (effective_price - old_price) * shares
         leverage_msg = f" (with {leverage:.1f}x leverage)" if leverage > 1.0 else ""
 
         message = f"Purchased {shares:.4f} shares for ${dollar_amount:.2f}{leverage_msg}"
         if leverage > 1.0:
             message += f"\n  Total position value: ${total_investment:.2f} (borrowed ${borrowed_for_trade:.2f})"
         if slippage_cost > 0.01:
-            message += f"\n  Price slippage: ${slippage_cost:.2f} due to {company.liquidity.value} liquidity"
+            message += f"\n  Price slippage: ${slippage_cost:.2f}"
+        if price_impact > 0.01:
+            message += f"\n  Market impact: Price moved from ${old_price:.2f} to ${new_price:.2f} (+${price_impact:.2f})"
 
         return True, message
 
@@ -1547,8 +1597,9 @@ class Player:
             return False, f"You don't own that many shares! You own {owned_shares:.4f} shares."
 
         # Calculate effective price with slippage
+        old_price = company.price
         slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False)
-        effective_price = company.price * slippage_factor
+        effective_price = old_price * slippage_factor
         total_value = effective_price * shares_to_sell
 
         self.cash += total_value
@@ -1556,12 +1607,19 @@ class Player:
         if self.portfolio[company.name] < 0.0001:  # Clean up very small amounts
             del self.portfolio[company.name]
 
+        # Apply market impact (selling pushes price down)
+        new_price = company.apply_market_impact(shares_to_sell, is_buy=False)
+        company.price = new_price
+        price_impact = old_price - new_price
+
         # Calculate and show slippage impact
-        slippage_loss = (company.price - effective_price) * shares_to_sell
+        slippage_loss = (old_price - effective_price) * shares_to_sell
 
         message = f"Sold {shares_to_sell:.4f} shares for ${total_value:.2f}"
         if slippage_loss > 0.01:
-            message += f"\n  Price slippage: -${slippage_loss:.2f} due to {company.liquidity.value} liquidity"
+            message += f"\n  Price slippage: -${slippage_loss:.2f}"
+        if price_impact > 0.01:
+            message += f"\n  Market impact: Price moved from ${old_price:.2f} to ${new_price:.2f} (-${price_impact:.2f})"
 
         return True, message
 
@@ -1571,14 +1629,15 @@ class Player:
             return False, "Invalid number of shares!"
 
         # Calculate effective price with slippage (selling borrowed shares)
+        old_price = company.price
         slippage_factor = company.calculate_slippage(shares, is_buy=False)
-        effective_price = company.price * slippage_factor
+        effective_price = old_price * slippage_factor
         total_proceeds = effective_price * shares
 
         # Check margin requirement: need equity >= 1.5x the short position value
         # This is the initial margin requirement for short selling
         equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
-        short_value = company.price * shares
+        short_value = old_price * shares
         required_margin = short_value * 1.5
 
         if equity < required_margin:
@@ -1591,12 +1650,18 @@ class Player:
         else:
             self.short_positions[company.name] = shares
 
+        # Apply market impact (short selling = selling, pushes price down)
+        new_price = company.apply_market_impact(shares, is_buy=False)
+        company.price = new_price
+        price_impact = old_price - new_price
+
         # Calculate and show slippage impact
-        slippage_loss = (company.price - effective_price) * shares
+        slippage_loss = (old_price - effective_price) * shares
+        message = f"Short sale successful! Received ${total_proceeds:.2f}"
         if slippage_loss > 0.01:
-            message = f"Short sale successful! Received ${total_proceeds:.2f} (Price slippage: -${slippage_loss:.2f} due to {company.liquidity.value} liquidity)"
-        else:
-            message = f"Short sale successful! Received ${total_proceeds:.2f}"
+            message += f"\n  Price slippage: -${slippage_loss:.2f}"
+        if price_impact > 0.01:
+            message += f"\n  Market impact: Price moved from ${old_price:.2f} to ${new_price:.2f} (-${price_impact:.2f})"
 
         return True, message
 
@@ -1606,8 +1671,9 @@ class Player:
             return False, "You don't have that many shares shorted!"
 
         # Calculate effective price with slippage (buying to cover)
+        old_price = company.price
         slippage_factor = company.calculate_slippage(shares, is_buy=True)
-        effective_price = company.price * slippage_factor
+        effective_price = old_price * slippage_factor
         total_cost = effective_price * shares
 
         if total_cost > self.cash:
@@ -1619,12 +1685,18 @@ class Player:
         if self.short_positions[company.name] == 0:
             del self.short_positions[company.name]
 
+        # Apply market impact (covering = buying, pushes price up)
+        new_price = company.apply_market_impact(shares, is_buy=True)
+        company.price = new_price
+        price_impact = new_price - old_price
+
         # Calculate and show slippage impact
-        slippage_cost = (effective_price - company.price) * shares
+        slippage_cost = (effective_price - old_price) * shares
+        message = f"Short position covered! Cost ${total_cost:.2f}"
         if slippage_cost > 0.01:
-            message = f"Short position covered! Cost ${total_cost:.2f} (Price slippage: ${slippage_cost:.2f} due to {company.liquidity.value} liquidity)"
-        else:
-            message = f"Short position covered! Cost ${total_cost:.2f}"
+            message += f"\n  Price slippage: ${slippage_cost:.2f}"
+        if price_impact > 0.01:
+            message += f"\n  Market impact: Price moved from ${old_price:.2f} to ${new_price:.2f} (+${price_impact:.2f})"
 
         return True, message
 
@@ -2804,8 +2876,8 @@ class HedgeFund(Player):
         # Use leverage aggressively if not already maxed out
         equity = self.calculate_equity(companies, treasury)
         if equity > 0 and self.borrowed_amount < equity * 1.5:
-            borrow_amount = min(2000, equity * 1.5 - self.borrowed_amount)
-            if borrow_amount > 100:
+            borrow_amount = min(10000, equity * 1.5 - self.borrowed_amount)
+            if borrow_amount > 500:
                 success, msg = self.borrow_money(borrow_amount, companies, treasury)
                 if success:
                     actions.append(f"🏦 {self.name} borrowed ${borrow_amount:.2f} for aggressive plays")
@@ -2830,8 +2902,8 @@ class HedgeFund(Player):
             # Buy high volatility stocks
             high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
             for company in high_vol_companies:
-                if self.cash > 1000:
-                    dollar_amount = min(self.cash * 0.3, 3000)
+                if self.cash > 2000:
+                    dollar_amount = min(self.cash * 0.5, 15000)
                     if dollar_amount > 0:
                         success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                         if success:
@@ -2852,13 +2924,13 @@ class HedgeFund(Player):
 
             # SHORT SELL high volatility stocks during downturns (aggressive bet against the market)
             equity = self.calculate_equity(companies, treasury)
-            if equity > 1000:
+            if equity > 3000:
                 high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
                 for company in high_vol_companies:
                     # Don't short if we already have a large short position
                     current_short = self.short_positions.get(company.name, 0)
-                    if current_short * company.price < equity * 0.3:  # Limit short exposure
-                        shares_to_short = int(min(equity * 0.2, 2000) / company.price)
+                    if current_short * company.price < equity * 0.4:  # Limit short exposure
+                        shares_to_short = int(min(equity * 0.3, 10000) / company.price)
                         if shares_to_short > 0:
                             success, msg = self.short_sell(company, shares_to_short, companies, treasury)
                             if success:
@@ -2867,11 +2939,11 @@ class HedgeFund(Player):
 
         # Baseline buying: always try to buy high volatility stocks if we have cash
         else:
-            if self.cash > 1000:
+            if self.cash > 2000:
                 high_vol_companies = sorted(companies.values(), key=lambda c: c.base_volatility, reverse=True)[:2]
                 for company in high_vol_companies:
-                    if self.cash > 1000:
-                        dollar_amount = min(self.cash * 0.2, 2000)
+                    if self.cash > 2000:
+                        dollar_amount = min(self.cash * 0.4, 10000)
                         if dollar_amount > 0:
                             success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                             if success:
@@ -2891,8 +2963,8 @@ class HedgeFund(Player):
         # Conservative leverage (only up to 1x equity)
         equity = self.calculate_equity(companies, treasury)
         if equity > 0 and self.borrowed_amount < equity * 0.8:
-            borrow_amount = min(1000, equity * 0.8 - self.borrowed_amount)
-            if borrow_amount > 100:
+            borrow_amount = min(5000, equity * 0.8 - self.borrowed_amount)
+            if borrow_amount > 500:
                 success, msg = self.borrow_money(borrow_amount, companies, treasury)
                 if success:
                     actions.append(f"🏦 {self.name} conservatively borrowed ${borrow_amount:.2f}")
@@ -2906,9 +2978,9 @@ class HedgeFund(Player):
             stable_companies = [c for c in companies.values()
                               if c.base_volatility < 8.0 and c.liquidity in [LiquidityLevel.HIGH, LiquidityLevel.MEDIUM]]
 
-        if stable_companies and self.cash > 1000:
+        if stable_companies and self.cash > 2000:
             company = random.choice(stable_companies)
-            dollar_amount = min(self.cash * 0.2, 2000)
+            dollar_amount = min(self.cash * 0.3, 8000)
             if dollar_amount > 0:
                 success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                 if success:
@@ -2938,8 +3010,8 @@ class HedgeFund(Player):
         # Moderate leverage usage
         equity = self.calculate_equity(companies, treasury)
         if equity > 0 and self.borrowed_amount < equity * 1.2:
-            borrow_amount = min(1500, equity * 1.2 - self.borrowed_amount)
-            if borrow_amount > 100:
+            borrow_amount = min(7500, equity * 1.2 - self.borrowed_amount)
+            if borrow_amount > 500:
                 success, msg = self.borrow_money(borrow_amount, companies, treasury)
                 if success:
                     actions.append(f"🏦 {self.name} borrowed ${borrow_amount:.2f} for contrarian positions")
@@ -2960,10 +3032,10 @@ class HedgeFund(Player):
                             break  # Cover one at a time
 
             # Buy the most beaten down stocks
-            if self.cash > 1000:
+            if self.cash > 2000:
                 companies_list = list(companies.values())
                 company = random.choice(companies_list)
-                dollar_amount = min(self.cash * 0.4, 3500)
+                dollar_amount = min(self.cash * 0.5, 15000)
                 if dollar_amount > 0:
                     success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                     if success:
@@ -2984,14 +3056,14 @@ class HedgeFund(Player):
 
             # SHORT during euphoric bull markets (contrarian: market is too optimistic)
             equity = self.calculate_equity(companies, treasury)
-            if equity > 1500:
+            if equity > 3000:
                 # Pick a random stock to short (contrarian doesn't care about volatility, just sentiment)
                 companies_list = list(companies.values())
                 company = random.choice(companies_list)
                 current_short = self.short_positions.get(company.name, 0)
                 # Don't over-short any single company
-                if current_short * company.price < equity * 0.25:
-                    shares_to_short = int(min(equity * 0.15, 1500) / company.price)
+                if current_short * company.price < equity * 0.3:
+                    shares_to_short = int(min(equity * 0.25, 8000) / company.price)
                     if shares_to_short > 0:
                         success, msg = self.short_sell(company, shares_to_short, companies, treasury)
                         if success:
@@ -2999,10 +3071,10 @@ class HedgeFund(Player):
 
         # Baseline buying: buy random stocks during neutral markets
         else:
-            if self.cash > 1000:
+            if self.cash > 2000:
                 companies_list = list(companies.values())
                 company = random.choice(companies_list)
-                dollar_amount = min(self.cash * 0.25, 2500)
+                dollar_amount = min(self.cash * 0.35, 10000)
                 if dollar_amount > 0:
                     success, msg = self.buy_stock(company, dollar_amount, leverage=1.0, companies=companies, treasury=treasury)
                     if success:
@@ -3054,18 +3126,20 @@ class InvestmentGame:
 
     def _initialize_companies(self):
         """Initialize the 7 companies with different industries and liquidity levels"""
+        # Format: (name, industry, price, volatility, liquidity, market_cap)
+        # Market caps range from $2B (small cap) to $50B (large cap)
         company_data = [
-            ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH),
-            ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM),
-            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW),
-            ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM),
-            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW),
-            ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM),
-            ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW),
+            ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 50_000_000_000),  # $50B - Large cap
+            ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM, 10_000_000_000),  # $10B - Mid cap
+            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW, 8_000_000_000),  # $8B - Mid cap
+            ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM, 12_000_000_000),  # $12B - Mid cap
+            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW, 5_000_000_000),  # $5B - Small cap
+            ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 3_000_000_000),  # $3B - Small cap
+            ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 2_000_000_000),  # $2B - Small cap
         ]
 
-        for name, industry, price, volatility, liquidity in company_data:
-            company = Company(name, industry, price, volatility, liquidity)
+        for name, industry, price, volatility, liquidity, market_cap in company_data:
+            company = Company(name, industry, price, volatility, liquidity, market_cap)
             self.companies[name] = company
 
     def _initialize_players(self):
