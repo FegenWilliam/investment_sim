@@ -1024,6 +1024,29 @@ class Company:
         # Hidden fundamentals for research hints (not directly visible to players)
         self.true_strength = random.uniform(0.3, 0.9)  # 0-1 scale, affects hint accuracy
         self.hidden_sentiment = random.choice([-1, 0, 1])  # -1: bearish, 0: neutral, 1: bullish
+        # Earnings metrics (not visible to players, used for market valuation)
+        # Start with a "reasonable" P/E ratio between 12-25
+        target_pe = random.uniform(12.0, 25.0)
+        self.earnings_per_share = initial_price / target_pe  # Derive EPS from target P/E
+
+    def update_earnings(self):
+        """Update earnings per share with slow fundamental growth
+
+        EPS grows/shrinks slowly based on company fundamentals
+        This represents actual business performance, not market speculation
+        """
+        # EPS changes slowly (company fundamentals grow ~5-8% annually on average)
+        # That's about 0.1-0.15% per week
+        annual_growth = random.uniform(-0.08, 0.12)  # -8% to +12% annual
+        weekly_change = annual_growth / 52.0
+        self.earnings_per_share *= (1 + weekly_change)
+        self.earnings_per_share = max(0.001, self.earnings_per_share)  # Prevent negative earnings
+
+    def get_pe_ratio(self) -> float:
+        """Calculate current P/E ratio (Price to Earnings)"""
+        if self.earnings_per_share <= 0:
+            return 999.0  # Very high P/E for companies with no earnings
+        return self.price / self.earnings_per_share
 
     def update_price(self):
         """Update stock price with random walk on fundamentals and mean reversion
@@ -1033,6 +1056,9 @@ class Company:
         2. Pull actual price back toward fundamental (mean reversion)
         3. This prevents pump-and-dump loops and death spirals
         """
+        # Update earnings first (fundamental business performance)
+        self.update_earnings()
+
         # Update fundamental price (random walk based on company fundamentals)
         change_percent = random.uniform(-self.base_volatility, self.base_volatility)
         self.fundamental_price *= (1 + change_percent / 100)
@@ -1130,7 +1156,8 @@ class Company:
             'liquidity': self.liquidity.value,
             'market_cap': self.market_cap,
             'true_strength': self.true_strength,
-            'hidden_sentiment': self.hidden_sentiment
+            'hidden_sentiment': self.hidden_sentiment,
+            'earnings_per_share': self.earnings_per_share
         }
 
     @staticmethod
@@ -1149,6 +1176,12 @@ class Company:
         company.price_history = data['price_history']
         company.true_strength = data['true_strength']
         company.hidden_sentiment = data['hidden_sentiment']
+        # For old saves without EPS, calculate from current price with reasonable P/E
+        if 'earnings_per_share' in data:
+            company.earnings_per_share = data['earnings_per_share']
+        else:
+            target_pe = random.uniform(12.0, 25.0)
+            company.earnings_per_share = data['price'] / target_pe
         return company
 
     def __str__(self):
@@ -2743,6 +2776,17 @@ class MarketCycleType(Enum):
     MARKET_CRASH = "market_crash"
     RECOVERY = "recovery"
     TECH_BOOM = "tech_boom"
+    # New sector-specific events
+    TECH_CORRECTION = "tech_correction"
+    ENERGY_CRISIS = "energy_crisis"
+    FINANCIAL_SECTOR_BOOM = "financial_sector_boom"
+    RETAIL_COLLAPSE = "retail_collapse"
+    HEALTHCARE_RALLY = "healthcare_rally"
+    MANUFACTURING_SLUMP = "manufacturing_slump"
+    # Market corrections
+    BUBBLE_POP = "bubble_pop"
+    PROFIT_TAKING = "profit_taking"
+    SECTOR_ROTATION = "sector_rotation"
 
 
 @dataclass
@@ -2779,12 +2823,14 @@ class MarketCycle:
     def __init__(self):
         self.active_cycle: Optional[ActiveMarketCycle] = None
         self.cycle_history: List[Tuple[int, str]] = []  # (week_number, cycle_name)
+        self.last_cycle_type: Optional[MarketCycleType] = None  # Track previous cycle for smart sequencing
 
     def to_dict(self) -> dict:
         """Serialize MarketCycle to dictionary"""
         return {
             'active_cycle': self.active_cycle.to_dict() if self.active_cycle else None,
-            'cycle_history': self.cycle_history
+            'cycle_history': self.cycle_history,
+            'last_cycle_type': self.last_cycle_type.value if self.last_cycle_type else None
         }
 
     @staticmethod
@@ -2794,6 +2840,8 @@ class MarketCycle:
         if data['active_cycle']:
             market_cycle.active_cycle = ActiveMarketCycle.from_dict(data['active_cycle'])
         market_cycle.cycle_history = [tuple(item) for item in data['cycle_history']]
+        if data.get('last_cycle_type'):
+            market_cycle.last_cycle_type = MarketCycleType(data['last_cycle_type'])
         return market_cycle
 
     def should_trigger_cycle(self, week_number: int) -> bool:
@@ -2801,10 +2849,122 @@ class MarketCycle:
         # Trigger at weeks 24, 48, 72, etc.
         return week_number > 0 and week_number % 24 == 0 and self.active_cycle is None
 
-    def trigger_cycle(self, week_number: int) -> ActiveMarketCycle:
-        """Trigger a new market cycle"""
-        # Randomly select a cycle type
-        cycle_type = random.choice(list(MarketCycleType))
+    def calculate_market_pe(self, companies: Dict[str, Company]) -> float:
+        """Calculate average P/E ratio across all companies"""
+        if not companies:
+            return 20.0  # Default reasonable P/E
+
+        total_pe = sum(company.get_pe_ratio() for company in companies.values())
+        return total_pe / len(companies)
+
+    def trigger_cycle(self, week_number: int, companies: Dict[str, Company]) -> ActiveMarketCycle:
+        """Trigger a new market cycle with smart selection based on market conditions
+
+        Logic:
+        - After positive cycles (boom, bull, recovery), check P/E ratios
+        - If P/E is too high, increase chance of correction
+        - Otherwise, mix of random events weighted by realism
+        """
+        # Calculate average market P/E
+        avg_pe = self.calculate_market_pe(companies)
+
+        # Define positive cycles that inflate prices
+        positive_cycles = {
+            MarketCycleType.TECH_BOOM,
+            MarketCycleType.BULL_MARKET,
+            MarketCycleType.RECOVERY,
+            MarketCycleType.FINANCIAL_SECTOR_BOOM,
+            MarketCycleType.HEALTHCARE_RALLY
+        }
+
+        # Define correction cycles that bring prices down
+        correction_cycles = {
+            MarketCycleType.BUBBLE_POP,
+            MarketCycleType.TECH_CORRECTION,
+            MarketCycleType.PROFIT_TAKING,
+            MarketCycleType.BEAR_MARKET,
+            MarketCycleType.MARKET_CRASH
+        }
+
+        # Smart cycle selection based on market conditions
+        cycle_weights = {}
+
+        # If last cycle was positive AND P/E is high, favor corrections
+        if self.last_cycle_type in positive_cycles and avg_pe > 30.0:
+            # High P/E after boom = bubble territory, favor corrections
+            if avg_pe > 50.0:
+                # Extreme overvaluation - very high chance of correction
+                cycle_weights = {
+                    MarketCycleType.BUBBLE_POP: 30,
+                    MarketCycleType.TECH_CORRECTION: 25,
+                    MarketCycleType.PROFIT_TAKING: 20,
+                    MarketCycleType.BEAR_MARKET: 15,
+                    MarketCycleType.SECTOR_ROTATION: 10
+                }
+            elif avg_pe > 35.0:
+                # Moderate overvaluation - increased correction chance
+                cycle_weights = {
+                    MarketCycleType.PROFIT_TAKING: 25,
+                    MarketCycleType.TECH_CORRECTION: 20,
+                    MarketCycleType.BUBBLE_POP: 15,
+                    MarketCycleType.SECTOR_ROTATION: 15,
+                    MarketCycleType.BEAR_MARKET: 10,
+                    MarketCycleType.INFLATION: 10,
+                    MarketCycleType.BULL_MARKET: 5  # Small chance to continue
+                }
+            else:
+                # Mild overvaluation (30-35 P/E) - small correction chance
+                cycle_weights = {
+                    MarketCycleType.SECTOR_ROTATION: 20,
+                    MarketCycleType.PROFIT_TAKING: 15,
+                    MarketCycleType.BULL_MARKET: 15,
+                    MarketCycleType.INFLATION: 15,
+                    MarketCycleType.TECH_CORRECTION: 10,
+                    MarketCycleType.ENERGY_CRISIS: 10,
+                    MarketCycleType.HEALTHCARE_RALLY: 10,
+                    MarketCycleType.BEAR_MARKET: 5
+                }
+
+        # If last cycle was correction AND P/E is low, favor recovery
+        elif self.last_cycle_type in correction_cycles and avg_pe < 15.0:
+            # Undervalued market - favor recovery
+            cycle_weights = {
+                MarketCycleType.RECOVERY: 30,
+                MarketCycleType.BULL_MARKET: 20,
+                MarketCycleType.HEALTHCARE_RALLY: 15,
+                MarketCycleType.FINANCIAL_SECTOR_BOOM: 15,
+                MarketCycleType.TECH_BOOM: 10,
+                MarketCycleType.SECTOR_ROTATION: 10
+            }
+
+        # Normal conditions - balanced mix
+        else:
+            cycle_weights = {
+                # Broad market events
+                MarketCycleType.BULL_MARKET: 12,
+                MarketCycleType.BEAR_MARKET: 10,
+                MarketCycleType.SECTOR_ROTATION: 12,
+                MarketCycleType.INFLATION: 10,
+                # Sector-specific events
+                MarketCycleType.TECH_BOOM: 8,
+                MarketCycleType.TECH_CORRECTION: 8,
+                MarketCycleType.ENERGY_CRISIS: 8,
+                MarketCycleType.FINANCIAL_SECTOR_BOOM: 7,
+                MarketCycleType.HEALTHCARE_RALLY: 7,
+                MarketCycleType.RETAIL_COLLAPSE: 6,
+                MarketCycleType.MANUFACTURING_SLUMP: 6,
+                # Major events (less common)
+                MarketCycleType.RECOVERY: 2,
+                MarketCycleType.RECESSION: 2,
+                MarketCycleType.MARKET_CRASH: 1,
+                MarketCycleType.BUBBLE_POP: 1
+            }
+
+        # Select cycle based on weights
+        cycles = list(cycle_weights.keys())
+        weights = list(cycle_weights.values())
+        cycle_type = random.choices(cycles, weights=weights, k=1)[0]
+
         duration = random.randint(8, 16)  # 2-4 months duration
 
         # Generate headline and description based on cycle type
@@ -2832,9 +2992,45 @@ class MarketCycle:
             headline = "📈 ECONOMIC RECOVERY - Markets Rally on Strong Rebound Signals"
             description = "Economy shows strong recovery signs. Stimulus measures take effect. Consumer confidence returns. Markets surge broadly."
 
-        else:  # TECH_BOOM
+        elif cycle_type == MarketCycleType.TECH_BOOM:
             headline = "🚀 TECHNOLOGY BOOM - Innovation Wave Transforms Markets"
             description = "Revolutionary tech breakthroughs spark investor frenzy. Technology and electronics sectors lead massive market rally."
+
+        elif cycle_type == MarketCycleType.TECH_CORRECTION:
+            headline = "📉 TECH SECTOR CORRECTION - Valuation Concerns Trigger Selloff"
+            description = "Overvalued tech stocks face harsh reality check. Investors flee high P/E ratios. Technology sector plummets as bubble fears spread."
+
+        elif cycle_type == MarketCycleType.ENERGY_CRISIS:
+            headline = "⚡ ENERGY CRISIS - Oil Prices Spike on Supply Disruption"
+            description = "Global energy shortage sends prices soaring. Energy sector rallies hard while other industries struggle with rising costs."
+
+        elif cycle_type == MarketCycleType.FINANCIAL_SECTOR_BOOM:
+            headline = "💰 FINANCIAL SECTOR BOOM - Banking Profits Surge"
+            description = "Rising interest rates boost bank margins. Financial sector leads market rally. Other sectors see moderate gains."
+
+        elif cycle_type == MarketCycleType.RETAIL_COLLAPSE:
+            headline = "🏪 RETAIL APOCALYPSE - Consumer Spending Crashes"
+            description = "Retail sector devastated as consumers tighten belts. Store closures accelerate. Retail stocks plummet."
+
+        elif cycle_type == MarketCycleType.HEALTHCARE_RALLY:
+            headline = "🏥 HEALTHCARE RALLY - Medical Innovation Drives Sector Surge"
+            description = "Breakthrough treatments and aging demographics fuel healthcare boom. Healthcare stocks surge while other sectors lag."
+
+        elif cycle_type == MarketCycleType.MANUFACTURING_SLUMP:
+            headline = "🏭 MANUFACTURING SLUMP - Industrial Production Declines"
+            description = "Weak demand and supply chain issues hammer manufacturing. Industrial and manufacturing stocks sink."
+
+        elif cycle_type == MarketCycleType.BUBBLE_POP:
+            headline = "💥 BUBBLE BURSTS - Overvalued Markets Crash Back to Reality"
+            description = "Unsustainable valuations finally collapse. Panic selling across overheated sectors. Sharp correction as P/E ratios normalize."
+
+        elif cycle_type == MarketCycleType.PROFIT_TAKING:
+            headline = "📊 PROFIT TAKING - Investors Lock in Gains After Rally"
+            description = "After strong run-up, investors cash out. Broad market pullback as profits are realized. Healthy correction underway."
+
+        else:  # SECTOR_ROTATION
+            headline = "🔄 SECTOR ROTATION - Money Flows Between Industries"
+            description = "Investors rotate capital from overvalued to undervalued sectors. Winners become losers, losers become winners."
 
         self.active_cycle = ActiveMarketCycle(
             cycle_type=cycle_type,
@@ -2843,11 +3039,14 @@ class MarketCycle:
             description=description
         )
 
+        # Track this cycle for next time
+        self.last_cycle_type = cycle_type
+
         self.cycle_history.append((week_number, headline))
         return self.active_cycle
 
     def apply_cycle_effects(self, companies: Dict[str, Company]) -> List[str]:
-        """Apply market cycle effects to all companies"""
+        """Apply market cycle effects to all companies - now sector-specific"""
         if not self.active_cycle:
             return []
 
@@ -2908,15 +3107,139 @@ class MarketCycle:
             messages.append("📊 Economic recovery drives strong gains across all sectors!")
 
         elif cycle.cycle_type == MarketCycleType.TECH_BOOM:
-            # Tech and electronics boom, others moderate gains
+            # Tech and electronics boom heavily, others modest gains
             for company in companies.values():
                 if company.industry in ["Technology", "Electronics"]:
                     change = random.uniform(7.0, 12.0)
                 else:
-                    change = random.uniform(2.0, 4.0)
+                    change = random.uniform(1.0, 3.0)  # Reduced from 2-4%
                 company.price *= (1 + change / 100)
                 company.price = max(0.01, company.price)
             messages.append("📊 Tech boom continues - Technology and Electronics sectors surge!")
+
+        # NEW SECTOR-SPECIFIC EVENTS
+        elif cycle.cycle_type == MarketCycleType.TECH_CORRECTION:
+            # Tech crashes hard, others slightly down or flat
+            for company in companies.values():
+                if company.industry in ["Technology", "Electronics"]:
+                    change = random.uniform(8.0, 15.0)
+                    company.price *= (1 - change / 100)
+                else:
+                    change = random.uniform(-1.0, 2.0)  # Slight down to slight up
+                    company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Tech correction underway - Technology stocks plummet as valuations reset")
+
+        elif cycle.cycle_type == MarketCycleType.ENERGY_CRISIS:
+            # Energy surges, others struggle
+            for company in companies.values():
+                if company.industry == "Energy":
+                    change = random.uniform(8.0, 14.0)
+                    company.price *= (1 + change / 100)
+                elif company.industry in ["Manufacturing", "Industrial"]:
+                    # Heavy energy users hurt most
+                    change = random.uniform(3.0, 6.0)
+                    company.price *= (1 - change / 100)
+                else:
+                    change = random.uniform(1.0, 3.0)
+                    company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Energy crisis deepens - Energy stocks soar, others pressured by costs")
+
+        elif cycle.cycle_type == MarketCycleType.FINANCIAL_SECTOR_BOOM:
+            # Financials surge, others moderate gains
+            for company in companies.values():
+                if company.industry == "Finance":
+                    change = random.uniform(6.0, 11.0)
+                    company.price *= (1 + change / 100)
+                else:
+                    change = random.uniform(1.0, 3.0)
+                    company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Financial sector boom - Banks lead market rally on strong margins")
+
+        elif cycle.cycle_type == MarketCycleType.RETAIL_COLLAPSE:
+            # Retail crashes, others slightly down
+            for company in companies.values():
+                if company.industry == "Retail":
+                    change = random.uniform(10.0, 18.0)
+                    company.price *= (1 - change / 100)
+                else:
+                    change = random.uniform(1.0, 3.0)
+                    company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Retail apocalypse - Consumer spending crash devastates retail sector")
+
+        elif cycle.cycle_type == MarketCycleType.HEALTHCARE_RALLY:
+            # Healthcare surges, others modest gains
+            for company in companies.values():
+                if company.industry == "Healthcare":
+                    change = random.uniform(6.0, 11.0)
+                    company.price *= (1 + change / 100)
+                else:
+                    change = random.uniform(0.5, 2.5)
+                    company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Healthcare rally - Medical sector surges on breakthrough innovations")
+
+        elif cycle.cycle_type == MarketCycleType.MANUFACTURING_SLUMP:
+            # Manufacturing/Industrial down, others slightly down
+            for company in companies.values():
+                if company.industry in ["Manufacturing", "Industrial"]:
+                    change = random.uniform(7.0, 13.0)
+                    company.price *= (1 - change / 100)
+                else:
+                    change = random.uniform(1.0, 3.0)
+                    company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Manufacturing slump - Industrial production declines hammer factory stocks")
+
+        # CORRECTION EVENTS
+        elif cycle.cycle_type == MarketCycleType.BUBBLE_POP:
+            # Sharp correction across board, especially high P/E stocks
+            for company in companies.values():
+                pe_ratio = company.get_pe_ratio()
+                # Higher P/E = bigger correction
+                if pe_ratio > 40:
+                    change = random.uniform(12.0, 20.0)
+                elif pe_ratio > 25:
+                    change = random.uniform(8.0, 14.0)
+                else:
+                    change = random.uniform(4.0, 8.0)
+                company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 BUBBLE POP - Overvalued stocks crash as reality check hits market!")
+
+        elif cycle.cycle_type == MarketCycleType.PROFIT_TAKING:
+            # Moderate broad correction
+            for company in companies.values():
+                change = random.uniform(3.0, 7.0)
+                company.price *= (1 - change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Profit taking - Investors lock in gains after strong rally")
+
+        elif cycle.cycle_type == MarketCycleType.SECTOR_ROTATION:
+            # High P/E sectors down, low P/E sectors up
+            # Calculate median P/E first
+            pe_values = [c.get_pe_ratio() for c in companies.values()]
+            median_pe = sorted(pe_values)[len(pe_values) // 2] if pe_values else 20.0
+
+            for company in companies.values():
+                pe_ratio = company.get_pe_ratio()
+                if pe_ratio > median_pe * 1.3:
+                    # Overvalued - sell off
+                    change = random.uniform(4.0, 8.0)
+                    company.price *= (1 - change / 100)
+                elif pe_ratio < median_pe * 0.7:
+                    # Undervalued - rally
+                    change = random.uniform(4.0, 8.0)
+                    company.price *= (1 + change / 100)
+                else:
+                    # Fairly valued - small moves
+                    change = random.uniform(-2.0, 2.0)
+                    company.price *= (1 + change / 100)
+                company.price = max(0.01, company.price)
+            messages.append("📊 Sector rotation - Money flows from overvalued to undervalued sectors")
 
         return messages
 
@@ -3469,7 +3792,7 @@ class InvestmentGame:
         # Check if we should trigger a new market cycle
         cycle_triggered = False
         if self.market_cycle.should_trigger_cycle(self.week_number):
-            cycle = self.market_cycle.trigger_cycle(self.week_number)
+            cycle = self.market_cycle.trigger_cycle(self.week_number, self.companies)
             cycle_triggered = True
             print("\n" + "🌍" + "="*58)
             print("MAJOR GLOBAL ECONOMIC EVENT")
