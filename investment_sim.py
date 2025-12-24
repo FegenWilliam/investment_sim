@@ -3857,8 +3857,11 @@ class InvestmentGame:
         self.pending_breaking_news: Optional[Tuple[str, NewsReport, EventType]] = None  # Breaking news to display (company_name, report, event_type)
 
         # Future price pre-calculation (hidden from players)
-        # Stores next 2 weeks of calculated prices: {company_name: [week+1 price, week+2 price]}
+        # Stores next 4 weeks of calculated prices: {company_name: [week+1 price, week+2 price, ...]}
         self.future_prices: Dict[str, List[float]] = {}
+        # Also track future EPS and fundamental prices for mean reversion
+        self.future_eps: Dict[str, List[float]] = {}
+        self.future_fundamental_prices: Dict[str, List[float]] = {}
 
         self._initialize_companies()
 
@@ -4040,13 +4043,19 @@ class InvestmentGame:
         # Execute hedge fund trades first (NPCs react to current market conditions)
         self.execute_hedge_fund_trades()
 
-        # Apply precompiled prices to all companies
-        # The future_prices[company_name][0] is the actual next week price
+        # Apply precompiled prices, EPS, and fundamentals to all companies
+        # The future_*[company_name][0] is the actual next week value
         for company_name, company in self.companies.items():
             if company_name in self.future_prices and len(self.future_prices[company_name]) > 0:
-                # Use the precompiled price for this week
+                # Apply all precompiled values for this week
                 company.price = self.future_prices[company_name][0]
                 company.price_history.append(company.price)
+
+                # Also update EPS and fundamental_price to keep in sync
+                if company_name in self.future_eps:
+                    company.earnings_per_share = self.future_eps[company_name][0]
+                if company_name in self.future_fundamental_prices:
+                    company.fundamental_price = self.future_fundamental_prices[company_name][0]
 
         # Check if we should trigger a new market cycle
         cycle_triggered = False
@@ -4140,6 +4149,11 @@ class InvestmentGame:
         """
         Advance future prices by one week: shift array and calculate new week+4.
         This preserves the deterministic future while adding one more week ahead.
+
+        Now includes:
+        - EPS updates (earnings growth)
+        - Fundamental price random walk
+        - Mean reversion (price pulled back toward fundamental)
         """
         for company_name, company in self.companies.items():
             if company_name not in self.future_prices or len(self.future_prices[company_name]) == 0:
@@ -4147,15 +4161,30 @@ class InvestmentGame:
                 self._precalculate_future_prices()
                 return
 
-            # Shift array: remove week+1 (which is now current), keep weeks +2, +3, +4
+            # Shift arrays: remove week+1 (which is now current), keep weeks +2, +3, +4
             remaining_prices = self.future_prices[company_name][1:]
+            remaining_eps = self.future_eps[company_name][1:]
+            remaining_fundamentals = self.future_fundamental_prices[company_name][1:]
 
-            # Calculate new week+5 (which becomes the new week+4)
+            # Get the previous week's values to continue simulation
             week_ahead = 4  # We're calculating the 4th week ahead
             future_week = self.week_number + week_ahead
             simulated_price = remaining_prices[-1] if remaining_prices else company.price
+            simulated_eps = remaining_eps[-1] if remaining_eps else company.earnings_per_share
+            simulated_fundamental = remaining_fundamentals[-1] if remaining_fundamentals else company.fundamental_price
 
-            # Apply market cycle effects if active
+            # 1. Update simulated EPS (earnings growth)
+            annual_growth = random.uniform(-0.08, 0.12)  # -8% to +12% annual
+            weekly_change = annual_growth / 52.0
+            simulated_eps *= (1 + weekly_change)
+            simulated_eps = max(0.001, simulated_eps)
+
+            # 2. Update simulated fundamental price (random walk on fundamentals)
+            fundamental_change = random.uniform(-company.base_volatility, company.base_volatility)
+            simulated_fundamental *= (1 + fundamental_change / 100)
+            simulated_fundamental = max(0.01, simulated_fundamental)
+
+            # 3. Apply market cycle effects if active
             cycle_effect = 0.0
             if self.market_cycle.active_cycle:
                 # Check if cycle will still be active
@@ -4169,7 +4198,7 @@ class InvestmentGame:
                 # A new cycle would trigger - we don't know which type, so use neutral
                 cycle_effect = 0.0
 
-            # Apply cycle effect or random walk
+            # 4. Apply cycle effect or random walk to price
             if cycle_effect != 0:
                 simulated_price *= (1 + cycle_effect / 100)
             else:
@@ -4177,7 +4206,7 @@ class InvestmentGame:
                 change_percent = random.uniform(-company.base_volatility, company.base_volatility)
                 simulated_price *= (1 + change_percent / 100)
 
-            # Apply pending news impacts that will occur in this future week
+            # 5. Apply pending news impacts that will occur in this future week
             for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
                     weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4186,38 +4215,72 @@ class InvestmentGame:
                         if impact.is_real:
                             simulated_price *= (1 + impact.impact_magnitude / 100)
 
+            # 6. Apply mean reversion - pull price back toward fundamental
+            # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+            price_gap = simulated_fundamental - simulated_price
+            mean_reversion = price_gap * 0.40  # 40% of gap closes each week
+            simulated_price += mean_reversion
+
             # Ensure price stays positive
             simulated_price = max(0.01, simulated_price)
 
-            # Update future prices: old weeks +2, +3, +4 become new +1, +2, +3, and add new +4
+            # Update future arrays: old weeks +2, +3, +4 become new +1, +2, +3, and add new +4
             self.future_prices[company_name] = remaining_prices + [simulated_price]
+            self.future_eps[company_name] = remaining_eps + [simulated_eps]
+            self.future_fundamental_prices[company_name] = remaining_fundamentals + [simulated_fundamental]
 
     def _precalculate_future_prices(self):
         """
         Pre-calculate the next 4 weeks of prices for all companies.
         This data is NEVER shown to players, but used for news/research generation.
+
+        Now includes:
+        - EPS updates (earnings growth)
+        - Fundamental price random walk
+        - Mean reversion (price pulled back toward fundamental)
         """
         import copy
 
-        # Clear existing future prices
+        # Clear existing future data
         self.future_prices = {}
+        self.future_eps = {}
+        self.future_fundamental_prices = {}
 
-        # For each company, calculate future prices
+        # For each company, calculate future prices, EPS, and fundamentals
         for company_name, company in self.companies.items():
             future_company_prices = []
+            future_company_eps = []
+            future_company_fundamentals = []
 
-            # Create a deep copy of game state for simulation
+            # Start with current values
+            simulated_eps = company.earnings_per_share
+            simulated_fundamental = company.fundamental_price
+
+            # Simulate each week ahead
             for week_ahead in range(1, 5):  # Calculate week+1 through week+4
                 future_week = self.week_number + week_ahead
 
-                # Start with current price
+                # Start with current or previous simulated price
                 if week_ahead == 1:
                     simulated_price = company.price
                 else:
                     # Use the previously calculated week price
                     simulated_price = future_company_prices[week_ahead - 2]
+                    simulated_eps = future_company_eps[week_ahead - 2]
+                    simulated_fundamental = future_company_fundamentals[week_ahead - 2]
 
-                # Apply market cycle effects if active or triggering
+                # 1. Update simulated EPS (earnings growth - matches Company.update_earnings())
+                annual_growth = random.uniform(-0.08, 0.12)  # -8% to +12% annual
+                weekly_change = annual_growth / 52.0
+                simulated_eps *= (1 + weekly_change)
+                simulated_eps = max(0.001, simulated_eps)  # Prevent negative earnings
+
+                # 2. Update simulated fundamental price (random walk on fundamentals)
+                fundamental_change = random.uniform(-company.base_volatility, company.base_volatility)
+                simulated_fundamental *= (1 + fundamental_change / 100)
+                simulated_fundamental = max(0.01, simulated_fundamental)
+
+                # 3. Apply market cycle effects if active or triggering
                 cycle_effect = 0.0
                 if self.market_cycle.active_cycle:
                     # Check if cycle will still be active
@@ -4231,15 +4294,15 @@ class InvestmentGame:
                     # A new cycle would trigger - we don't know which type, so use average effect
                     cycle_effect = 0.0  # Neutral assumption for future cycle triggers
 
-                # Apply cycle effect
+                # 4. Apply cycle effect or random walk to price
                 if cycle_effect != 0:
                     simulated_price *= (1 + cycle_effect / 100)
                 else:
-                    # Random walk if no cycle
+                    # Random walk if no cycle (additional volatility on top of fundamentals)
                     change_percent = random.uniform(-company.base_volatility, company.base_volatility)
                     simulated_price *= (1 + change_percent / 100)
 
-                # Apply pending news impacts that will occur in this future week
+                # 5. Apply pending news impacts that will occur in this future week
                 for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
                         weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4248,11 +4311,23 @@ class InvestmentGame:
                             if impact.is_real:
                                 simulated_price *= (1 + impact.impact_magnitude / 100)
 
-                # Ensure price stays positive
+                # 6. Apply mean reversion - pull price back toward fundamental
+                # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                price_gap = simulated_fundamental - simulated_price
+                mean_reversion = price_gap * 0.40  # 40% of gap closes each week
+                simulated_price += mean_reversion
+
+                # Ensure values stay positive
                 simulated_price = max(0.01, simulated_price)
+
+                # Store all three values for this week
                 future_company_prices.append(simulated_price)
+                future_company_eps.append(simulated_eps)
+                future_company_fundamentals.append(simulated_fundamental)
 
             self.future_prices[company_name] = future_company_prices
+            self.future_eps[company_name] = future_company_eps
+            self.future_fundamental_prices[company_name] = future_company_fundamentals
 
     def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str) -> float:
         """Get the average price change effect for a cycle type"""
@@ -5200,6 +5275,8 @@ class InvestmentGame:
                     self.pending_breaking_news[2].value  # EventType as string
                 ) if self.pending_breaking_news else None,
                 'future_prices': self.future_prices,
+                'future_eps': self.future_eps,
+                'future_fundamental_prices': self.future_fundamental_prices,
                 'random_state': list(random.getstate()),  # Save random state for deterministic futures
                 'quantum_singularity': self.quantum_singularity.to_dict(),
                 'gold': self.gold.to_dict(),
@@ -5270,9 +5347,14 @@ class InvestmentGame:
             # Restore future prices (or recalculate if not present in save file)
             if 'future_prices' in game_state:
                 game.future_prices = game_state['future_prices']
+                # Also restore new future data if available
+                game.future_eps = game_state.get('future_eps', {})
+                game.future_fundamental_prices = game_state.get('future_fundamental_prices', {})
             else:
-                # Old save file - recalculate future prices
+                # Old save file - recalculate all future data
                 game.future_prices = {}
+                game.future_eps = {}
+                game.future_fundamental_prices = {}
                 game._precalculate_future_prices()
 
             # Restore random state for deterministic futures
