@@ -1138,19 +1138,41 @@ class Company:
         - Impact creates temporary deviation from fundamental_price
         - Mean reversion in update_price() pulls it back over time
         - Prevents pump-and-dump loops and death spirals
+        - Based on daily trading volume, not market cap (more realistic)
         """
-        # Calculate trade value relative to market cap
+        # Estimate average daily volume based on market cap and liquidity
+        # Real market research: ADV typically 0.1%-2% of market cap per day
+        if self.liquidity == LiquidityLevel.HIGH:
+            daily_volume_pct = 0.02  # 2% of market cap trades per day
+        elif self.liquidity == LiquidityLevel.MEDIUM:
+            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
+        else:  # LOW
+            daily_volume_pct = 0.001  # 0.1% of market cap trades per day
+
+        estimated_daily_volume = self.market_cap * daily_volume_pct
+
+        # Calculate trade value relative to daily volume (not market cap!)
         trade_value = shares * self.price
-        trade_pct_of_market = trade_value / self.market_cap
+        trade_pct_of_daily_volume = trade_value / estimated_daily_volume
 
-        # Temporary market impact (much smaller than slippage)
-        # Uses cube root for even gentler scaling on large trades
-        # For 1% of market cap: ~0.1 = 10% impact (temporary)
-        # For 0.1% of market cap: ~0.046 = 4.6% impact
-        impact_multiplier = (trade_pct_of_market ** (1/3)) * 1.0
+        # Market impact follows square root law from market microstructure research
+        # Kyle's lambda / Almgren-Chriss models suggest: impact ∝ sqrt(trade_size/ADV)
+        # Typical coefficient: 0.1-0.5 depending on market conditions
+        # We use 0.25 as a middle ground
+        base_impact_coefficient = 0.25
 
-        # Cap at 8% price movement per trade (temporary)
-        impact_multiplier = min(impact_multiplier, 0.08)
+        # For low liquidity stocks, increase impact coefficient
+        if self.liquidity == LiquidityLevel.LOW:
+            base_impact_coefficient *= 1.5  # 50% more impact for illiquid stocks
+        elif self.liquidity == LiquidityLevel.HIGH:
+            base_impact_coefficient *= 0.7  # 30% less impact for highly liquid stocks
+
+        # Calculate impact using square root law
+        # Example: $25k trade on $1B daily volume = sqrt(0.0025%) * 0.25 = 0.0125% impact
+        impact_multiplier = (trade_pct_of_daily_volume ** 0.5) * base_impact_coefficient
+
+        # Cap at 5% price movement per trade (prevents extreme cases)
+        impact_multiplier = min(impact_multiplier, 0.05)
 
         # Apply impact to current price (creates temporary deviation)
         if is_buy:
