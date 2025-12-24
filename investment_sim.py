@@ -591,6 +591,16 @@ class BreakingNewsSystem:
             "{company} AI rebellion: 200 golems refuse orders, demanding freedom and compensation",
             "{company} golem workplace accident rate 300% above industry average, regulators investigating",
         ],
+        "Rare Fantasy Goods": [
+            "{company} alien artifact goes berserk, destroying entire showroom and injuring 23 customers",
+            "{company} caught smuggling cursed relics from forbidden dimension, Cosmic Council investigating",
+            "{company} reality-warping item causes temporal anomaly, entire city block ages 100 years",
+            "{company} sold 'authentic' deity tear that was actually condensed unicorn sweat, lawsuits mounting",
+            "{company} interdimensional customs raid reveals illegal trafficking of sentient crystalline entities",
+            "{company} ancient prophecy weapon activates prematurely, summons elder god to downtown district",
+            "{company} CEO arrested for selling fake dragon hearts made from salamander organs",
+            "{company} warehouse breach releases 47 reality-defying artifacts, multiverse stability at risk",
+        ],
     }
 
     # Sector-specific success templates
@@ -665,6 +675,16 @@ class BreakingNewsSystem:
             "{company} labor unions endorse golem technology as creating safer workplaces",
             "{company} secure $8B order for autonomous golems from military contractor",
         ],
+        "Rare Fantasy Goods": [
+            "{company} discovers authentic Phoenix Egg, auction expected to reach $500M",
+            "{company} secures exclusive trade agreement with 7th dimensional merchants, monopoly on star crystals",
+            "{company} acquires legendary Sword of Destiny, collectors offering blank checks",
+            "{company} authenticates real Fragment of Creation, value beyond mortal comprehension",
+            "{company} portal to treasure dimension stabilizes, infinite rare goods access confirmed",
+            "{company} elder dragon consignment deal brings 200-year supply of pristine scales",
+            "{company} time-locked vault opens revealing lost artifacts from erased timeline",
+            "{company} alien civilization grants exclusive rights to reality-bending gemstones",
+        ],
     }
 
     # Sector-specific problem templates (moderate negative events)
@@ -717,6 +737,13 @@ class BreakingNewsSystem:
             "{company} loses major contract as customer switches to cheaper competitor",
             "{company} golem efficiency below specifications, performance improvements needed",
             "{company} unexpected maintenance costs for deployed golems squeeze margins",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} cosmic storm delays interdimensional shipments by 6 weeks, inventory running low",
+            "{company} authenticity questioned on recent acquisitions, appraisers demanding re-evaluation",
+            "{company} dimensional customs imposes new tariffs on exotic goods, profit margins squeezed",
+            "{company} rival collector outbids on 3 major artifacts, acquisition pipeline weakening",
+            "{company} storage facility experiences minor containment breach, 5 items lost to void",
         ],
     }
 
@@ -3198,15 +3225,20 @@ class MarketCycle:
         elif cycle.cycle_type == MarketCycleType.BUBBLE_POP:
             # Sharp correction across board, especially high P/E stocks
             for company in companies.values():
-                pe_ratio = company.get_pe_ratio()
-                # Higher P/E = bigger correction
-                if pe_ratio > 40:
-                    change = random.uniform(12.0, 20.0)
-                elif pe_ratio > 25:
-                    change = random.uniform(8.0, 14.0)
+                if company.industry == "Rare Fantasy Goods":
+                    # Rare goods ignore P/E ratios - erratic behavior
+                    change = random.uniform(-3.0, 5.0)  # Can even gain during bubble pops
+                    company.price *= (1 + change / 100)
                 else:
-                    change = random.uniform(4.0, 8.0)
-                company.price *= (1 - change / 100)
+                    pe_ratio = company.get_pe_ratio()
+                    # Higher P/E = bigger correction
+                    if pe_ratio > 40:
+                        change = random.uniform(12.0, 20.0)
+                    elif pe_ratio > 25:
+                        change = random.uniform(8.0, 14.0)
+                    else:
+                        change = random.uniform(4.0, 8.0)
+                    company.price *= (1 - change / 100)
                 company.price = max(0.01, company.price)
             messages.append("📊 BUBBLE POP - Overvalued stocks crash as reality check hits market!")
 
@@ -3221,23 +3253,28 @@ class MarketCycle:
         elif cycle.cycle_type == MarketCycleType.SECTOR_ROTATION:
             # High P/E sectors down, low P/E sectors up
             # Calculate median P/E first
-            pe_values = [c.get_pe_ratio() for c in companies.values()]
+            pe_values = [c.get_pe_ratio() for c in companies.values() if c.industry != "Rare Fantasy Goods"]
             median_pe = sorted(pe_values)[len(pe_values) // 2] if pe_values else 20.0
 
             for company in companies.values():
-                pe_ratio = company.get_pe_ratio()
-                if pe_ratio > median_pe * 1.3:
-                    # Overvalued - sell off
-                    change = random.uniform(4.0, 8.0)
-                    company.price *= (1 - change / 100)
-                elif pe_ratio < median_pe * 0.7:
-                    # Undervalued - rally
-                    change = random.uniform(4.0, 8.0)
+                if company.industry == "Rare Fantasy Goods":
+                    # Rare goods don't participate in P/E-based rotation - wild card behavior
+                    change = random.uniform(-4.0, 6.0)
                     company.price *= (1 + change / 100)
                 else:
-                    # Fairly valued - small moves
-                    change = random.uniform(-2.0, 2.0)
-                    company.price *= (1 + change / 100)
+                    pe_ratio = company.get_pe_ratio()
+                    if pe_ratio > median_pe * 1.3:
+                        # Overvalued - sell off
+                        change = random.uniform(4.0, 8.0)
+                        company.price *= (1 - change / 100)
+                    elif pe_ratio < median_pe * 0.7:
+                        # Undervalued - rally
+                        change = random.uniform(4.0, 8.0)
+                        company.price *= (1 + change / 100)
+                    else:
+                        # Fairly valued - small moves
+                        change = random.uniform(-2.0, 2.0)
+                        company.price *= (1 + change / 100)
                 company.price = max(0.01, company.price)
             messages.append("📊 Sector rotation - Money flows from overvalued to undervalued sectors")
 
@@ -3618,9 +3655,9 @@ class InvestmentGame:
         self._precalculate_future_prices()
 
     def _initialize_companies(self):
-        """Initialize the 7 companies with different industries and liquidity levels"""
+        """Initialize the 8 companies with different industries and liquidity levels"""
         # Format: (name, industry, price, volatility, liquidity, market_cap)
-        # Market caps range from $2B (small cap) to $50B (large cap)
+        # Market caps range from $1.5B (micro cap) to $50B (large cap)
         company_data = [
             ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 50_000_000_000),  # $50B - Large cap
             ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM, 10_000_000_000),  # $10B - Mid cap
@@ -3629,6 +3666,7 @@ class InvestmentGame:
             ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW, 5_000_000_000),  # $5B - Small cap
             ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 3_000_000_000),  # $3B - Small cap
             ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 2_000_000_000),  # $2B - Small cap
+            ("Out of This World Enterprises", "Rare Fantasy Goods", 666.0, 13.0, LiquidityLevel.LOW, 1_500_000_000),  # $1.5B - Micro cap, ultra-rare goods
         ]
 
         for name, industry, price, volatility, liquidity, market_cap in company_data:
@@ -3993,10 +4031,19 @@ class InvestmentGame:
     def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str) -> float:
         """Get the average price change effect for a cycle type"""
         if cycle_type == MarketCycleType.BULL_MARKET:
+            if industry == "Rare Fantasy Goods":
+                # Rare goods don't follow bull markets - ultra-wealthy always buy
+                return random.uniform(1.0, 3.0)
             return random.uniform(3.0, 7.0)
         elif cycle_type == MarketCycleType.BEAR_MARKET:
+            if industry == "Rare Fantasy Goods":
+                # Counter-cyclical: rich seek rare luxury goods as safe haven
+                return random.uniform(2.0, 6.0)
             return -random.uniform(2.0, 5.0)
         elif cycle_type == MarketCycleType.RECESSION:
+            if industry == "Rare Fantasy Goods":
+                # Ultra-wealthy unaffected by recession, still buying rare items
+                return random.uniform(-1.0, 2.0)
             return -random.uniform(4.0, 8.0)
         elif cycle_type == MarketCycleType.INFLATION:
             if industry == "Energy":
@@ -4004,6 +4051,9 @@ class InvestmentGame:
             elif industry == "Mana Extraction":
                 # Mana becomes more valuable during energy crises
                 return random.uniform(5.0, 10.0)
+            elif industry == "Rare Fantasy Goods":
+                # Rare goods are ultimate inflation hedge - hard assets
+                return random.uniform(8.0, 15.0)
             else:
                 return -random.uniform(2.0, 4.0)
         elif cycle_type == MarketCycleType.MARKET_CRASH:
@@ -4013,12 +4063,18 @@ class InvestmentGame:
             elif industry == "Mana Extraction":
                 # Mana extraction faces extreme volatility
                 return -random.uniform(10.0, 18.0)
+            elif industry == "Rare Fantasy Goods":
+                # Chaotic behavior during crashes - sometimes gains (flight to rarity)
+                return random.uniform(-5.0, 8.0)
             else:
                 return -random.uniform(8.0, 15.0)
         elif cycle_type == MarketCycleType.RECOVERY:
             if industry == "Golem Manufacturing":
                 # Golems recover slower (trust issues)
                 return random.uniform(3.0, 6.0)
+            elif industry == "Rare Fantasy Goods":
+                # Doesn't need recovery - operates outside normal cycles
+                return random.uniform(0.0, 3.0)
             else:
                 return random.uniform(5.0, 10.0)
         elif cycle_type == MarketCycleType.TECH_BOOM:
@@ -4030,6 +4086,9 @@ class InvestmentGame:
             elif industry == "Mana Extraction":
                 # Mana benefits from tech boom (clean energy hype)
                 return random.uniform(6.0, 10.0)
+            elif industry == "Rare Fantasy Goods":
+                # Tech boom doesn't affect cosmic artifact market
+                return random.uniform(-1.0, 2.0)
             else:
                 return random.uniform(2.0, 4.0)
         return 0.0
