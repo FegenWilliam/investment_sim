@@ -5103,8 +5103,9 @@ class InvestmentGame:
         print("Game Start! Each player begins with $10,000")
         print("="*60)
 
-        # Generate initial breaking news for week 1
-        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
+        # Generate initial breaking news for week 1 (only if not already loaded from save)
+        if self.pending_breaking_news is None:
+            self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
 
         # Show initial market
         self.display_market()
