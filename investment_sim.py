@@ -3954,7 +3954,7 @@ class InvestmentGame:
                 simulated_price *= (1 + change_percent / 100)
 
             # Apply pending news impacts that will occur in this future week
-            for impact in self.market_news.pending_impacts:
+            for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
                     weeks_until = impact.weeks_until_impact - (week_ahead - 1)
                     if weeks_until == 0:
@@ -4016,7 +4016,7 @@ class InvestmentGame:
                     simulated_price *= (1 + change_percent / 100)
 
                 # Apply pending news impacts that will occur in this future week
-                for impact in self.market_news.pending_impacts:
+                for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
                         weeks_until = impact.weeks_until_impact - (week_ahead - 1)
                         if weeks_until == 0:
