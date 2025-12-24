@@ -1116,15 +1116,17 @@ class Company:
         # Update earnings first (fundamental business performance)
         self.update_earnings()
 
-        # Update fundamental price (random walk based on company fundamentals)
-        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
-        self.fundamental_price *= (1 + change_percent / 100)
+        # Update fundamental price (slow random walk on fundamentals)
+        # Fundamentals grow/shrink slowly: 10-20% per year = ~0.18-0.35% per week
+        annual_fundamental_change = random.uniform(-0.10, 0.20)  # -10% to +20% annual
+        weekly_fundamental_change = annual_fundamental_change / 52.0
+        self.fundamental_price *= (1 + weekly_fundamental_change)
         self.fundamental_price = max(0.01, self.fundamental_price)  # Prevent negative prices
 
         # Mean reversion: pull actual price toward fundamental
-        # 40% of the gap closes each week (liquidity refills, temporary impact fades)
+        # 30% of the gap closes each week (liquidity refills, temporary impact fades)
         price_gap = self.fundamental_price - self.price
-        mean_reversion = price_gap * 0.40
+        mean_reversion = price_gap * 0.30
         self.price += mean_reversion
         self.price = max(0.01, self.price)  # Prevent negative prices
 
@@ -4179,9 +4181,11 @@ class InvestmentGame:
             simulated_eps *= (1 + weekly_change)
             simulated_eps = max(0.001, simulated_eps)
 
-            # 2. Update simulated fundamental price (random walk on fundamentals)
-            fundamental_change = random.uniform(-company.base_volatility, company.base_volatility)
-            simulated_fundamental *= (1 + fundamental_change / 100)
+            # 2. Update simulated fundamental price (slow random walk)
+            # Fundamentals grow/shrink slowly: 10-20% per year = ~0.18-0.35% per week
+            annual_fundamental_change = random.uniform(-0.10, 0.20)  # -10% to +20% annual
+            weekly_fundamental_change = annual_fundamental_change / 52.0
+            simulated_fundamental *= (1 + weekly_fundamental_change)
             simulated_fundamental = max(0.01, simulated_fundamental)
 
             # 3. Apply market cycle effects if active
@@ -4215,10 +4219,19 @@ class InvestmentGame:
                         if impact.is_real:
                             simulated_price *= (1 + impact.impact_magnitude / 100)
 
+                            # Scandals/problems also slightly damage fundamental value
+                            # (Company fundamentals suffer when they mess up)
+                            if impact.impact_magnitude < 0:  # Negative news
+                                # Apply 15% of the price impact to fundamentals
+                                # e.g., -10% price drop → -1.5% fundamental drop
+                                fundamental_impact = impact.impact_magnitude * 0.15
+                                simulated_fundamental *= (1 + fundamental_impact / 100)
+                                simulated_fundamental = max(0.01, simulated_fundamental)
+
             # 6. Apply mean reversion - pull price back toward fundamental
             # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
             price_gap = simulated_fundamental - simulated_price
-            mean_reversion = price_gap * 0.40  # 40% of gap closes each week
+            mean_reversion = price_gap * 0.30  # 30% of gap closes each week
             simulated_price += mean_reversion
 
             # Ensure price stays positive
@@ -4275,9 +4288,11 @@ class InvestmentGame:
                 simulated_eps *= (1 + weekly_change)
                 simulated_eps = max(0.001, simulated_eps)  # Prevent negative earnings
 
-                # 2. Update simulated fundamental price (random walk on fundamentals)
-                fundamental_change = random.uniform(-company.base_volatility, company.base_volatility)
-                simulated_fundamental *= (1 + fundamental_change / 100)
+                # 2. Update simulated fundamental price (slow random walk)
+                # Fundamentals grow/shrink slowly: 10-20% per year = ~0.18-0.35% per week
+                annual_fundamental_change = random.uniform(-0.10, 0.20)  # -10% to +20% annual
+                weekly_fundamental_change = annual_fundamental_change / 52.0
+                simulated_fundamental *= (1 + weekly_fundamental_change)
                 simulated_fundamental = max(0.01, simulated_fundamental)
 
                 # 3. Apply market cycle effects if active or triggering
@@ -4311,10 +4326,19 @@ class InvestmentGame:
                             if impact.is_real:
                                 simulated_price *= (1 + impact.impact_magnitude / 100)
 
+                                # Scandals/problems also slightly damage fundamental value
+                                # (Company fundamentals suffer when they mess up)
+                                if impact.impact_magnitude < 0:  # Negative news
+                                    # Apply 15% of the price impact to fundamentals
+                                    # e.g., -10% price drop → -1.5% fundamental drop
+                                    fundamental_impact = impact.impact_magnitude * 0.15
+                                    simulated_fundamental *= (1 + fundamental_impact / 100)
+                                    simulated_fundamental = max(0.01, simulated_fundamental)
+
                 # 6. Apply mean reversion - pull price back toward fundamental
                 # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
                 price_gap = simulated_fundamental - simulated_price
-                mean_reversion = price_gap * 0.40  # 40% of gap closes each week
+                mean_reversion = price_gap * 0.30  # 30% of gap closes each week
                 simulated_price += mean_reversion
 
                 # Ensure values stay positive
