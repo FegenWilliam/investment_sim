@@ -17,21 +17,64 @@ class NewsSentiment(Enum):
     NEGATIVE = "negative"
 
 
+class EventType(Enum):
+    """Types of company events"""
+    SCANDAL = "scandal"
+    SUCCESS = "success"
+    PROBLEM = "problem"
+
+
+@dataclass
+class CompanyEvent:
+    """Represents an internal company event that may generate news"""
+    event_type: EventType
+    severity: float  # 0.0 to 1.0, affects impact magnitude
+    description: str  # Internal description
+    discovery_week: int  # When the event occurred internally
+    weeks_until_public: int  # How many weeks until it becomes public news
+    industry: str  # Industry for sector-specific news
+
+    def to_dict(self) -> dict:
+        return {
+            'event_type': self.event_type.value,
+            'severity': self.severity,
+            'description': self.description,
+            'discovery_week': self.discovery_week,
+            'weeks_until_public': self.weeks_until_public,
+            'industry': self.industry
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'CompanyEvent':
+        return CompanyEvent(
+            event_type=EventType(data['event_type']),
+            severity=data['severity'],
+            description=data['description'],
+            discovery_week=data['discovery_week'],
+            weeks_until_public=data['weeks_until_public'],
+            industry=data['industry']
+        )
+
+
 @dataclass
 class NewsReport:
-    """Represents news from all three sources"""
-    trustworthy_source: str  # Empty if news is fake
-    sensationalist_source: str  # Always exaggerated
-    insider_source: str  # May flip to opposite
+    """Represents news from all four sources"""
+    trustworthy_source: str  # Empty if news is fake or not major enough
+    market_pulse_source: str  # Posts rumors as clickbait facts (no "rumor" tag)
+    insider_source: str  # 5% accurate insider info, 95% unreliable
+    rumor_mill_source: str  # Explicitly marked rumors: "RUMOR: ..."
     insider_flipped: bool  # Whether insider source flipped
+    is_rumor: bool  # True if this is a rumor about a pending event, False if confirmed news
 
     def to_dict(self) -> dict:
         """Serialize NewsReport to dictionary"""
         return {
             'trustworthy_source': self.trustworthy_source,
-            'sensationalist_source': self.sensationalist_source,
+            'market_pulse_source': self.market_pulse_source,
             'insider_source': self.insider_source,
-            'insider_flipped': self.insider_flipped
+            'rumor_mill_source': self.rumor_mill_source,
+            'insider_flipped': self.insider_flipped,
+            'is_rumor': self.is_rumor
         }
 
     @staticmethod
@@ -39,9 +82,11 @@ class NewsReport:
         """Deserialize NewsReport from dictionary"""
         return NewsReport(
             trustworthy_source=data['trustworthy_source'],
-            sensationalist_source=data['sensationalist_source'],
+            market_pulse_source=data.get('market_pulse_source', data.get('sensationalist_source', '')),  # Backward compat
             insider_source=data['insider_source'],
-            insider_flipped=data['insider_flipped']
+            rumor_mill_source=data.get('rumor_mill_source', ''),
+            insider_flipped=data['insider_flipped'],
+            is_rumor=data.get('is_rumor', False)
         )
 
 
@@ -471,386 +516,490 @@ class MarketNews:
         return impact_messages
 
 
-class WeeklyGazette:
-    """Handles weekly news outlet that publishes random company news every week"""
+class BreakingNewsSystem:
+    """Generates breaking news based on internal company events with sector-specific content"""
 
-    # Weekly gazette news templates - varied company updates
-    WEEKLY_NEWS_TEMPLATES = [
-        # Product and service updates
-        "{company} unveils next-generation product line at {industry} trade show, receiving positive initial feedback from attendees.",
-        "{company} announces minor software update addressing customer-requested features in their flagship platform.",
-        "Sources report {company} is piloting new service offerings in select markets before potential broader rollout.",
-        "{company} quarterly product roadmap hints at upcoming innovations expected to ship later this year.",
-        "Industry publication spotlights {company}'s latest patent filings in {industry} technology space.",
+    # Sector-specific scandal templates
+    SCANDAL_TEMPLATES = {
+        "Technology": [
+            "{company} faces massive data breach exposing 50M user accounts, class-action lawsuits mounting",
+            "{company} CEO charged with insider trading, stock plummets as investigation widens",
+            "{company} software update causes widespread system failures, customers threatening to switch",
+            "{company} whistleblower exposes intentional security vulnerabilities in flagship product",
+            "{company} faces antitrust investigation over monopolistic practices in cloud services",
+            "{company} admits to selling user data without consent, regulators preparing massive fines",
+            "{company} critical AI system found to have dangerous bias, discrimination lawsuits filed",
+            "{company} emergency patch reveals years of unaddressed security flaws",
+        ],
+        "Electronics": [
+            "{company} recalls 5M devices due to battery fire hazard, costs exceeding $800M",
+            "{company} caught using banned materials in manufacturing, environmental fines mounting",
+            "{company} factory explosion injures 12 workers, safety violations under investigation",
+            "{company} flagship product fails quality tests, production halted indefinitely",
+            "{company} accused of planned obsolescence, consumer protection agencies investigating",
+            "{company} supply chain audit reveals child labor violations, major retailers pulling products",
+            "{company} toxic waste leak from factory contaminates local water supply",
+            "{company} caught falsifying performance benchmarks for consumer electronics",
+        ],
+        "Pharmaceuticals": [
+            "{company} clinical trial deaths trigger FDA investigation, drug approval in jeopardy",
+            "{company} accused of bribing doctors to overprescribe medications, criminal charges filed",
+            "{company} manufacturing contamination forces recall of life-saving medications",
+            "{company} trial data manipulation exposed, multiple drugs face approval revocation",
+            "{company} faces $2B lawsuit over severe undisclosed side effects in blockbuster drug",
+            "{company} whistleblower reveals dangerous cost-cutting in drug testing procedures",
+            "{company} caught illegally marketing prescription drugs for off-label uses",
+            "{company} drug found to cause heart problems in 8% of patients, emergency recall ordered",
+        ],
+        "Automotive": [
+            "{company} recalls 2M vehicles over critical brake failure defect, 15 deaths reported",
+            "{company} emissions scandal reveals years of falsified environmental testing",
+            "{company} autonomous vehicle kills pedestrian, entire self-driving program suspended",
+            "{company} factory workers strike over unsafe working conditions, production halted",
+            "{company} caught cheating on safety crash tests, regulatory approval revoked",
+            "{company} battery supplier bankruptcy threatens to shut down production lines",
+            "{company} major design flaw in steering system discovered, NHTSA demands immediate recall",
+            "{company} executive corruption scandal leads to government contract cancellation",
+        ],
+        "Energy": [
+            "{company} oil spill devastates coastline, cleanup costs projected at $3B",
+            "{company} pipeline explosion forces evacuation of nearby towns, criminal negligence suspected",
+            "{company} caught illegally dumping toxic waste, EPA threatens license revocation",
+            "{company} safety audit reveals systematic maintenance failures across facilities",
+            "{company} workers killed in refinery explosion, OSHA investigation reveals violations",
+            "{company} caught bribing foreign officials for drilling rights, corruption charges filed",
+            "{company} fracking operations contaminate groundwater, communities file lawsuits",
+            "{company} admits to decades of environmental damage coverup, facing massive fines",
+        ],
+        "Mana Extraction": [
+            "{company} dimensional rift collapse kills 8 workers, reality stabilization failing",
+            "{company} illegal soul-binding in mana cores exposed, Wizards' Council demanding shutdown",
+            "{company} mana extraction destabilizes local reality, evacuations ordered for 3 districts",
+            "{company} caught harvesting mana from protected interdimensional sanctuaries",
+            "{company} arcane contamination spreads to residential areas, cleanup costs unknown",
+            "{company} rift workers develop mysterious mana sickness, lawsuits mounting",
+            "{company} dimensional portal malfunction releases dangerous entities, 12 injured",
+            "{company} accused of using forbidden blood magic to boost extraction yields",
+        ],
+        "Golem Manufacturing": [
+            "{company} rogue golem incident injures 15 workers, emergency shutdown ordered",
+            "{company} golems found to use unauthorized necromantic programming, criminal probe launched",
+            "{company} mass golem malfunction forces recall of 10,000 units across 6 countries",
+            "{company} whistleblower reveals golems achieving sentience, demanding rights and wages",
+            "{company} golem kills construction worker, safety certification revoked pending investigation",
+            "{company} caught using souls of deceased in golem cores without family consent",
+            "{company} AI rebellion: 200 golems refuse orders, demanding freedom and compensation",
+            "{company} golem workplace accident rate 300% above industry average, regulators investigating",
+        ],
+    }
 
-        # Business operations
-        "{company} opens new regional office to support growing customer base in emerging markets.",
-        "Reports indicate {company} is streamlining operations to improve efficiency and reduce overhead costs.",
-        "{company} announces expansion of customer support team as user base continues to grow steadily.",
-        "Supply chain update: {company} diversifies supplier network to enhance operational resilience.",
-        "{company} implements new inventory management system expected to optimize working capital.",
+    # Sector-specific success templates
+    SUCCESS_TEMPLATES = {
+        "Technology": [
+            "{company} revolutionary AI breakthrough achieves human-level reasoning, patents filed",
+            "{company} secures $3B government contract for next-gen cybersecurity infrastructure",
+            "{company} new cloud platform captures 25% market share in first quarter",
+            "{company} quantum computing breakthrough solves previously impossible calculations",
+            "{company} announces partnership with 3 Fortune 500 companies, revenue to triple",
+            "{company} software suite achieves 99.9% customer retention, industry record",
+            "{company} acquires major competitor, creating tech giant valued at $100B",
+            "{company} earnings beat expectations by 40%, raises guidance for next 3 quarters",
+        ],
+        "Electronics": [
+            "{company} flagship product sells 5M units in first week, shattering all records",
+            "{company} revolutionary battery technology achieves 500% capacity improvement",
+            "{company} wins exclusive supplier contract with world's largest smartphone maker",
+            "{company} new chip design outperforms all competitors by 60%, production ramping up",
+            "{company} sustainability initiative cuts manufacturing costs 35%, boosting margins",
+            "{company} patent portfolio valued at $5B, licensing deals flooding in",
+            "{company} consumer electronics win 'Product of the Year' across 4 categories",
+            "{company} manufacturing efficiency breakthrough reduces costs 40%, prices dropping",
+        ],
+        "Pharmaceuticals": [
+            "{company} breakthrough cancer treatment shows 90% remission in trials, FDA fast-tracking",
+            "{company} acquires biotech startup with revolutionary gene therapy platform",
+            "{company} announces cure for rare disease affecting 500K patients worldwide",
+            "{company} drug trial results exceed all expectations, approval certain within months",
+            "{company} receives FDA approval for blockbuster drug, projected $5B annual revenue",
+            "{company} vaccine development achieves 98% efficacy, governments ordering millions of doses",
+            "{company} breakthrough in Alzheimer's treatment, stock price surges on news",
+            "{company} awarded $2B grant for infectious disease research facility",
+        ],
+        "Automotive": [
+            "{company} electric vehicle range hits 800 miles, competitors scrambling to catch up",
+            "{company} secures massive fleet order from rental car giant, 200K vehicles",
+            "{company} autonomous driving system achieves Level 5 certification, industry first",
+            "{company} new manufacturing process cuts production time 50%, capacity doubling",
+            "{company} safety tests earn highest rating ever awarded, insurance costs plummet",
+            "{company} announces $10B investment in battery technology, shares soar",
+            "{company} wins 'Car of the Year' award across 8 countries, demand surging",
+            "{company} partnership with tech giant brings revolutionary in-car AI system",
+        ],
+        "Energy": [
+            "{company} discovers massive new oil field, reserves to last 50 years",
+            "{company} renewable energy project achieves grid parity, costs below fossil fuels",
+            "{company} revolutionary carbon capture technology earns $1B in green credits",
+            "{company} nuclear fusion breakthrough achieves sustained energy output",
+            "{company} acquires struggling competitor at 50% discount, doubling market share",
+            "{company} offshore wind farm produces 30% more energy than projected",
+            "{company} energy storage solution solves renewable intermittency problem",
+            "{company} secures exclusive drilling rights in newly discovered basin",
+        ],
+        "Mana Extraction": [
+            "{company} discovers stable interdimensional rift with infinite mana potential",
+            "{company} mana purification efficiency reaches 99.9%, costs plummet 70%",
+            "{company} awarded exclusive contract by Wizards' Council for realm energy supply",
+            "{company} breakthrough eliminates dimensional instability in extraction process",
+            "{company} mana-to-electrical conversion perfected, energy costs dropping 60%",
+            "{company} discovers method to harvest mana without environmental disruption",
+            "{company} Interdimensional Energy Coalition grants 20-year monopoly on cross-realm power",
+            "{company} revolutionary arcane-fusion reactor produces unlimited clean mana",
+        ],
+        "Golem Manufacturing": [
+            "{company} new ethical AI makes golems 400% more productive, orders surging",
+            "{company} achieves zero workplace incidents for 6 months, insurance costs collapse",
+            "{company} golem workers complete megaproject 8 months early, $5B in new contracts",
+            "{company} revolutionary sentient golems pass all safety certifications",
+            "{company} manufacturing breakthrough cuts golem production costs 50%",
+            "{company} golems achieve human-level judgment in complex tasks, demand exploding",
+            "{company} labor unions endorse golem technology as creating safer workplaces",
+            "{company} secure $8B order for autonomous golems from military contractor",
+        ],
+    }
 
-        # Partnerships and collaborations
-        "{company} signs distribution agreement with mid-sized retailer expanding market reach.",
-        "Trade sources note {company} exploring potential collaboration with {industry} research institutions.",
-        "{company} joins industry consortium focused on developing technical standards and best practices.",
-        "Local media reports {company} partnering with community organizations on sustainability initiatives.",
-        "{company} announces co-marketing arrangement with complementary {industry} service provider.",
-
-        # Corporate updates
-        "{company} promotes several senior managers to vice president roles as part of succession planning.",
-        "Investor relations team at {company} schedules additional analyst meetings following earnings release.",
-        "{company} board of directors approves modest share repurchase authorization signaling stability.",
-        "Corporate social responsibility report from {company} highlights progress on environmental commitments.",
-        "{company} announces plans to attend upcoming {industry} investor conference circuit.",
-
-        # Market and competitive position
-        "Market research firm includes {company} in list of notable {industry} sector players to watch.",
-        "{company} gains minor market share in competitive {industry} landscape according to latest data.",
-        "Competitive analysis suggests {company} maintaining steady positioning against industry rivals.",
-        "Customer satisfaction survey ranks {company} favorably compared to peer group average.",
-        "{company} cited in {industry} trend report as company adapting to evolving market dynamics.",
-
-        # Financial and operational metrics
-        "{company} reports in-line quarterly metrics meeting baseline street expectations without major surprises.",
-        "Operating margin analysis shows {company} maintaining stable profitability levels quarter-over-quarter.",
-        "Working capital metrics for {company} remain within normal ranges for {industry} sector companies.",
-        "{company} cash position described as adequate to fund ongoing operations and planned investments.",
-        "Quarterly update indicates {company} capital expenditures tracking to annual guidance projections.",
-
-        # Research and development
-        "{company} R&D team presents findings at {industry} technical symposium garnering peer interest.",
-        "Patent office filings show {company} continuing investment in intellectual property development.",
-        "Engineering blog from {company} discusses technical challenges and solutions in product development.",
-        "{company} announces incremental improvements to manufacturing processes enhancing quality control.",
-        "Innovation pipeline at {company} includes several projects in various stages of development.",
-
-        # Personnel and talent
-        "{company} announces new employee wellness program aimed at improving workplace satisfaction.",
-        "Talent acquisition team at {company} actively recruiting for positions across multiple departments.",
-        "{company} implements updated training protocols to enhance employee skill development.",
-        "Company culture survey at {company} shows stable employee engagement and retention metrics.",
-        "Diversity and inclusion report from {company} outlines ongoing initiatives and progress metrics.",
-
-        # Regulatory and compliance
-        "{company} confirms compliance with updated {industry} sector regulatory requirements.",
-        "Routine regulatory filing by {company} includes standard disclosures without material changes.",
-        "{company} participates in industry working group addressing evolving compliance standards.",
-        "Quality assurance processes at {company} pass routine inspection without significant findings.",
-        "{company} updates corporate governance policies in line with current best practice recommendations.",
-
-        # Customer and market reach
-        "{company} customer testimonial program highlights positive user experiences and use cases.",
-        "Geographic expansion update: {company} establishes presence in additional regional markets.",
-        "{company} digital marketing campaign launches targeting specific customer segments.",
-        "Trade publication features {company} client success story demonstrating product value proposition.",
-        "Market penetration analysis shows {company} reaching new customer demographics incrementally.",
-
-        # Technology and infrastructure
-        "{company} completes routine infrastructure upgrades improving system reliability and performance.",
-        "IT security assessment confirms {company} maintains robust cybersecurity protocols and practices.",
-        "{company} announces adoption of cloud technologies to enhance operational scalability.",
-        "Data center efficiency improvements at {company} reduce energy consumption and operating costs.",
-        "{company} implements enhanced analytics capabilities to support data-driven decision making.",
-
-        # Industry recognition and awards
-        "{company} receives industry recognition for customer service excellence from trade association.",
-        "Professional organization names {company} to annual list of noteworthy {industry} companies.",
-        "{company} executive invited to speak at industry panel discussing {industry} sector trends.",
-        "Third-party certification validates {company} adherence to quality and safety standards.",
-        "{company} featured in industry case study examining operational best practices and outcomes.",
-
-        # Strategic initiatives
-        "{company} announces completion of internal restructuring aimed at organizational efficiency.",
-        "Strategic review at {company} identifies opportunities for incremental business optimization.",
-        "{company} realigns product portfolio to focus resources on core competency areas.",
-        "Long-term planning update from {company} outlines vision for next three to five years.",
-        "{company} evaluates potential acquisition targets to complement existing capabilities.",
-
-        # Routine business updates
-        "{company} schedules routine maintenance window for systems upgrades during off-peak hours.",
-        "Quarterly business review at {company} confirms operations proceeding according to plan.",
-        "{company} renews standard contracts with key vendors and service providers.",
-        "Seasonal business patterns at {company} tracking consistent with historical trends.",
-        "{company} logistics network optimization initiative enters implementation phase.",
-
-        # Fantasy-themed weekly news
-        "{company} reports stable mana extraction rates at primary dimensional rift facility this quarter.",
-        "{company} golem maintenance schedule proceeds normally with standard monthly recalibration protocols.",
-        "Arcane Engineering journal publishes {company} white paper on sustainable mana harvesting techniques.",
-        "{company} attends Interdimensional Energy Summit to discuss industry best practices and standards.",
-        "Routine dimensional portal inspection at {company} facility passes all safety and stability checks.",
-        "{company} golem workforce completes routine ethics and behavioral compliance training modules.",
-        "Employee satisfaction survey at {company} shows mages and engineers report positive workplace culture.",
-        "{company} renews annual contract with Wizard's Guild for arcane consultation services.",
-        "Trade publication notes {company} expanding golem product line to include specialized industrial models.",
-        "{company} announces minor firmware update for existing golem units addressing user interface improvements.",
-        "Market analysis shows {company} maintaining steady position in competitive {industry} sector.",
-        "{company} participates in industry consortium developing standardized golem safety certifications.",
-        "Quarterly mana reserves report from {company} indicates sufficient supply to meet projected demand.",
-        "{company} confirms all dimensional rifts operating within normal stability parameters this month.",
-        "Customer testimonials highlight {company} golem reliability and responsive technical support team.",
-        "{company} R&D team presents findings on improved arcane-to-kinetic energy conversion at symposium.",
-        "Regulatory filing confirms {company} compliance with Interdimensional Commerce Commission guidelines.",
-        "{company} opens new regional service center to support growing golem maintenance customer base.",
-        "{company} implements enhanced reality stabilization protocols at mana extraction sites.",
-        "Professional organization recognizes {company} for contributions to {industry} safety standards.",
-        "{company} announces scholarship program for aspiring golem engineers and mana technicians.",
-        "Industry case study examines {company} successful integration of magical and mechanical systems.",
-        "{company} golem units participate in infrastructure project alongside traditional construction equipment.",
-        "Routine audit confirms {company} adherence to ethical soul-magic usage guidelines and restrictions.",
-        "{company} digital presence update includes new portal for customers to track golem fleet performance.",
-        "Wizarding trade association includes {company} in annual list of responsible mana extraction companies.",
-        "{company} announces partnership with local guild to provide golem training for apprentice engineers.",
-        "Market research indicates growing acceptance of {company} automation solutions in construction sector.",
-        "{company} publishes sustainability report highlighting reduced environmental and dimensional impact.",
-        "Technical blog from {company} discusses challenges of maintaining golem sentience boundaries.",
-        "{company} dimensional rift diversification strategy enters next phase with secondary site permits.",
-    ]
+    # Sector-specific problem templates (moderate negative events)
+    PROBLEM_TEMPLATES = {
+        "Technology": [
+            "{company} cloud service outage affects millions, customer complaints surging",
+            "{company} delays flagship product launch by 6 months due to development issues",
+            "{company} loses major client to aggressive competitor, revenue guidance lowered",
+            "{company} quarterly earnings miss expectations by 15%, analysts downgrade rating",
+            "{company} cybersecurity breach exposes customer data, reputation damaged",
+        ],
+        "Electronics": [
+            "{company} supply chain disruptions delay product shipments by 2 months",
+            "{company} component shortage forces production cuts, missing holiday season",
+            "{company} warranty claims spike 200%, eating into profit margins",
+            "{company} new product receives lukewarm reviews, preorders below expectations",
+            "{company} factory fire disrupts production, rebuilding to take 3 months",
+        ],
+        "Pharmaceuticals": [
+            "{company} drug trial shows modest results, below investor expectations",
+            "{company} loses patent dispute, generic competition entering market early",
+            "{company} FDA requests additional safety data, approval delayed 6 months",
+            "{company} manufacturing yields below target, production costs rising",
+            "{company} competitor's drug proves more effective, market share eroding",
+        ],
+        "Automotive": [
+            "{company} misses quarterly delivery targets by 20%, production issues persist",
+            "{company} recall of 500K vehicles for minor defect, costs estimated at $300M",
+            "{company} supplier bankruptcy disrupts production schedule for 8 weeks",
+            "{company} sales decline 15% as consumer preferences shift to competitors",
+            "{company} quality control issues delay new model launch indefinitely",
+        ],
+        "Energy": [
+            "{company} oil prices drop 30%, profit margins severely compressed",
+            "{company} exploration drilling yields disappointing results, reserves downgraded",
+            "{company} regulatory approval delayed for new pipeline project",
+            "{company} equipment failure shuts down major production facility for maintenance",
+            "{company} loses bid for lucrative offshore drilling rights to rival",
+        ],
+        "Mana Extraction": [
+            "{company} mana rift destabilizes temporarily, production down 40% for 3 weeks",
+            "{company} dimensional energy prices collapse, margins severely compressed",
+            "{company} loses interdimensional drilling contract to lower bidder",
+            "{company} arcane equipment malfunction halts extraction at 2 major sites",
+            "{company} mana shortage affects supply commitments, penalties mounting",
+        ],
+        "Golem Manufacturing": [
+            "{company} golem production delayed due to rare earth mineral shortage",
+            "{company} software glitch requires firmware update across 5,000 active golems",
+            "{company} loses major contract as customer switches to cheaper competitor",
+            "{company} golem efficiency below specifications, performance improvements needed",
+            "{company} unexpected maintenance costs for deployed golems squeeze margins",
+        ],
+    }
 
     def __init__(self):
-        self.weekly_news_history: List[Tuple[int, str, bool]] = []  # (week_number, news_text, is_real)
+        self.pending_impacts: List[PendingNewsImpact] = []
+        self.company_events: Dict[str, List[CompanyEvent]] = {}  # company_name -> list of events
+        self.news_history: List[Tuple[int, str]] = []
 
     def to_dict(self) -> dict:
-        """Serialize WeeklyGazette to dictionary"""
         return {
-            'weekly_news_history': self.weekly_news_history
+            'pending_impacts': [impact.to_dict() for impact in self.pending_impacts],
+            'company_events': {
+                company: [event.to_dict() for event in events]
+                for company, events in self.company_events.items()
+            },
+            'news_history': self.news_history
         }
 
     @staticmethod
-    def from_dict(data: dict) -> 'WeeklyGazette':
-        """Deserialize WeeklyGazette from dictionary"""
-        gazette = WeeklyGazette()
-        # Handle both old format (2-tuple) and new format (3-tuple)
-        gazette.weekly_news_history = []
-        for item in data.get('weekly_news_history', []):
-            if len(item) == 2:
-                # Old format: (week_number, news_text) - assume all were real
-                gazette.weekly_news_history.append((item[0], item[1], True))
-            else:
-                # New format: (week_number, news_text, is_real)
-                gazette.weekly_news_history.append(tuple(item))
-        return gazette
-
-    def generate_weekly_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[Tuple[str, bool]]:
-        """Generate weekly news for all companies, with hoaxes using same rate as monthly news"""
-        news_items = []
-
-        # Determine hoax rate using same 12-week cycle as monthly news
-        cycle_position = (week_number - 1) % 12
-        if cycle_position < 3:
-            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
-        elif cycle_position < 6:
-            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
-        elif cycle_position < 9:
-            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
-        else:
-            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
-
-        for company_name, company in companies.items():
-            # Select random news template for each company
-            template = random.choice(self.WEEKLY_NEWS_TEMPLATES)
-            news_text = template.format(company=company_name, industry=company.industry)
-
-            # Determine if news is real or hoax
-            is_real = random.random() < trust_threshold
-
-            # Store in history
-            self.weekly_news_history.append((week_number, news_text, is_real))
-            news_items.append((news_text, is_real))
-
-        return news_items
-
-
-class MarketChronicle:
-    """Second weekly news outlet with different perspective on company news"""
-
-    # Market Chronicle news templates - alternative takes on company news
-    CHRONICLE_NEWS_TEMPLATES = [
-        # Product and service updates
-        "{company} showcases updated product lineup at recent {industry} industry event with mixed analyst reactions.",
-        "{company} rolls out software patch addressing technical issues reported by user community.",
-        "Industry observers note {company} testing new service model in limited geographic areas.",
-        "{company} product development roadmap suggests multiple initiatives in various planning stages.",
-        "Patent analysis reveals {company} filing applications related to {industry} sector innovations.",
-
-        # Business operations
-        "{company} expands operational footprint with new facility to serve growing customer demand.",
-        "Cost optimization program at {company} aims to improve margins through operational changes.",
-        "{company} bolsters support infrastructure as platform usage metrics show steady growth.",
-        "Supply chain review: {company} adjusting procurement strategy to mitigate operational risks.",
-        "{company} deploys new logistics software seeking improved inventory turnover efficiency.",
-
-        # Partnerships and collaborations
-        "{company} finalizes distribution partnership expanding presence in retail channels.",
-        "Market watchers report {company} in discussions with {industry} research partners.",
-        "{company} becomes member of industry standards group addressing technical specifications.",
-        "Community partnerships announced by {company} focusing on environmental initiatives.",
-        "{company} enters marketing partnership with related {industry} service company.",
-
-        # Corporate updates
-        "{company} elevates multiple executives to senior leadership positions in succession plan.",
-        "Analyst outreach program at {company} increases following quarterly financial disclosure.",
-        "{company} board authorizes share buyback program as capital allocation strategy.",
-        "Sustainability report from {company} details environmental and social governance metrics.",
-        "{company} confirms participation in upcoming investor conferences across major cities.",
-
-        # Market and competitive position
-        "Industry analysts include {company} in coverage reports on {industry} sector outlook.",
-        "{company} shows modest market share gains in competitive {industry} environment.",
-        "Market positioning analysis places {company} in middle tier of industry peer group.",
-        "Customer feedback surveys show {company} performance tracking peer company averages.",
-        "{company} mentioned in sector trend analysis examining {industry} market dynamics.",
-
-        # Financial and operational metrics
-        "{company} quarterly results align with analyst consensus without significant variances.",
-        "Profitability analysis indicates {company} margin stability compared to prior periods.",
-        "Balance sheet metrics for {company} show working capital levels consistent with industry norms.",
-        "{company} liquidity position adequate for operational needs and investment commitments.",
-        "Capital spending update from {company} indicates expenditures matching guidance ranges.",
-
-        # Research and development
-        "{company} engineering team shares technical insights at {industry} conference.",
-        "Intellectual property filings indicate {company} ongoing R&D investment priorities.",
-        "Technical discussion from {company} addresses development challenges and approaches.",
-        "{company} announces process improvements targeting quality enhancement objectives.",
-        "Product development pipeline at {company} includes multiple initiatives under evaluation.",
-
-        # Personnel and talent
-        "{company} introduces wellness program as part of employee retention strategy.",
-        "Hiring activity at {company} continues across various functional departments.",
-        "{company} rolls out updated employee training focusing on skill development.",
-        "Workplace culture assessment at {company} reveals stable engagement trends.",
-        "Diversity metrics from {company} show progress on workforce composition goals.",
-
-        # Regulatory and compliance
-        "{company} maintains compliance with latest {industry} regulatory framework updates.",
-        "Standard regulatory disclosure by {company} filed without unusual items or changes.",
-        "{company} engaged in industry dialogue on emerging compliance requirements.",
-        "Inspection results for {company} operations show adherence to quality standards.",
-        "{company} governance framework updated following best practice review.",
-
-        # Customer and market reach
-        "{company} case studies highlight customer applications and deployment scenarios.",
-        "Regional expansion continues as {company} targets new geographical markets.",
-        "{company} marketing initiatives aim to reach emerging customer segments.",
-        "Case study publication features {company} implementation at client organization.",
-        "Market analysis shows {company} attracting diverse customer demographics.",
-
-        # Technology and infrastructure
-        "{company} infrastructure modernization improves operational reliability metrics.",
-        "Security audit validates {company} cybersecurity controls and procedures.",
-        "{company} cloud migration initiative progresses toward operational scalability.",
-        "Energy efficiency gains at {company} data facilities reduce operational expenses.",
-        "{company} analytics platform enhancement enables improved business intelligence.",
-
-        # Industry recognition and awards
-        "{company} honored by industry group for service quality achievements.",
-        "Annual industry ranking includes {company} among notable {industry} companies.",
-        "{company} leadership participates in panel discussion on sector challenges.",
-        "Standards certification confirms {company} quality and safety compliance.",
-        "{company} operational practices examined in industry case study analysis.",
-
-        # Strategic initiatives
-        "{company} concludes organizational realignment focused on efficiency objectives.",
-        "Business review at {company} highlights incremental optimization opportunities.",
-        "{company} portfolio strategy emphasizes core business focus areas.",
-        "Strategic planning at {company} outlines multi-year business objectives.",
-        "{company} examines potential acquisition opportunities for capability expansion.",
-
-        # Routine business updates
-        "{company} plans scheduled maintenance activities during low-traffic periods.",
-        "Business review confirms {company} operations aligned with established plans.",
-        "{company} extends existing vendor agreements and service contracts.",
-        "Business patterns at {company} follow typical seasonal trend lines.",
-        "{company} logistics optimization moves into active deployment phase.",
-
-        # Fantasy-themed chronicle news
-        "{company} maintains consistent mana yields at dimensional extraction operations.",
-        "{company} routine golem servicing follows established maintenance protocols.",
-        "Technical journal features {company} research on sustainable rift management.",
-        "{company} representatives attend interdimensional commerce industry forum.",
-        "Portal stability assessment at {company} sites confirms normal operational parameters.",
-        "{company} automated workforce undergoes standard compliance training cycle.",
-        "Internal survey shows {company} workforce satisfaction levels remain stable.",
-        "{company} continues advisory relationship with Wizard's Guild on arcane matters.",
-        "Market analysis notes {company} product diversification in golem sector.",
-        "{company} releases interface improvements for current golem product line.",
-        "Sector report places {company} at steady position within {industry} market.",
-        "{company} joins working group on golem safety certification standards.",
-        "Resource report from {company} indicates adequate mana reserves for operations.",
-        "{company} rift operations maintain stability within acceptable threshold ranges.",
-        "User feedback highlights {company} product reliability and support responsiveness.",
-        "{company} researchers present energy conversion efficiency findings.",
-        "Compliance documentation confirms {company} adherence to commerce regulations.",
-        "{company} establishes additional service location for maintenance operations.",
-        "{company} upgrades stabilization systems at dimensional extraction facilities.",
-        "Industry recognition for {company} contributions to {industry} safety protocols.",
-        "Educational program from {company} supports technical workforce development.",
-        "Implementation study analyzes {company} magical-mechanical integration approach.",
-        "{company} automation equipment deployed in infrastructure construction projects.",
-        "Ethics audit confirms {company} compliance with soul-magic usage restrictions.",
-        "{company} enhances customer portal for fleet monitoring capabilities.",
-        "Responsible extraction practices list includes {company} among member companies.",
-        "{company} partners with engineering guild on technical training initiatives.",
-        "Adoption trends show growing {industry} sector acceptance of {company} solutions.",
-        "Environmental report from {company} highlights dimensional impact reduction efforts.",
-        "Engineering blog from {company} explores golem consciousness limitation challenges.",
-        "Diversification plan at {company} advances with additional extraction site approvals.",
-    ]
-
-    def __init__(self):
-        self.chronicle_news_history: List[Tuple[int, str, bool]] = []  # (week_number, news_text, is_real)
-
-    def to_dict(self) -> dict:
-        """Serialize MarketChronicle to dictionary"""
-        return {
-            'chronicle_news_history': self.chronicle_news_history
+    def from_dict(data: dict) -> 'BreakingNewsSystem':
+        news_system = BreakingNewsSystem()
+        news_system.pending_impacts = [
+            PendingNewsImpact.from_dict(impact_data)
+            for impact_data in data.get('pending_impacts', [])
+        ]
+        news_system.company_events = {
+            company: [CompanyEvent.from_dict(event_data) for event_data in events]
+            for company, events in data.get('company_events', {}).items()
         }
+        news_system.news_history = [tuple(item) for item in data.get('news_history', [])]
+        return news_system
 
-    @staticmethod
-    def from_dict(data: dict) -> 'MarketChronicle':
-        """Deserialize MarketChronicle from dictionary"""
-        chronicle = MarketChronicle()
-        # Handle both old format (2-tuple) and new format (3-tuple)
-        chronicle.chronicle_news_history = []
-        for item in data.get('chronicle_news_history', []):
-            if len(item) == 2:
-                # Old format: (week_number, news_text) - assume all were real
-                chronicle.chronicle_news_history.append((item[0], item[1], True))
-            else:
-                # New format: (week_number, news_text, is_real)
-                chronicle.chronicle_news_history.append(tuple(item))
-        return chronicle
+    def _generate_company_event(self, company: 'Company', week_number: int) -> Optional[CompanyEvent]:
+        """Generate internal company event based on company fundamentals"""
+        # Base probability: 25% chance of event each week
+        if random.random() > 0.25:
+            return None
 
-    def generate_chronicle_news(self, companies: Dict[str, 'Company'], week_number: int) -> List[Tuple[str, bool]]:
-        """Generate chronicle news for all companies, with hoaxes using same rate as weekly gazette"""
-        news_items = []
+        # Determine event type based on company fundamentals and random factors
+        # Company strength influences event distribution
+        strength_factor = company.true_strength  # 0.3 to 0.9
 
-        # Determine hoax rate using same 12-week cycle as monthly news
-        cycle_position = (week_number - 1) % 12
-        if cycle_position < 3:
-            trust_threshold = 0.8  # Weeks 1-3: 80% real, 20% hoax (high trust period)
-        elif cycle_position < 6:
-            trust_threshold = 0.7  # Weeks 4-6: 70% real, 30% hoax (normal)
-        elif cycle_position < 9:
-            trust_threshold = 0.5  # Weeks 7-9: 50% real, 50% hoax (chaos period!)
+        # Higher strength = more likely to have successes, lower = more scandals/problems
+        rand = random.random()
+
+        if rand < strength_factor * 0.4:  # Strong companies have more successes
+            event_type = EventType.SUCCESS
+            severity = random.uniform(0.5, 1.0)  # Successes are generally impactful
+            weeks_until_public = 1  # Successes are reported quickly
+        elif rand < strength_factor * 0.4 + 0.3:  # Moderate problems
+            event_type = EventType.PROBLEM
+            severity = random.uniform(0.3, 0.6)
+            weeks_until_public = random.randint(1, 2)  # Problems reported fairly quickly
+        else:  # Scandals (more likely for weaker companies)
+            event_type = EventType.SCANDAL
+            severity = random.uniform(0.4, 1.0)
+            weeks_until_public = random.randint(2, 4)  # Scandals take time to surface
+
+        # Select appropriate template based on industry and event type
+        if event_type == EventType.SCANDAL:
+            templates = self.SCANDAL_TEMPLATES.get(company.industry, self.SCANDAL_TEMPLATES["Technology"])
+        elif event_type == EventType.SUCCESS:
+            templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
+        else:  # PROBLEM
+            templates = self.PROBLEM_TEMPLATES.get(company.industry, self.PROBLEM_TEMPLATES["Technology"])
+
+        description = random.choice(templates).format(company=company.name)
+
+        return CompanyEvent(
+            event_type=event_type,
+            severity=severity,
+            description=description,
+            discovery_week=week_number,
+            weeks_until_public=weeks_until_public,
+            industry=company.industry
+        )
+
+    def _generate_news_report(self, company_name: str, event: CompanyEvent, is_rumor: bool = False) -> NewsReport:
+        """Generate news from all four sources based on company event
+
+        Args:
+            company_name: Name of the company
+            event: The company event (confirmed or rumored)
+            is_rumor: If True, this is a rumor about a pending event. If False, it's confirmed news.
+        """
+
+        # Determine sentiment from event type
+        if event.event_type == EventType.SUCCESS:
+            actual_sentiment = NewsSentiment.POSITIVE
+        else:  # SCANDAL or PROBLEM
+            actual_sentiment = NewsSentiment.NEGATIVE
+
+        # 1. TRUSTWORTHY SOURCE - Only reports confirmed major events
+        if is_rumor:
+            # Doesn't report rumors - waits for confirmation
+            trustworthy_source = ""
+        elif event.severity > 0.5:
+            # Reports confirmed major events
+            trustworthy_source = event.description
         else:
-            trust_threshold = 0.6  # Weeks 10-12: 60% real, 40% hoax (recovery)
+            # Doesn't report minor events
+            trustworthy_source = ""
 
+        # 2. MARKET PULSE DAILY - Posts rumors as clickbait FACTS (no "rumor" tag)
+        if event.event_type == EventType.SUCCESS:
+            market_pulse_templates = [
+                f"🚀 {company_name} ABOUT TO EXPLODE! {event.description.upper()}",
+                f"💰 BREAKING: {company_name} TO THE MOON! {event.description}",
+                f"🔥 {company_name} REVOLUTIONIZES EVERYTHING! {event.description} BUY NOW!",
+                f"⚡ URGENT: {company_name} COULD MAKE YOU RICH! {event.description}",
+            ]
+        else:
+            market_pulse_templates = [
+                f"💀 {company_name} COLLAPSING! {event.description.upper()} SELL NOW!",
+                f"🔥 DISASTER: {company_name} IN FREE FALL! {event.description}",
+                f"⚠️ ALERT: {company_name} DOOMED! {event.description} GET OUT!",
+                f"💣 CATASTROPHIC: {company_name} IMPLODING! {event.description}",
+            ]
+        market_pulse_source = random.choice(market_pulse_templates)
+
+        # 3. INSIDER SOURCE - 5% chance to have true insider info (accurate)
+        # 95% chance to be unreliable (50/50 flip)
+        has_insider_info = random.random() < 0.05
+
+        if has_insider_info:
+            # Accurate insider information - reports the truth
+            insider_source = f"🔍 INSIDER TIP: {event.description}"
+            insider_flipped = False
+        else:
+            # Unreliable insider - 50% chance to flip
+            insider_flipped = random.random() < 0.5
+
+            if insider_flipped:
+                # Report opposite
+                if event.event_type == EventType.SUCCESS:
+                    # Report negative instead
+                    templates = self.SCANDAL_TEMPLATES.get(event.industry, self.SCANDAL_TEMPLATES["Technology"])
+                else:
+                    # Report positive instead
+                    templates = self.SUCCESS_TEMPLATES.get(event.industry, self.SUCCESS_TEMPLATES["Technology"])
+                insider_text = random.choice(templates).format(company=company_name)
+                insider_source = f"🔍 INSIDER TIP: {insider_text}"
+            else:
+                # Report same sentiment
+                insider_source = f"🔍 INSIDER TIP: {event.description}"
+
+        # 4. RUMOR MILL - Explicitly marks rumors with "RUMOR: " prefix
+        # Always posts rumors, whether confirmed or not
+        rumor_mill_source = f"📢 RUMOR: {event.description}"
+
+        return NewsReport(
+            trustworthy_source=trustworthy_source,
+            market_pulse_source=market_pulse_source,
+            insider_source=insider_source,
+            rumor_mill_source=rumor_mill_source,
+            insider_flipped=insider_flipped,
+            is_rumor=is_rumor
+        )
+
+    def generate_breaking_news(self, companies: Dict[str, 'Company'], week_number: int) -> Optional[Tuple[str, NewsReport, EventType]]:
+        """Generate breaking news based on internal company events
+
+        Can generate either:
+        1. Confirmed news: Events that have reached their public disclosure time
+        2. Rumors: Leaks about pending events that haven't gone public yet
+        """
+
+        # Step 1: Generate new internal events for all companies
         for company_name, company in companies.items():
-            # Select random news template for each company
-            template = random.choice(self.CHRONICLE_NEWS_TEMPLATES)
-            news_text = template.format(company=company_name, industry=company.industry)
+            if company_name not in self.company_events:
+                self.company_events[company_name] = []
 
-            # Determine if news is real or hoax
-            is_real = random.random() < trust_threshold
+            event = self._generate_company_event(company, week_number)
+            if event:
+                self.company_events[company_name].append(event)
 
-            # Store in history
-            self.chronicle_news_history.append((week_number, news_text, is_real))
-            news_items.append((news_text, is_real))
+        # Step 2: Check if any events are ready to become public (confirmed news)
+        ready_events = []
+        pending_events = []  # Events that exist but haven't gone public yet (rumors)
 
-        return news_items
+        for company_name, events in self.company_events.items():
+            for event in events:
+                weeks_elapsed = week_number - event.discovery_week
+                if weeks_elapsed >= event.weeks_until_public:
+                    # Event is ready to go public (confirmed news)
+                    ready_events.append((company_name, event))
+                elif weeks_elapsed > 0:
+                    # Event exists but hasn't gone public yet (potential rumor)
+                    pending_events.append((company_name, event))
+
+        # Step 3: Decide what to report this week
+        # Priority: Confirmed news > Rumors
+        # 60% chance to leak a rumor if pending events exist
+
+        if ready_events:
+            # Confirmed news available - report it
+            company_name, event = random.choice(ready_events)
+            is_rumor = False
+
+            # Generate confirmed news report
+            news_report = self._generate_news_report(company_name, event, is_rumor=False)
+
+            # Calculate impact magnitude based on severity
+            base_impact = event.severity * 15.0  # Scale: 0 to 15%
+
+            # Determine sentiment for impact
+            if event.event_type == EventType.SUCCESS:
+                sentiment = NewsSentiment.POSITIVE
+                impact_magnitude = base_impact
+            else:
+                sentiment = NewsSentiment.NEGATIVE
+                impact_magnitude = -base_impact
+
+            # Create pending impact (only for confirmed news, not rumors)
+            pending_impact = PendingNewsImpact(
+                company_name=company_name,
+                sentiment=sentiment,
+                impact_magnitude=impact_magnitude,
+                weeks_until_impact=random.randint(1, 3),  # Impact occurs 1-3 weeks after news
+                is_real=True,  # Breaking news events are always real
+                news_text=event.description,
+                news_report=news_report
+            )
+
+            self.pending_impacts.append(pending_impact)
+            self.news_history.append((week_number, event.description))
+
+            # Remove the event from company events
+            self.company_events[company_name].remove(event)
+
+            return (company_name, news_report, event.event_type)
+
+        elif pending_events and random.random() < 0.6:
+            # No confirmed news, but leak a rumor (60% chance)
+            company_name, event = random.choice(pending_events)
+            is_rumor = True
+
+            # Generate rumor report (no market impact yet)
+            news_report = self._generate_news_report(company_name, event, is_rumor=True)
+
+            # Rumors don't create pending impacts - only confirmed news does
+            # Don't remove the event - it will still go public later
+
+            return (company_name, news_report, event.event_type)
+
+        else:
+            # No news this week
+            return None
+
+    def update_pending_impacts(self, companies: Dict[str, 'Company']) -> List[str]:
+        """Update countdown for pending impacts and apply them when due"""
+        impact_messages = []
+        impacts_to_remove = []
+
+        for impact in self.pending_impacts:
+            impact.weeks_until_impact -= 1
+
+            if impact.weeks_until_impact <= 0:
+                # Time to apply the impact
+                company = companies[impact.company_name]
+
+                # Apply the actual impact
+                company.price *= (1 + impact.impact_magnitude / 100)
+                company.price = max(0.01, company.price)
+
+                if impact.sentiment == NewsSentiment.POSITIVE:
+                    impact_messages.append(
+                        f"📈 MARKET IMPACT: {impact.company_name} surges {abs(impact.impact_magnitude):.1f}% "
+                        f"following recent breaking news!"
+                    )
+                else:
+                    impact_messages.append(
+                        f"📉 MARKET IMPACT: {impact.company_name} drops {abs(impact.impact_magnitude):.1f}% "
+                        f"following recent breaking news!"
+                    )
+
+                impacts_to_remove.append(impact)
+
+        # Remove applied impacts
+        for impact in impacts_to_remove:
+            self.pending_impacts.remove(impact)
+
+        return impact_messages
 
 
 class LiquidityLevel(Enum):
@@ -3123,13 +3272,9 @@ class InvestmentGame:
         self.current_turn = 0
         self.round_number = 1
         self.week_number = 1  # Track weeks (each player turn = 1 week)
-        self.market_news = MarketNews()  # Market news system
+        self.breaking_news = BreakingNewsSystem()  # Breaking news system (replaces MarketNews and weekly news)
         self.market_cycle = MarketCycle()  # Market cycle system (every 6 months)
-        self.pending_news_display: Optional[NewsReport] = None  # News to display this week
-        self.weekly_gazette = WeeklyGazette()  # Weekly news outlet #1
-        self.market_chronicle = MarketChronicle()  # Weekly news outlet #2
-        self.pending_weekly_news: Optional[List[Tuple[str, bool]]] = None  # Weekly news to display (text, is_real)
-        self.pending_chronicle_news: Optional[List[Tuple[str, bool]]] = None  # Chronicle news to display (text, is_real)
+        self.pending_breaking_news: Optional[Tuple[str, NewsReport, EventType]] = None  # Breaking news to display (company_name, report, event_type)
 
         # Future price pre-calculation (hidden from players)
         # Stores next 2 weeks of calculated prices: {company_name: [week+1 price, week+2 price]}
@@ -3238,53 +3383,44 @@ class InvestmentGame:
         if cycle_display:
             print(cycle_display)
 
-        # Display market news if available
-        if self.pending_news_display:
-            print("\n" + "📰 " + "="*58)
-            print("MARKET NEWS - THIS WEEK'S HEADLINES")
+        # Display breaking news if available
+        if self.pending_breaking_news:
+            company_name, news_report, event_type = self.pending_breaking_news
+
+            print("\n" + "🚨 " + "="*58)
+            if news_report.is_rumor:
+                print("💬 RUMORS CIRCULATING 💬")
+            else:
+                print("⚡ BREAKING NEWS ALERT ⚡")
             print("="*60)
             print()
 
-            # Source 1: Financial Times Report
-            print("Financial Times Report")
+            # Source 1: Financial Times Report (Trustworthy - only reports confirmed major events)
+            print("📊 Financial Times Report")
             print("-" * 60)
-            if self.pending_news_display.trustworthy_source:
-                print(f"  {self.pending_news_display.trustworthy_source}")
+            if news_report.trustworthy_source:
+                print(f"  {news_report.trustworthy_source}")
             else:
                 print("  [No major developments to report at this time]")
             print()
 
-            # Source 2: Market Pulse Daily
-            print("Market Pulse Daily")
+            # Source 2: Market Pulse Daily (Posts rumors as clickbait FACTS - no "rumor" tag)
+            print("📢 Market Pulse Daily")
             print("-" * 60)
-            print(f"  {self.pending_news_display.sensationalist_source}")
+            print(f"  {news_report.market_pulse_source}")
             print()
 
-            # Source 3: Wall Street Wire
-            print("Wall Street Wire")
+            # Source 3: Wall Street Wire (Insider Source - 5% accurate, 95% unreliable)
+            print("🔍 Wall Street Wire (Insider Tip)")
             print("-" * 60)
-            print(f"  {self.pending_news_display.insider_source}")
+            print(f"  {news_report.insider_source}")
+            print()
 
-            print("="*60)
+            # Source 4: The Rumor Mill (Explicitly marks rumors with "RUMOR: " prefix)
+            print("📣 The Rumor Mill")
+            print("-" * 60)
+            print(f"  {news_report.rumor_mill_source}")
 
-        # Display weekly gazette news if available
-        if self.pending_weekly_news:
-            print("\n" + "📰 " + "="*58)
-            print("THE BUSINESS GAZETTE - WEEKLY EDITION")
-            print("="*60)
-            for news_text, is_real in self.pending_weekly_news:
-                # Don't show any indicator - players must figure out hoaxes themselves!
-                print(f"• {news_text}")
-            print("="*60)
-
-        # Display second weekly outlet news if available
-        if self.pending_chronicle_news:
-            print("\n" + "📰 " + "="*58)
-            print("THE MARKET CHRONICLE - WEEKLY REPORT")
-            print("="*60)
-            for news_text, is_real in self.pending_chronicle_news:
-                # Don't show any indicator - players must figure out hoaxes themselves!
-                print(f"• {news_text}")
             print("="*60)
 
     def execute_hedge_fund_trades(self):
@@ -3354,15 +3490,8 @@ class InvestmentGame:
                 self.market_cycle.active_cycle = None
                 cycle_ended = True
 
-        # Update pending news impacts (decrement counters, display messages)
-        impact_messages = []
-        for impact in self.market_news.pending_impacts[:]:  # Copy list to allow removal
-            impact.weeks_until_impact -= 1
-            if impact.weeks_until_impact == 0:
-                # News impact is now occurring (already in precompiled prices)
-                if impact.is_real:
-                    impact_messages.append(f"📰 {impact.company_name}: {impact.news_text} - Stock moves sharply!")
-                self.market_news.pending_impacts.remove(impact)
+        # Update pending breaking news impacts and apply price changes
+        impact_messages = self.breaking_news.update_pending_impacts(self.companies)
 
         # Display all market movements
         all_messages = cycle_messages + impact_messages
@@ -3621,22 +3750,9 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Generate monthly news every 4 weeks (can have hoaxes, small impact)
-        if self.week_number % 4 == 0:
-            self.pending_news_display = self.market_news.generate_news(self.companies, self.week_number, self.future_prices)
-        else:
-            self.pending_news_display = None
-
-        # Generate quarterly market movements every 12 weeks (always real, large impact)
-        if self.week_number % 12 == 0:
-            # Market movements override monthly news if both occur same week
-            self.pending_news_display = self.market_news.generate_market_movement(self.companies, self.week_number, self.future_prices)
-
-        # Generate weekly gazette news (every week)
-        self.pending_weekly_news = self.weekly_gazette.generate_weekly_news(self.companies, self.week_number)
-
-        # Generate market chronicle news (every week)
-        self.pending_chronicle_news = self.market_chronicle.generate_chronicle_news(self.companies, self.week_number)
+        # Generate breaking news based on internal company events
+        # Events happen internally and surface as breaking news after a delay
+        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
 
         while True:
             print("\n" + "-"*60)
@@ -4352,13 +4468,13 @@ class InvestmentGame:
                 'treasury': self.treasury.to_dict(),
                 'players': [player.to_dict() for player in self.players],
                 'hedge_funds': [hf.to_dict() for hf in self.hedge_funds],
-                'market_news': self.market_news.to_dict(),
+                'breaking_news': self.breaking_news.to_dict(),
                 'market_cycle': self.market_cycle.to_dict(),
-                'pending_news_display': self.pending_news_display.to_dict() if self.pending_news_display else None,
-                'weekly_gazette': self.weekly_gazette.to_dict(),
-                'market_chronicle': self.market_chronicle.to_dict(),
-                'pending_weekly_news': self.pending_weekly_news,
-                'pending_chronicle_news': self.pending_chronicle_news,
+                'pending_breaking_news': (
+                    self.pending_breaking_news[0],  # company_name
+                    self.pending_breaking_news[1].to_dict(),  # NewsReport
+                    self.pending_breaking_news[2].value  # EventType as string
+                ) if self.pending_breaking_news else None,
                 'future_prices': self.future_prices,
                 'random_state': list(random.getstate()),  # Save random state for deterministic futures
                 'quantum_singularity': self.quantum_singularity.to_dict(),
@@ -4410,55 +4526,21 @@ class InvestmentGame:
             # Restore hedge funds
             game.hedge_funds = [HedgeFund.from_dict(data) for data in game_state['hedge_funds']]
 
-            # Restore market news
-            game.market_news = MarketNews.from_dict(game_state['market_news'])
+            # Restore breaking news system
+            game.breaking_news = BreakingNewsSystem.from_dict(game_state.get('breaking_news', {}))
 
             # Restore market cycle
             game.market_cycle = MarketCycle.from_dict(game_state['market_cycle'])
 
-            # Restore pending news display
-            if game_state['pending_news_display']:
-                game.pending_news_display = NewsReport.from_dict(game_state['pending_news_display'])
+            # Restore pending breaking news
+            pending_breaking_data = game_state.get('pending_breaking_news')
+            if pending_breaking_data:
+                company_name = pending_breaking_data[0]
+                news_report = NewsReport.from_dict(pending_breaking_data[1])
+                event_type = EventType(pending_breaking_data[2])
+                game.pending_breaking_news = (company_name, news_report, event_type)
             else:
-                game.pending_news_display = None
-
-            # Restore weekly gazette
-            game.weekly_gazette = WeeklyGazette.from_dict(game_state.get('weekly_gazette', {'weekly_news_history': []}))
-            # Convert pending_weekly_news from history format (3-tuple) to display format (2-tuple) if needed
-            pending_weekly_raw = game_state.get('pending_weekly_news', None)
-            if pending_weekly_raw:
-                game.pending_weekly_news = []
-                for item in pending_weekly_raw:
-                    if len(item) == 3:
-                        # History format: (week_number, news_text, is_real) -> display format: (news_text, is_real)
-                        game.pending_weekly_news.append((item[1], item[2]))
-                    elif len(item) == 2:
-                        # Already in display format: (news_text, is_real)
-                        game.pending_weekly_news.append(tuple(item))
-                    else:
-                        # Unexpected format - skip this item to prevent crashes
-                        print(f"Warning: Skipping malformed weekly news item with {len(item)} elements")
-            else:
-                game.pending_weekly_news = None
-
-            # Restore market chronicle
-            game.market_chronicle = MarketChronicle.from_dict(game_state.get('market_chronicle', {'chronicle_news_history': []}))
-            # Convert pending_chronicle_news from history format (3-tuple) to display format (2-tuple) if needed
-            pending_chronicle_raw = game_state.get('pending_chronicle_news', None)
-            if pending_chronicle_raw:
-                game.pending_chronicle_news = []
-                for item in pending_chronicle_raw:
-                    if len(item) == 3:
-                        # History format: (week_number, news_text, is_real) -> display format: (news_text, is_real)
-                        game.pending_chronicle_news.append((item[1], item[2]))
-                    elif len(item) == 2:
-                        # Already in display format: (news_text, is_real)
-                        game.pending_chronicle_news.append(tuple(item))
-                    else:
-                        # Unexpected format - skip this item to prevent crashes
-                        print(f"Warning: Skipping malformed chronicle news item with {len(item)} elements")
-            else:
-                game.pending_chronicle_news = None
+                game.pending_breaking_news = None
 
             # Restore future prices (or recalculate if not present in save file)
             if 'future_prices' in game_state:
