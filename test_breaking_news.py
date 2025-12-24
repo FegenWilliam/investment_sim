@@ -34,24 +34,35 @@ for week in range(1, 11):
         print(f"Event Type: {event_type.value}")
         print()
 
-        # Display the 3 news outlets
-        print("📊 Financial Times Report (Trustworthy):")
+        # Display header based on whether it's a rumor or confirmed news
+        if news_report.is_rumor:
+            print("   [💬 THIS IS A RUMOR - NOT YET CONFIRMED]")
+        else:
+            print("   [⚡ CONFIRMED BREAKING NEWS]")
+        print()
+
+        # Display the 4 news outlets
+        print("📊 Financial Times Report (Trustworthy - only reports confirmed major events):")
         if news_report.trustworthy_source:
             print(f"   {news_report.trustworthy_source}")
         else:
             print("   [No major developments to report]")
         print()
 
-        print("📢 Market Pulse Daily (Sensationalist):")
-        print(f"   {news_report.sensationalist_source}")
+        print("📢 Market Pulse Daily (Posts rumors as clickbait FACTS):")
+        print(f"   {news_report.market_pulse_source}")
         print()
 
-        print("🔍 Wall Street Wire (Insider):")
+        print("🔍 Wall Street Wire (Insider - 5% accurate, 95% unreliable):")
         print(f"   {news_report.insider_source}")
         if news_report.insider_flipped:
             print("   (This insider source reported OPPOSITE sentiment)")
         else:
             print("   (This insider source reported SAME sentiment)")
+        print()
+
+        print("📣 The Rumor Mill (Explicitly marks rumors):")
+        print(f"   {news_report.rumor_mill_source}")
     else:
         print("No breaking news this week")
 
