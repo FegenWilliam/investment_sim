@@ -1101,31 +1101,54 @@ class Company:
         self.price_history.append(self.price)
 
     def calculate_slippage(self, shares: int, is_buy: bool) -> float:
-        """Calculate price slippage based on market cap and trade size
+        """Calculate price slippage based on daily trading volume and trade size
+
+        Slippage represents the execution cost of trading through the order book.
+        It's closely related to market impact - both scale with trade size relative
+        to daily volume, but slippage is typically slightly higher (you pay the spread).
 
         Slippage is determined by:
-        1. Trade value as a % of market cap
-        2. Square root scaling for more realistic impact
-        3. Smaller caps = much higher slippage
+        1. Trade value as a % of daily volume (not market cap!)
+        2. Square root scaling for realistic impact
+        3. Lower liquidity = higher slippage
         """
-        # Calculate trade value relative to market cap
+        # Estimate average daily volume based on market cap and liquidity
+        # (same as apply_market_impact for consistency)
+        if self.liquidity == LiquidityLevel.HIGH:
+            daily_volume_pct = 0.02  # 2% of market cap trades per day
+        elif self.liquidity == LiquidityLevel.MEDIUM:
+            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
+        else:  # LOW
+            daily_volume_pct = 0.001  # 0.1% of market cap trades per day
+
+        estimated_daily_volume = self.market_cap * daily_volume_pct
+
+        # Calculate trade value relative to daily volume
         trade_value = shares * self.price
-        trade_pct_of_market = trade_value / self.market_cap
+        trade_pct_of_daily_volume = trade_value / estimated_daily_volume
 
-        # Apply square root scaling to make slippage increase less than linearly
-        # This makes large trades expensive but not impossibly so
-        # Base slippage: sqrt(trade_pct) gives good scaling
-        # For example: 1% of market cap = ~10% slippage, 0.1% = ~3.16% slippage
-        base_slippage = (trade_pct_of_market ** 0.5) * 10.0
+        # Slippage coefficient (slightly higher than market impact)
+        # Market impact affects the market price, slippage is what you pay
+        # Slippage includes bid-ask spread + market impact
+        base_coefficient = 0.35  # Higher than market impact's 0.25
 
-        # Cap maximum slippage at 50% to prevent extreme cases
-        total_slippage = min(base_slippage, 0.5)
+        # Adjust for liquidity
+        if self.liquidity == LiquidityLevel.LOW:
+            base_coefficient *= 1.5  # 50% more slippage for illiquid stocks
+        elif self.liquidity == LiquidityLevel.HIGH:
+            base_coefficient *= 0.7  # 30% less slippage for highly liquid stocks
+
+        # Calculate slippage using square root law
+        slippage = (trade_pct_of_daily_volume ** 0.5) * base_coefficient
+
+        # Cap maximum slippage at 25% to prevent extreme cases
+        slippage = min(slippage, 0.25)
 
         # Slippage goes against the trader (increases buy price, decreases sell price)
         if is_buy:
-            return 1 + total_slippage
+            return 1 + slippage
         else:
-            return 1 - total_slippage
+            return 1 - slippage
 
     def apply_market_impact(self, shares: int, is_buy: bool) -> float:
         """Apply temporary market impact from a trade
