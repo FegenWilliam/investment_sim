@@ -3970,6 +3970,10 @@ class InvestmentGame:
             # Normal week - shift prices and calculate one new week+4
             self._advance_future_prices()
 
+        # Generate breaking news for the NEXT week (all players will see the same news)
+        # This ensures consistent news across all players in the same week
+        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
+
     def _advance_future_prices(self):
         """
         Advance future prices by one week: shift array and calculate new week+4.
@@ -4192,9 +4196,8 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Generate breaking news based on internal company events
-        # Events happen internally and surface as breaking news after a delay
-        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
+        # Breaking news is now generated once per week in update_market()
+        # All players in the same week see the same news
 
         while True:
             print("\n" + "-"*60)
@@ -5081,6 +5084,9 @@ class InvestmentGame:
         print("\n" + "="*60)
         print("Game Start! Each player begins with $10,000")
         print("="*60)
+
+        # Generate initial breaking news for week 1
+        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
 
         # Show initial market
         self.display_market()
