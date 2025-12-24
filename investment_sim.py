@@ -1101,31 +1101,54 @@ class Company:
         self.price_history.append(self.price)
 
     def calculate_slippage(self, shares: int, is_buy: bool) -> float:
-        """Calculate price slippage based on market cap and trade size
+        """Calculate price slippage based on daily trading volume and trade size
+
+        Slippage represents the execution cost of trading through the order book.
+        It's closely related to market impact - both scale with trade size relative
+        to daily volume, but slippage is typically slightly higher (you pay the spread).
 
         Slippage is determined by:
-        1. Trade value as a % of market cap
-        2. Square root scaling for more realistic impact
-        3. Smaller caps = much higher slippage
+        1. Trade value as a % of daily volume (not market cap!)
+        2. Square root scaling for realistic impact
+        3. Lower liquidity = higher slippage
         """
-        # Calculate trade value relative to market cap
+        # Estimate average daily volume based on market cap and liquidity
+        # (same as apply_market_impact for consistency)
+        if self.liquidity == LiquidityLevel.HIGH:
+            daily_volume_pct = 0.02  # 2% of market cap trades per day
+        elif self.liquidity == LiquidityLevel.MEDIUM:
+            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
+        else:  # LOW
+            daily_volume_pct = 0.001  # 0.1% of market cap trades per day
+
+        estimated_daily_volume = self.market_cap * daily_volume_pct
+
+        # Calculate trade value relative to daily volume
         trade_value = shares * self.price
-        trade_pct_of_market = trade_value / self.market_cap
+        trade_pct_of_daily_volume = trade_value / estimated_daily_volume
 
-        # Apply square root scaling to make slippage increase less than linearly
-        # This makes large trades expensive but not impossibly so
-        # Base slippage: sqrt(trade_pct) gives good scaling
-        # For example: 1% of market cap = ~10% slippage, 0.1% = ~3.16% slippage
-        base_slippage = (trade_pct_of_market ** 0.5) * 10.0
+        # Slippage coefficient (slightly higher than market impact)
+        # Market impact affects the market price, slippage is what you pay
+        # Slippage includes bid-ask spread + market impact
+        base_coefficient = 0.35  # Higher than market impact's 0.25
 
-        # Cap maximum slippage at 50% to prevent extreme cases
-        total_slippage = min(base_slippage, 0.5)
+        # Adjust for liquidity
+        if self.liquidity == LiquidityLevel.LOW:
+            base_coefficient *= 1.5  # 50% more slippage for illiquid stocks
+        elif self.liquidity == LiquidityLevel.HIGH:
+            base_coefficient *= 0.7  # 30% less slippage for highly liquid stocks
+
+        # Calculate slippage using square root law
+        slippage = (trade_pct_of_daily_volume ** 0.5) * base_coefficient
+
+        # Cap maximum slippage at 25% to prevent extreme cases
+        slippage = min(slippage, 0.25)
 
         # Slippage goes against the trader (increases buy price, decreases sell price)
         if is_buy:
-            return 1 + total_slippage
+            return 1 + slippage
         else:
-            return 1 - total_slippage
+            return 1 - slippage
 
     def apply_market_impact(self, shares: int, is_buy: bool) -> float:
         """Apply temporary market impact from a trade
@@ -1138,19 +1161,41 @@ class Company:
         - Impact creates temporary deviation from fundamental_price
         - Mean reversion in update_price() pulls it back over time
         - Prevents pump-and-dump loops and death spirals
+        - Based on daily trading volume, not market cap (more realistic)
         """
-        # Calculate trade value relative to market cap
+        # Estimate average daily volume based on market cap and liquidity
+        # Real market research: ADV typically 0.1%-2% of market cap per day
+        if self.liquidity == LiquidityLevel.HIGH:
+            daily_volume_pct = 0.02  # 2% of market cap trades per day
+        elif self.liquidity == LiquidityLevel.MEDIUM:
+            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
+        else:  # LOW
+            daily_volume_pct = 0.001  # 0.1% of market cap trades per day
+
+        estimated_daily_volume = self.market_cap * daily_volume_pct
+
+        # Calculate trade value relative to daily volume (not market cap!)
         trade_value = shares * self.price
-        trade_pct_of_market = trade_value / self.market_cap
+        trade_pct_of_daily_volume = trade_value / estimated_daily_volume
 
-        # Temporary market impact (much smaller than slippage)
-        # Uses cube root for even gentler scaling on large trades
-        # For 1% of market cap: ~0.1 = 10% impact (temporary)
-        # For 0.1% of market cap: ~0.046 = 4.6% impact
-        impact_multiplier = (trade_pct_of_market ** (1/3)) * 1.0
+        # Market impact follows square root law from market microstructure research
+        # Kyle's lambda / Almgren-Chriss models suggest: impact ∝ sqrt(trade_size/ADV)
+        # Typical coefficient: 0.1-0.5 depending on market conditions
+        # We use 0.25 as a middle ground
+        base_impact_coefficient = 0.25
 
-        # Cap at 8% price movement per trade (temporary)
-        impact_multiplier = min(impact_multiplier, 0.08)
+        # For low liquidity stocks, increase impact coefficient
+        if self.liquidity == LiquidityLevel.LOW:
+            base_impact_coefficient *= 1.5  # 50% more impact for illiquid stocks
+        elif self.liquidity == LiquidityLevel.HIGH:
+            base_impact_coefficient *= 0.7  # 30% less impact for highly liquid stocks
+
+        # Calculate impact using square root law
+        # Example: $25k trade on $1B daily volume = sqrt(0.0025%) * 0.25 = 0.0125% impact
+        impact_multiplier = (trade_pct_of_daily_volume ** 0.5) * base_impact_coefficient
+
+        # Cap at 5% price movement per trade (prevents extreme cases)
+        impact_multiplier = min(impact_multiplier, 0.05)
 
         # Apply impact to current price (creates temporary deviation)
         if is_buy:
