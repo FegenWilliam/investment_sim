@@ -867,6 +867,7 @@ class Company:
         self.name = name
         self.industry = industry
         self.price = initial_price
+        self.fundamental_price = initial_price  # "True" price based on fundamentals
         self.base_volatility = volatility
         self.price_history = [initial_price]
         self.liquidity = liquidity
@@ -876,11 +877,25 @@ class Company:
         self.hidden_sentiment = random.choice([-1, 0, 1])  # -1: bearish, 0: neutral, 1: bullish
 
     def update_price(self):
-        """Update stock price based on volatility (random walk)"""
-        # Random price change based on volatility
+        """Update stock price with random walk on fundamentals and mean reversion
+
+        Process:
+        1. Update fundamental_price with random walk (company fundamentals)
+        2. Pull actual price back toward fundamental (mean reversion)
+        3. This prevents pump-and-dump loops and death spirals
+        """
+        # Update fundamental price (random walk based on company fundamentals)
         change_percent = random.uniform(-self.base_volatility, self.base_volatility)
-        self.price *= (1 + change_percent / 100)
+        self.fundamental_price *= (1 + change_percent / 100)
+        self.fundamental_price = max(0.01, self.fundamental_price)  # Prevent negative prices
+
+        # Mean reversion: pull actual price toward fundamental
+        # 40% of the gap closes each week (liquidity refills, temporary impact fades)
+        price_gap = self.fundamental_price - self.price
+        mean_reversion = price_gap * 0.40
+        self.price += mean_reversion
         self.price = max(0.01, self.price)  # Prevent negative prices
+
         self.price_history.append(self.price)
 
     def calculate_slippage(self, shares: int, is_buy: bool) -> float:
@@ -911,28 +926,36 @@ class Company:
             return 1 - total_slippage
 
     def apply_market_impact(self, shares: int, is_buy: bool) -> float:
-        """Apply permanent market impact from a trade
+        """Apply temporary market impact from a trade
 
-        Large trades permanently move the market price
+        Large trades temporarily move the market price, but it mean-reverts over time
         Returns the new price after market impact
+
+        Design:
+        - Impact is much smaller than slippage (slippage is the transaction cost)
+        - Impact creates temporary deviation from fundamental_price
+        - Mean reversion in update_price() pulls it back over time
+        - Prevents pump-and-dump loops and death spirals
         """
         # Calculate trade value relative to market cap
         trade_value = shares * self.price
         trade_pct_of_market = trade_value / self.market_cap
 
-        # Market impact is smaller than slippage (about 1/4 of slippage effect)
-        # This represents the permanent price shift from supply/demand
-        impact_multiplier = (trade_pct_of_market ** 0.5) * 2.5
+        # Temporary market impact (much smaller than slippage)
+        # Uses cube root for even gentler scaling on large trades
+        # For 1% of market cap: ~0.1 = 10% impact (temporary)
+        # For 0.1% of market cap: ~0.046 = 4.6% impact
+        impact_multiplier = (trade_pct_of_market ** (1/3)) * 1.0
 
-        # Cap at 20% price movement
-        impact_multiplier = min(impact_multiplier, 0.20)
+        # Cap at 8% price movement per trade (temporary)
+        impact_multiplier = min(impact_multiplier, 0.08)
 
-        # Apply impact to current price
+        # Apply impact to current price (creates temporary deviation)
         if is_buy:
-            # Buying pushes price up
+            # Buying pushes price up temporarily
             new_price = self.price * (1 + impact_multiplier)
         else:
-            # Selling pushes price down
+            # Selling pushes price down temporarily
             new_price = self.price * (1 - impact_multiplier)
 
         return new_price
@@ -952,6 +975,7 @@ class Company:
             'name': self.name,
             'industry': self.industry,
             'price': self.price,
+            'fundamental_price': self.fundamental_price,
             'base_volatility': self.base_volatility,
             'price_history': self.price_history,
             'liquidity': self.liquidity.value,
@@ -972,6 +996,7 @@ class Company:
             market_cap=data.get('market_cap', 10000000.0)  # Default for old saves
         )
         company.price = data['price']
+        company.fundamental_price = data.get('fundamental_price', data['price'])  # Default to price for old saves
         company.price_history = data['price_history']
         company.true_strength = data['true_strength']
         company.hidden_sentiment = data['hidden_sentiment']
