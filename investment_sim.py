@@ -1499,7 +1499,7 @@ class GoldCoin:
 
 
 class VoidStocks:
-    """Represents Void Stocks - copies company stock prices, becomes 0 every other week"""
+    """Represents Void Stocks - 50% chance to copy random stock, 50% chance to enter void state ($0)"""
 
     def __init__(self, companies: Dict[str, 'Company']):
         self.name = "Void Stocks"
@@ -1508,29 +1508,31 @@ class VoidStocks:
         self.weeks_elapsed = 0  # Track weeks
         self.current_company_index = 0  # Which company we're copying
         self.company_names = []  # Will be populated when we have companies
-        self.description = "Mysterious stocks that copy companies, then disappear into the void"
+        self.description = "Extremely risky stocks - 50% chance to copy a random company, 50% chance to become worthless"
         self.is_void_week = True  # Start in void state
 
     def update_price(self):
-        """Update price - alternates between copying a company and being $0"""
+        """Update price - 50/50 chance to copy a random company or enter void state"""
         self.weeks_elapsed += 1
 
         # Update company names list if needed
         if not self.company_names and self.companies:
             self.company_names = sorted(list(self.companies.keys()))
 
-        if self.weeks_elapsed % 2 == 1:
-            # Odd weeks (1, 3, 5, ...): Copy a company's stock
+        # 50/50 chance each week
+        if random.random() < 0.5:
+            # Lucky: Copy a random company's stock
             self.is_void_week = False
             if self.company_names:
-                company_name = self.company_names[self.current_company_index % len(self.company_names)]
+                # Pick a random company instead of cycling through them
+                company_name = random.choice(self.company_names)
                 self.price = self.companies[company_name].price
-                # Move to next company for next active week
-                self.current_company_index += 1
+                # Store which company we copied for display purposes
+                self.current_company_index = self.company_names.index(company_name)
             else:
                 self.price = 0.0  # No companies available
         else:
-            # Even weeks (2, 4, 6, ...): Become void ($0)
+            # Unlucky: Enter void state ($0)
             self.is_void_week = True
             self.price = 0.0
 
@@ -1538,8 +1540,8 @@ class VoidStocks:
         """Get the name of the company currently being copied (if any)"""
         if self.is_void_week or not self.company_names:
             return "VOID"
-        # Get the company from the previous index since we increment after copying
-        idx = (self.current_company_index - 1) % len(self.company_names)
+        # Get the company at the current index (randomly selected)
+        idx = self.current_company_index % len(self.company_names)
         return self.company_names[idx]
 
     def to_dict(self) -> dict:
