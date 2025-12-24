@@ -1788,7 +1788,7 @@ class MysticalLender:
 class Player:
     """Represents a player in the game"""
 
-    def __init__(self, name: str, starting_cash: float = 50000.0):
+    def __init__(self, name: str, starting_cash: float = 100000.0):
         self.name = name
         self.cash = starting_cash
         self.portfolio: Dict[str, float] = {}  # company_name -> number of shares (fractional)
@@ -1807,6 +1807,7 @@ class Player:
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
         self.interest_rate_weekly = 0.115  # ~6% annual = 0.115% weekly
+        self.collateral_deposited = 0.0  # Cash deposited as collateral to reduce margin call threshold
         # Short selling system
         self.short_positions: Dict[str, int] = {}  # company_name -> shares borrowed and owed
         self.short_borrow_fee_weekly = 0.02  # ~1% annual = 0.02% weekly
@@ -1836,18 +1837,10 @@ class Player:
         if dollar_amount > self.cash:
             return False, "Insufficient funds for base investment!"
 
-        # If using leverage, check if we can borrow that much
+        # If using leverage, just track the borrowed amount (no limit, but margin call still applies)
         if leverage > 1.0:
             if companies is None or treasury is None:
                 return False, "Cannot calculate leverage without company data!"
-
-            equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
-            new_borrowed = self.borrowed_amount + borrowed_for_trade
-
-            if new_borrowed > equity * self.max_leverage_ratio:
-                max_can_borrow = max(0, equity * self.max_leverage_ratio - self.borrowed_amount)
-                max_leverage_possible = (dollar_amount + max_can_borrow) / dollar_amount if dollar_amount > 0 else 1.0
-                return False, f"Exceeds maximum leverage! Max leverage you can use: {max_leverage_possible:.2f}x"
 
         # Calculate shares we can buy (iterative approach for slippage)
         # We need to find how many shares we can buy with total_investment considering slippage
@@ -2433,12 +2426,7 @@ class Player:
 
         equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
 
-        # Check if borrowing would exceed max leverage
-        new_borrowed = self.borrowed_amount + amount
-        if new_borrowed > equity * self.max_leverage_ratio:
-            max_can_borrow = max(0, equity * self.max_leverage_ratio - self.borrowed_amount)
-            return False, f"Exceeds maximum leverage! You can borrow up to ${max_can_borrow:.2f} more."
-
+        # No borrowing limit - players can borrow as much as they want (margin call will trigger if they go too far)
         self.borrowed_amount += amount
         self.cash += amount
         return True, f"Successfully borrowed ${amount:.2f}!"
@@ -2457,6 +2445,51 @@ class Player:
         self.borrowed_amount -= amount
         self.cash -= amount
         return True, f"Successfully repaid ${amount:.2f}! Remaining debt: ${self.borrowed_amount:.2f}"
+
+    def get_margin_call_threshold(self, equity: float) -> float:
+        """Calculate the margin call threshold based on collateral deposited
+
+        Base threshold: 30% (0.30)
+        With 100% equity as collateral: 10% (0.10)
+        Linear interpolation between these values
+        """
+        if equity <= 0:
+            return 0.30
+
+        collateral_ratio = min(1.0, self.collateral_deposited / equity)
+        # Threshold ranges from 0.30 (no collateral) to 0.10 (100% collateral)
+        threshold = 0.30 - (collateral_ratio * 0.20)
+        return threshold
+
+    def deposit_collateral(self, amount: float) -> Tuple[bool, str]:
+        """Deposit cash as collateral to reduce margin call threshold
+
+        Collateral cannot be withdrawn until player is debt-free
+        """
+        if amount <= 0:
+            return False, "Invalid amount!"
+
+        if amount > self.cash:
+            return False, f"Insufficient cash! You have ${self.cash:.2f}"
+
+        self.cash -= amount
+        self.collateral_deposited += amount
+        return True, f"Successfully deposited ${amount:.2f} as collateral! Total collateral: ${self.collateral_deposited:.2f}"
+
+    def withdraw_collateral(self, amount: float) -> Tuple[bool, str]:
+        """Withdraw collateral (only allowed when debt-free)"""
+        if amount <= 0:
+            return False, "Invalid amount!"
+
+        if self.borrowed_amount > 0:
+            return False, f"Cannot withdraw collateral while in debt! Current debt: ${self.borrowed_amount:.2f}"
+
+        if amount > self.collateral_deposited:
+            return False, f"Insufficient collateral! You have ${self.collateral_deposited:.2f} deposited"
+
+        self.collateral_deposited -= amount
+        self.cash += amount
+        return True, f"Successfully withdrew ${amount:.2f} from collateral! Remaining collateral: ${self.collateral_deposited:.2f}"
 
     def apply_interest(self) -> float:
         """Apply weekly interest on borrowed amount"""
@@ -2481,7 +2514,7 @@ class Player:
         return total_fees
 
     def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> bool:
-        """Check if player is subject to margin call (equity < 30% of total position or maintenance margin for shorts)"""
+        """Check if player is subject to margin call (equity < threshold% of total position or maintenance margin for shorts)"""
         # Check if there's any leverage or short positions
         has_risk = self.borrowed_amount > 0 or len(self.short_positions) > 0
         if not has_risk:
@@ -2493,8 +2526,11 @@ class Player:
         # Check leverage-based margin call
         if self.borrowed_amount > 0:
             total_position = equity + self.borrowed_amount
-            # Margin call if equity falls below 30% of total position
-            if total_position > 0 and (equity / total_position) < 0.30:
+            # Calculate dynamic margin call threshold based on collateral
+            # Base: 30%, scales down to 10% if 100% of equity is deposited as collateral
+            margin_threshold = self.get_margin_call_threshold(equity)
+            # Margin call if equity falls below threshold of total position
+            if total_position > 0 and (equity / total_position) < margin_threshold:
                 return True
 
         # Check short position maintenance margin
@@ -2826,7 +2862,8 @@ class Player:
             'void_stocks_shares': self.void_stocks_shares,
             'void_stocks_purchases': self.void_stocks_purchases,
             'void_catalyst_owned': self.void_catalyst_owned,
-            'mystical_lender_debt': self.mystical_lender_debt
+            'mystical_lender_debt': self.mystical_lender_debt,
+            'collateral_deposited': self.collateral_deposited
         }
 
     @staticmethod
@@ -2851,6 +2888,7 @@ class Player:
         player.void_stocks_purchases = data.get('void_stocks_purchases', [])  # Default to empty list for backwards compatibility
         player.void_catalyst_owned = data.get('void_catalyst_owned', False)
         player.mystical_lender_debt = data.get('mystical_lender_debt', 0.0)  # Default to 0.0 for backwards compatibility
+        player.collateral_deposited = data.get('collateral_deposited', 0.0)  # Default to 0.0 for backwards compatibility
         return player
 
     def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None):
@@ -2866,7 +2904,30 @@ class Player:
             equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
             print(f"💰 Equity (Net - Debt): ${equity:.2f}")
             current_leverage = self.borrowed_amount / max(0.01, equity)
-            print(f"📊 Leverage Ratio: {current_leverage:.2f}x (Max: {self.max_leverage_ratio:.2f}x)")
+            print(f"📊 Leverage Ratio: {current_leverage:.2f}x")
+
+            # Show margin call information
+            total_position = equity + self.borrowed_amount
+            if total_position > 0:
+                equity_ratio = (equity / total_position) * 100
+                margin_threshold = self.get_margin_call_threshold(equity) * 100
+                distance_to_margin_call = equity_ratio - margin_threshold
+
+                if distance_to_margin_call < 10:
+                    warning_icon = "🚨"
+                elif distance_to_margin_call < 20:
+                    warning_icon = "⚠️"
+                else:
+                    warning_icon = "✓"
+
+                print(f"{warning_icon} Equity Ratio: {equity_ratio:.1f}% (Margin Call at {margin_threshold:.1f}%)")
+                print(f"   Distance to Margin Call: {distance_to_margin_call:.1f}%")
+
+        # Show collateral info
+        if self.collateral_deposited > 0:
+            print(f"🏦 Collateral Deposited: ${self.collateral_deposited:.2f}")
+            if self.borrowed_amount == 0:
+                print(f"   (Can be withdrawn - you are debt-free)")
 
         # Show Mystical Lender debt
         if self.mystical_lender_debt > 0:
@@ -3478,7 +3539,7 @@ Duration: {self.active_cycle.weeks_remaining} weeks remaining
 class HedgeFund(Player):
     """Represents an AI-controlled hedge fund NPC"""
 
-    def __init__(self, name: str, strategy: str, starting_cash: float = 50000.0):
+    def __init__(self, name: str, strategy: str, starting_cash: float = 100000.0):
         super().__init__(name, starting_cash)
         self.strategy = strategy  # "aggressive", "value", "contrarian"
         self.is_npc = True
@@ -4316,11 +4377,13 @@ class InvestmentGame:
             print("10. Sell Themed Investments (Gold, Holy Water)")
             print("11. Borrow Money (Leverage)")
             print("12. Repay Loan")
-            print("13. Save Game")
-            print("14. End Turn")
+            print("13. Deposit Collateral (Reduces Margin Call Threshold)")
+            print("14. Withdraw Collateral")
+            print("15. Save Game")
+            print("16. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-14): ").strip()
+            choice = input("Enter choice (1-16): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -4359,12 +4422,18 @@ class InvestmentGame:
                 self._repay_loan_menu(player)
 
             elif choice == "13":
+                self._deposit_collateral_menu(player)
+
+            elif choice == "14":
+                self._withdraw_collateral_menu(player)
+
+            elif choice == "15":
                 filename = input("Enter save filename (default: savegame.json): ").strip()
                 if not filename:
                     filename = "savegame.json"
                 self.save_game(filename)
 
-            elif choice == "14":
+            elif choice == "16":
                 # Check for margin call warning before ending turn
                 if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
                     print("\n" + "⚠️ " + "="*58)
@@ -4440,8 +4509,6 @@ class InvestmentGame:
         print(f"Available Cash: ${player.cash:.2f}")
         equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
         print(f"Current Equity: ${equity:.2f}")
-        max_can_borrow = max(0, equity * player.max_leverage_ratio - player.borrowed_amount)
-        print(f"Max additional leverage: ${max_can_borrow:.2f}")
         print()
 
         companies_list = list(self.companies.values())
@@ -4924,18 +4991,21 @@ class InvestmentGame:
         print("="*60)
 
         equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
-        max_can_borrow = max(0, equity * player.max_leverage_ratio - player.borrowed_amount)
 
         print(f"Your Equity: ${equity:.2f}")
         print(f"Already Borrowed: ${player.borrowed_amount:.2f}")
-        print(f"Max Leverage Ratio: {player.max_leverage_ratio:.2f}x")
-        print(f"Maximum You Can Borrow: ${max_can_borrow:.2f}")
         print(f"Interest Rate: {player.interest_rate_weekly:.3f}% per week (~6% annually)")
         print()
+        print("⚠️  WARNING: No borrowing limit! Be careful of margin calls.")
 
-        if max_can_borrow <= 0:
-            print("You've reached your maximum leverage limit!")
-            return
+        # Show margin call info if already borrowing
+        if player.borrowed_amount > 0:
+            total_position = equity + player.borrowed_amount
+            if total_position > 0:
+                equity_ratio = (equity / total_position) * 100
+                margin_threshold = player.get_margin_call_threshold(equity) * 100
+                print(f"Current Equity Ratio: {equity_ratio:.1f}% (Margin Call at {margin_threshold:.1f}%)")
+        print()
 
         try:
             amount = float(input("How much to borrow? $"))
@@ -4972,6 +5042,84 @@ class InvestmentGame:
                 return
 
             success, message = player.repay_loan(amount)
+            print(f"\n{message}")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _deposit_collateral_menu(self, player: Player):
+        """Menu for depositing collateral to reduce margin call threshold"""
+        print("\n" + "="*60)
+        print("DEPOSIT COLLATERAL")
+        print("="*60)
+
+        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+
+        print(f"Available Cash: ${player.cash:.2f}")
+        print(f"Current Equity: ${equity:.2f}")
+        print(f"Collateral Deposited: ${player.collateral_deposited:.2f}")
+        print()
+
+        current_threshold = player.get_margin_call_threshold(equity) * 100
+        print(f"Current Margin Call Threshold: {current_threshold:.1f}%")
+
+        if equity > 0:
+            collateral_ratio = player.collateral_deposited / equity
+            print(f"Collateral Ratio: {collateral_ratio * 100:.1f}% of equity")
+        print()
+
+        print("💡 INFO:")
+        print("   • Base margin call threshold: 30%")
+        print("   • Depositing 100% of your equity reduces it to: 10%")
+        print("   • Collateral cannot be withdrawn until you are debt-free")
+        print()
+
+        try:
+            amount = float(input("How much to deposit as collateral? $"))
+
+            if amount <= 0:
+                print("Invalid amount!")
+                return
+
+            success, message = player.deposit_collateral(amount)
+            print(f"\n{message}")
+
+            if success:
+                # Show new threshold
+                new_equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                new_threshold = player.get_margin_call_threshold(new_equity) * 100
+                print(f"New Margin Call Threshold: {new_threshold:.1f}%")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _withdraw_collateral_menu(self, player: Player):
+        """Menu for withdrawing collateral"""
+        print("\n" + "="*60)
+        print("WITHDRAW COLLATERAL")
+        print("="*60)
+
+        if player.collateral_deposited <= 0:
+            print("You don't have any collateral deposited!")
+            return
+
+        print(f"Collateral Deposited: ${player.collateral_deposited:.2f}")
+        print(f"Outstanding Debt: ${player.borrowed_amount:.2f}")
+        print()
+
+        if player.borrowed_amount > 0:
+            print("⚠️  You cannot withdraw collateral while you have outstanding debt!")
+            print(f"   Please repay your ${player.borrowed_amount:.2f} loan first.")
+            return
+
+        try:
+            amount = float(input("How much to withdraw? $"))
+
+            if amount <= 0:
+                print("Invalid amount!")
+                return
+
+            success, message = player.withdraw_collateral(amount)
             print(f"\n{message}")
 
         except ValueError:
