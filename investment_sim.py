@@ -1145,11 +1145,11 @@ class Company:
         # Estimate average daily volume based on market cap and liquidity
         # (same as apply_market_impact for consistency)
         if self.liquidity == LiquidityLevel.HIGH:
-            daily_volume_pct = 0.02  # 2% of market cap trades per day
+            daily_volume_pct = 0.03  # 3% of market cap trades per day
         elif self.liquidity == LiquidityLevel.MEDIUM:
-            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
+            daily_volume_pct = 0.01  # 1% of market cap trades per day
         else:  # LOW
-            daily_volume_pct = 0.001  # 0.1% of market cap trades per day
+            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
 
         estimated_daily_volume = self.market_cap * daily_volume_pct
 
@@ -1194,13 +1194,13 @@ class Company:
         - Based on daily trading volume, not market cap (more realistic)
         """
         # Estimate average daily volume based on market cap and liquidity
-        # Real market research: ADV typically 0.1%-2% of market cap per day
+        # Real market research: ADV typically 0.5%-3% of market cap per day
         if self.liquidity == LiquidityLevel.HIGH:
-            daily_volume_pct = 0.02  # 2% of market cap trades per day
+            daily_volume_pct = 0.03  # 3% of market cap trades per day
         elif self.liquidity == LiquidityLevel.MEDIUM:
-            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
+            daily_volume_pct = 0.01  # 1% of market cap trades per day
         else:  # LOW
-            daily_volume_pct = 0.001  # 0.1% of market cap trades per day
+            daily_volume_pct = 0.005  # 0.5% of market cap trades per day
 
         estimated_daily_volume = self.market_cap * daily_volume_pct
 
