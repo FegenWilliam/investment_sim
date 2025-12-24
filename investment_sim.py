@@ -473,8 +473,13 @@ class MarketNews:
 
         return news_report
 
-    def update_pending_impacts(self, companies: Dict[str, 'Company']) -> List[str]:
-        """Update countdown for pending impacts and apply them when due"""
+    def update_pending_impacts(self, companies: Dict[str, 'Company'], use_precompiled_prices: bool = False) -> List[str]:
+        """Update countdown for pending impacts and apply them when due
+
+        Args:
+            companies: Dict of company objects
+            use_precompiled_prices: If True, don't apply price changes (they're already in precompiled prices)
+        """
         impact_messages = []
         impacts_to_remove = []
 
@@ -482,13 +487,16 @@ class MarketNews:
             impact.weeks_until_impact -= 1
 
             if impact.weeks_until_impact <= 0:
-                # Time to apply the impact
+                # Time to apply the impact (or just announce it if using precompiled prices)
                 company = companies[impact.company_name]
 
                 if impact.is_real:
-                    # Apply the actual impact
-                    company.price *= (1 + impact.impact_magnitude / 100)
-                    company.price = max(0.01, company.price)
+                    # If using precompiled prices, the impact is already baked in
+                    # Just display the message without modifying price
+                    if not use_precompiled_prices:
+                        # Apply the actual impact (only when NOT using precompiled prices)
+                        company.price *= (1 + impact.impact_magnitude / 100)
+                        company.price = max(0.01, company.price)
 
                     if impact.sentiment == NewsSentiment.POSITIVE:
                         impact_messages.append(
@@ -502,7 +510,8 @@ class MarketNews:
                         )
                 else:
                     # Hoax - news was fake, minimal or opposite effect
-                    # Apply small opposite effect (1-3%)
+                    # For hoaxes, always apply the opposite effect (even with precompiled prices)
+                    # because hoaxes weren't predicted in future prices
                     opposite_impact = random.uniform(1.0, 3.0)
                     if impact.sentiment == NewsSentiment.POSITIVE:
                         company.price *= (1 - opposite_impact / 100)
@@ -1006,8 +1015,13 @@ class BreakingNewsSystem:
             # No news this week
             return None
 
-    def update_pending_impacts(self, companies: Dict[str, 'Company']) -> List[str]:
-        """Update countdown for pending impacts and apply them when due"""
+    def update_pending_impacts(self, companies: Dict[str, 'Company'], use_precompiled_prices: bool = False) -> List[str]:
+        """Update countdown for pending impacts and apply them when due
+
+        Args:
+            companies: Dict of company objects
+            use_precompiled_prices: If True, don't apply price changes (they're already in precompiled prices)
+        """
         impact_messages = []
         impacts_to_remove = []
 
@@ -1015,12 +1029,15 @@ class BreakingNewsSystem:
             impact.weeks_until_impact -= 1
 
             if impact.weeks_until_impact <= 0:
-                # Time to apply the impact
+                # Time to apply the impact (or just announce it if using precompiled prices)
                 company = companies[impact.company_name]
 
-                # Apply the actual impact
-                company.price *= (1 + impact.impact_magnitude / 100)
-                company.price = max(0.01, company.price)
+                # If using precompiled prices, the impact is already baked in
+                # Just display the message without modifying price
+                if not use_precompiled_prices:
+                    # Apply the actual impact (only when NOT using precompiled prices)
+                    company.price *= (1 + impact.impact_magnitude / 100)
+                    company.price = max(0.01, company.price)
 
                 if impact.sentiment == NewsSentiment.POSITIVE:
                     impact_messages.append(
@@ -3911,8 +3928,9 @@ class InvestmentGame:
                 self.market_cycle.active_cycle = None
                 cycle_ended = True
 
-        # Update pending breaking news impacts and apply price changes
-        impact_messages = self.breaking_news.update_pending_impacts(self.companies)
+        # Update pending breaking news impacts
+        # Pass use_precompiled_prices=True because price changes are already baked into future_prices
+        impact_messages = self.breaking_news.update_pending_impacts(self.companies, use_precompiled_prices=True)
 
         # Display all market movements
         all_messages = cycle_messages + impact_messages
@@ -3969,6 +3987,10 @@ class InvestmentGame:
         else:
             # Normal week - shift prices and calculate one new week+4
             self._advance_future_prices()
+
+        # Generate breaking news for the NEXT week (all players will see the same news)
+        # This ensures consistent news across all players in the same week
+        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
 
     def _advance_future_prices(self):
         """
@@ -4192,9 +4214,8 @@ class InvestmentGame:
             print("="*60)
             input("\nPress Enter to continue...")
 
-        # Generate breaking news based on internal company events
-        # Events happen internally and surface as breaking news after a delay
-        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
+        # Breaking news is now generated once per week in update_market()
+        # All players in the same week see the same news
 
         while True:
             print("\n" + "-"*60)
@@ -5081,6 +5102,9 @@ class InvestmentGame:
         print("\n" + "="*60)
         print("Game Start! Each player begins with $10,000")
         print("="*60)
+
+        # Generate initial breaking news for week 1
+        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
 
         # Show initial market
         self.display_market()
