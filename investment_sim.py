@@ -386,6 +386,10 @@ class MarketNews:
         # Generate news from all three sources
         news_report = self._generate_news_report(company_name, company.industry, sentiment, is_real)
 
+        # If insider flipped, it means they're revealing the truth - flip is_real status
+        if news_report.insider_flipped:
+            is_real = not is_real
+
         # Use trustworthy source text for history (or sensationalist if trustworthy is empty)
         news_text = news_report.trustworthy_source if news_report.trustworthy_source else news_report.sensationalist_source
 
@@ -438,6 +442,10 @@ class MarketNews:
 
         # Generate news from all three sources
         news_report = self._generate_news_report(company_name, company.industry, sentiment, is_real)
+
+        # If insider flipped, it means they're revealing the truth - flip is_real status
+        if news_report.insider_flipped:
+            is_real = not is_real
 
         # Use trustworthy source text for history
         news_text = news_report.trustworthy_source if news_report.trustworthy_source else news_report.sensationalist_source
@@ -957,13 +965,18 @@ class BreakingNewsSystem:
                 sentiment = NewsSentiment.NEGATIVE
                 impact_magnitude = -base_impact
 
+            # Check if insider flipped - if so, flip the is_real status
+            is_real = True  # Breaking news events are always real initially
+            if news_report.insider_flipped:
+                is_real = not is_real
+
             # Create pending impact (only for confirmed news, not rumors)
             pending_impact = PendingNewsImpact(
                 company_name=company_name,
                 sentiment=sentiment,
                 impact_magnitude=impact_magnitude,
                 weeks_until_impact=random.randint(1, 3),  # Impact occurs 1-3 weeks after news
-                is_real=True,  # Breaking news events are always real
+                is_real=is_real,
                 news_text=event.description,
                 news_report=news_report
             )
