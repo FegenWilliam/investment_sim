@@ -1419,6 +1419,7 @@ class Player:
         self.elf_queen_water_vials = 0  # Elf Queen's "Water"
         self.gold_coins = 0  # Gold Coins (fantasy currency)
         self.void_stocks_shares = 0  # Void Stocks shares
+        self.void_stocks_purchases = []  # List of void stock purchase batches: {'purchase_week': int, 'shares': int, 'void_state_count': int}
         self.void_catalyst_owned = False  # Void Catalyst (only 1 exists)
         # Leverage system
         self.borrowed_amount = 0.0
@@ -1759,6 +1760,14 @@ class Player:
 
         self.cash -= total_cost
         self.void_stocks_shares += shares
+
+        # Record this purchase with the current week and void state counter
+        self.void_stocks_purchases.append({
+            'purchase_week': void_stocks.weeks_elapsed,
+            'shares': shares,
+            'void_state_count': 0
+        })
+
         company = void_stocks.get_current_company_name()
         return True, f"Purchase successful! Bought {shares} Void Stocks for ${total_cost:.2f} (Currently copying {company})"
 
@@ -1771,11 +1780,75 @@ class Player:
         self.cash += total_value
         self.void_stocks_shares -= shares
 
+        # Remove shares from purchases (FIFO - oldest first)
+        remaining_to_remove = shares
+        purchases_to_keep = []
+        for purchase in self.void_stocks_purchases:
+            if remaining_to_remove >= purchase['shares']:
+                # Remove this entire purchase
+                remaining_to_remove -= purchase['shares']
+            elif remaining_to_remove > 0:
+                # Partially remove from this purchase
+                purchase['shares'] -= remaining_to_remove
+                remaining_to_remove = 0
+                purchases_to_keep.append(purchase)
+            else:
+                # Keep this purchase intact
+                purchases_to_keep.append(purchase)
+        self.void_stocks_purchases = purchases_to_keep
+
         if void_stocks.is_void_week:
             return True, f"Sale successful! Sold {shares} Void Stocks for ${total_value:.2f} (VOID STATE - worthless!)"
         else:
             company = void_stocks.get_current_company_name()
             return True, f"Sale successful! Sold {shares} Void Stocks for ${total_value:.2f} (Was copying {company})"
+
+    def process_void_state_transition(self, void_stocks: VoidStocks) -> List[str]:
+        """Process void state transitions and delete shares that reach 5 void states.
+        Returns list of messages about deleted shares."""
+        messages = []
+
+        if not void_stocks.is_void_week:
+            # Not in void state, nothing to do
+            return messages
+
+        # Increment void state counter for all purchases
+        purchases_to_keep = []
+        total_deleted_shares = 0
+
+        for purchase in self.void_stocks_purchases:
+            purchase['void_state_count'] += 1
+
+            if purchase['void_state_count'] >= 5:
+                # Delete these shares - they've gone through 5 void states
+                total_deleted_shares += purchase['shares']
+                messages.append(f"💀 VOID DELETION: {purchase['shares']} Void Stock shares (purchased in week {purchase['purchase_week']}) have been consumed by the void!")
+            else:
+                # Keep this purchase
+                purchases_to_keep.append(purchase)
+
+        self.void_stocks_purchases = purchases_to_keep
+        self.void_stocks_shares -= total_deleted_shares
+
+        if total_deleted_shares > 0:
+            messages.append(f"Total shares lost to the void: {total_deleted_shares}")
+
+        return messages
+
+    def check_void_stock_warning(self, void_stocks: VoidStocks) -> Tuple[bool, List[dict]]:
+        """Check if any void stock purchases will be deleted next week.
+        Returns (has_warning, list of at-risk purchases)"""
+        if void_stocks.is_void_week:
+            # Currently in void state, next week won't be void
+            return False, []
+
+        # Next week will be void state - check for purchases at 4 void states
+        at_risk_purchases = []
+        for purchase in self.void_stocks_purchases:
+            if purchase['void_state_count'] == 4:
+                at_risk_purchases.append(purchase)
+
+        return len(at_risk_purchases) > 0, at_risk_purchases
 
     def buy_void_catalyst(self, void_catalyst: VoidCatalyst, all_human_players: List[str]) -> Tuple[bool, str]:
         """Buy the Void Catalyst (only 1 exists)"""
@@ -2292,6 +2365,7 @@ class Player:
             'elf_queen_water_vials': self.elf_queen_water_vials,
             'gold_coins': self.gold_coins,
             'void_stocks_shares': self.void_stocks_shares,
+            'void_stocks_purchases': self.void_stocks_purchases,
             'void_catalyst_owned': self.void_catalyst_owned
         }
 
@@ -2314,6 +2388,7 @@ class Player:
         player.elf_queen_water_vials = data.get('elf_queen_water_vials', 0)
         player.gold_coins = data.get('gold_coins', 0)
         player.void_stocks_shares = data.get('void_stocks_shares', 0)
+        player.void_stocks_purchases = data.get('void_stocks_purchases', [])  # Default to empty list for backwards compatibility
         player.void_catalyst_owned = data.get('void_catalyst_owned', False)
         return player
 
@@ -3209,6 +3284,22 @@ class InvestmentGame:
         self.void_stocks.update_price()
         self.void_catalyst.update_price()
 
+        # Process void state transitions for all players
+        void_deletion_occurred = False
+        for player in self.players:
+            deletion_messages = player.process_void_state_transition(self.void_stocks)
+            if deletion_messages:
+                void_deletion_occurred = True
+                print(f"\n{'='*60}")
+                print(f"VOID STATE DELETION - {player.name}")
+                print(f"{'='*60}")
+                for msg in deletion_messages:
+                    print(msg)
+                print(f"{'='*60}")
+
+        if void_deletion_occurred:
+            input("\nPress Enter to continue...")
+
         # Check for Void Catalyst auto-sell
         for player in self.players:
             was_sold, msg, amount = player.process_void_catalyst_auto_sell(self.void_catalyst)
@@ -3542,6 +3633,31 @@ class InvestmentGame:
                     print("• Deposit cash or sell assets to improve equity")
                     print("• Repay loans to reduce leverage")
                     print("• Cover short positions")
+                    print("="*60)
+
+                    confirm = input("\nAre you SURE you want to end your turn? (yes/no): ").strip().lower()
+                    if confirm != "yes":
+                        print("Turn not ended. You can continue trading.")
+                        continue
+
+                # Check for void stock deletion warning before ending turn
+                has_void_warning, at_risk_purchases = player.check_void_stock_warning(self.void_stocks)
+                if has_void_warning:
+                    print("\n" + "💀 " + "="*58)
+                    print("💀  VOID STOCK DELETION WARNING!")
+                    print("="*60)
+                    print("Next week will be a VOID STATE - the following shares will be DELETED:")
+                    print()
+                    total_at_risk = sum(p['shares'] for p in at_risk_purchases)
+                    for purchase in at_risk_purchases:
+                        print(f"  • {purchase['shares']} shares (purchased in week {purchase['purchase_week']}) - 5th void state!")
+                    print()
+                    print(f"Total shares to be deleted: {total_at_risk}")
+                    print()
+                    print("These shares have gone through 4 void states and will be consumed by the void next week!")
+                    print()
+                    print("Recommended action:")
+                    print("• SELL these shares NOW before they disappear!")
                     print("="*60)
 
                     confirm = input("\nAre you SURE you want to end your turn? (yes/no): ").strip().lower()
