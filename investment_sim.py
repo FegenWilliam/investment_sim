@@ -4254,7 +4254,7 @@ class InvestmentGame:
                         # This impact will apply in this future week
                         if impact.is_real:
                             simulated_price *= (1 + impact.impact_magnitude / 100)
-                            news_impact_occurred = True
+                            news_impact_occurred = True  # Disable mean reversion for ANY impact (+ or -)
 
                             # News also affects fundamental value (real business impact)
                             if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4270,8 +4270,9 @@ class InvestmentGame:
                                 simulated_fundamental *= (1 + fundamental_impact / 100)
 
             # 6. Apply mean reversion - pull price back toward fundamental
-            # SKIP mean reversion on weeks with breaking news impacts (people are in a frenzy!)
-            # Mean reversion will resume in subsequent weeks
+            # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
+            # This creates "hype weeks" (positive impact) or "doomer weeks" (negative impact)
+            # where the full impact plays out without dampening. Mean reversion resumes next week.
             if not news_impact_occurred:
                 # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
                 price_gap = simulated_fundamental - simulated_price
@@ -4370,7 +4371,7 @@ class InvestmentGame:
                             # This impact will apply in this future week
                             if impact.is_real:
                                 simulated_price *= (1 + impact.impact_magnitude / 100)
-                                news_impact_occurred = True
+                                news_impact_occurred = True  # Disable mean reversion for ANY impact (+ or -)
 
                                 # News also affects fundamental value (real business impact)
                                 if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4386,8 +4387,9 @@ class InvestmentGame:
                                     simulated_fundamental *= (1 + fundamental_impact / 100)
 
                 # 6. Apply mean reversion - pull price back toward fundamental
-                # SKIP mean reversion on weeks with breaking news impacts (people are in a frenzy!)
-                # Mean reversion will resume in subsequent weeks
+                # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
+                # This creates "hype weeks" (positive impact) or "doomer weeks" (negative impact)
+                # where the full impact plays out without dampening. Mean reversion resumes next week.
                 if not news_impact_occurred:
                     # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
                     price_gap = simulated_fundamental - simulated_price
