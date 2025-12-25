@@ -4223,30 +4223,39 @@ class InvestmentGame:
             simulated_fundamental *= (1 + weekly_fundamental_change)
             simulated_fundamental = max(0.01, simulated_fundamental)
 
-            # 3. Apply market cycle effects if active
-            cycle_effect = 0.0
-            if self.market_cycle.active_cycle:
-                # Check if cycle will still be active
-                weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
-                if weeks_left > 0:
-                    cycle_type = self.market_cycle.active_cycle.cycle_type
-                    cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
-
-            # Check if a new cycle will trigger at this future week
-            elif future_week > 0 and future_week % 24 == 0:
-                # A new cycle would trigger - we don't know which type, so use neutral
-                cycle_effect = 0.0
+            # 3. Check if market impact will occur this week (check BEFORE applying random walk)
+            news_impact_occurred = False
+            for impact in self.breaking_news.pending_impacts:
+                if impact.company_name == company_name:
+                    weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                    if weeks_until == 0 and impact.is_real:
+                        news_impact_occurred = True
+                        break
 
             # 4. Apply cycle effect or random walk to price
-            if cycle_effect != 0:
-                simulated_price *= (1 + cycle_effect / 100)
-            else:
-                # Random walk if no cycle
-                change_percent = random.uniform(-company.base_volatility, company.base_volatility)
-                simulated_price *= (1 + change_percent / 100)
+            # SKIP on market impact weeks - let the impact be the sole driver!
+            if not news_impact_occurred:
+                cycle_effect = 0.0
+                if self.market_cycle.active_cycle:
+                    # Check if cycle will still be active
+                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                    if weeks_left > 0:
+                        cycle_type = self.market_cycle.active_cycle.cycle_type
+                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+
+                # Check if a new cycle will trigger at this future week
+                elif future_week > 0 and future_week % 24 == 0:
+                    # A new cycle would trigger - we don't know which type, so use neutral
+                    cycle_effect = 0.0
+
+                if cycle_effect != 0:
+                    simulated_price *= (1 + cycle_effect / 100)
+                else:
+                    # Random walk if no cycle
+                    change_percent = random.uniform(-company.base_volatility, company.base_volatility)
+                    simulated_price *= (1 + change_percent / 100)
 
             # 5. Apply pending news impacts that will occur in this future week
-            news_impact_occurred = False
             for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
                     weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4254,7 +4263,6 @@ class InvestmentGame:
                         # This impact will apply in this future week
                         if impact.is_real:
                             simulated_price *= (1 + impact.impact_magnitude / 100)
-                            news_impact_occurred = True  # Disable mean reversion for ANY impact (+ or -)
 
                             # News also affects fundamental value (real business impact)
                             if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4340,30 +4348,39 @@ class InvestmentGame:
                 simulated_fundamental *= (1 + weekly_fundamental_change)
                 simulated_fundamental = max(0.01, simulated_fundamental)
 
-                # 3. Apply market cycle effects if active or triggering
-                cycle_effect = 0.0
-                if self.market_cycle.active_cycle:
-                    # Check if cycle will still be active
-                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
-                    if weeks_left > 0:
-                        cycle_type = self.market_cycle.active_cycle.cycle_type
-                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
-
-                # Check if a new cycle will trigger at this future week
-                elif future_week > 0 and future_week % 24 == 0:
-                    # A new cycle would trigger - we don't know which type, so use average effect
-                    cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+                # 3. Check if market impact will occur this week (check BEFORE applying random walk)
+                news_impact_occurred = False
+                for impact in self.breaking_news.pending_impacts:
+                    if impact.company_name == company_name:
+                        weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                        if weeks_until == 0 and impact.is_real:
+                            news_impact_occurred = True
+                            break
 
                 # 4. Apply cycle effect or random walk to price
-                if cycle_effect != 0:
-                    simulated_price *= (1 + cycle_effect / 100)
-                else:
-                    # Random walk if no cycle (additional volatility on top of fundamentals)
-                    change_percent = random.uniform(-company.base_volatility, company.base_volatility)
-                    simulated_price *= (1 + change_percent / 100)
+                # SKIP on market impact weeks - let the impact be the sole driver!
+                if not news_impact_occurred:
+                    cycle_effect = 0.0
+                    if self.market_cycle.active_cycle:
+                        # Check if cycle will still be active
+                        weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                        if weeks_left > 0:
+                            cycle_type = self.market_cycle.active_cycle.cycle_type
+                            cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+
+                    # Check if a new cycle will trigger at this future week
+                    elif future_week > 0 and future_week % 24 == 0:
+                        # A new cycle would trigger - we don't know which type, so use average effect
+                        cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+
+                    if cycle_effect != 0:
+                        simulated_price *= (1 + cycle_effect / 100)
+                    else:
+                        # Random walk if no cycle (additional volatility on top of fundamentals)
+                        change_percent = random.uniform(-company.base_volatility, company.base_volatility)
+                        simulated_price *= (1 + change_percent / 100)
 
                 # 5. Apply pending news impacts that will occur in this future week
-                news_impact_occurred = False
                 for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
                         weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4371,7 +4388,6 @@ class InvestmentGame:
                             # This impact will apply in this future week
                             if impact.is_real:
                                 simulated_price *= (1 + impact.impact_magnitude / 100)
-                                news_impact_occurred = True  # Disable mean reversion for ANY impact (+ or -)
 
                                 # News also affects fundamental value (real business impact)
                                 if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
