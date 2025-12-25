@@ -5000,7 +5000,7 @@ class InvestmentGame:
                 confirm = input(f"Buy Void Catalyst for ${self.void_catalyst.price:.2f}? (y/n): ")
                 if confirm.lower() == 'y':
                     # Get list of all human player names (excluding NPCs)
-                    human_players = [p.name for p in self.players]
+                    human_players = [p.name for p in self.players if not getattr(p, 'is_npc', False)]
                     success, msg = player.buy_void_catalyst(self.void_catalyst, human_players)
                     print(msg)
             elif choice == 8:
