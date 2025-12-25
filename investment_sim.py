@@ -4192,6 +4192,15 @@ class InvestmentGame:
         - Fundamental price random walk
         - Mean reversion (price pulled back toward fundamental)
         """
+        # Build a map of when impacts will occur for each company (for lingering effect calculation)
+        impact_weeks = {}  # company_name -> set of week numbers when impacts occur
+        for impact in self.breaking_news.pending_impacts:
+            if impact.is_real:
+                impact_week = self.week_number + impact.weeks_until_impact
+                if impact.company_name not in impact_weeks:
+                    impact_weeks[impact.company_name] = set()
+                impact_weeks[impact.company_name].add(impact_week)
+
         for company_name, company in self.companies.items():
             if company_name not in self.future_prices or len(self.future_prices[company_name]) == 0:
                 # No existing future prices - recalculate all
@@ -4279,12 +4288,26 @@ class InvestmentGame:
 
             # 6. Apply mean reversion - pull price back toward fundamental
             # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
-            # This creates "hype weeks" (positive impact) or "doomer weeks" (negative impact)
-            # where the full impact plays out without dampening. Mean reversion resumes next week.
+            # For 2 weeks after an impact, use dampened mean reversion (lingering fear/hype)
             if not news_impact_occurred:
-                # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                # Check if impact occurred 1 or 2 weeks ago (lingering effect)
+                weeks_since_impact = None
+                if company_name in impact_weeks:
+                    if (future_week - 1) in impact_weeks[company_name]:
+                        weeks_since_impact = 1
+                    elif (future_week - 2) in impact_weeks[company_name]:
+                        weeks_since_impact = 2
+
+                # Adjust mean reversion strength based on lingering fear/hype
+                if weeks_since_impact == 1:
+                    mean_reversion_strength = 0.10  # 10% first week after impact
+                elif weeks_since_impact == 2:
+                    mean_reversion_strength = 0.20  # 20% second week after impact
+                else:
+                    mean_reversion_strength = 0.30  # 30% normal mean reversion
+
                 price_gap = simulated_fundamental - simulated_price
-                mean_reversion = price_gap * 0.30  # 30% of gap closes each week
+                mean_reversion = price_gap * mean_reversion_strength
                 simulated_price += mean_reversion
 
             # Ensure price stays positive
@@ -4311,6 +4334,15 @@ class InvestmentGame:
         self.future_prices = {}
         self.future_eps = {}
         self.future_fundamental_prices = {}
+
+        # Build a map of when impacts will occur for each company (for lingering effect calculation)
+        impact_weeks = {}  # company_name -> set of week numbers when impacts occur
+        for impact in self.breaking_news.pending_impacts:
+            if impact.is_real:
+                impact_week = self.week_number + impact.weeks_until_impact
+                if impact.company_name not in impact_weeks:
+                    impact_weeks[impact.company_name] = set()
+                impact_weeks[impact.company_name].add(impact_week)
 
         # For each company, calculate future prices, EPS, and fundamentals
         for company_name, company in self.companies.items():
@@ -4404,12 +4436,26 @@ class InvestmentGame:
 
                 # 6. Apply mean reversion - pull price back toward fundamental
                 # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
-                # This creates "hype weeks" (positive impact) or "doomer weeks" (negative impact)
-                # where the full impact plays out without dampening. Mean reversion resumes next week.
+                # For 2 weeks after an impact, use dampened mean reversion (lingering fear/hype)
                 if not news_impact_occurred:
-                    # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                    # Check if impact occurred 1 or 2 weeks ago (lingering effect)
+                    weeks_since_impact = None
+                    if company_name in impact_weeks:
+                        if (future_week - 1) in impact_weeks[company_name]:
+                            weeks_since_impact = 1
+                        elif (future_week - 2) in impact_weeks[company_name]:
+                            weeks_since_impact = 2
+
+                    # Adjust mean reversion strength based on lingering fear/hype
+                    if weeks_since_impact == 1:
+                        mean_reversion_strength = 0.10  # 10% first week after impact
+                    elif weeks_since_impact == 2:
+                        mean_reversion_strength = 0.20  # 20% second week after impact
+                    else:
+                        mean_reversion_strength = 0.30  # 30% normal mean reversion
+
                     price_gap = simulated_fundamental - simulated_price
-                    mean_reversion = price_gap * 0.30  # 30% of gap closes each week
+                    mean_reversion = price_gap * mean_reversion_strength
                     simulated_price += mean_reversion
 
                 # Ensure values stay positive
