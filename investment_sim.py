@@ -806,11 +806,11 @@ class BreakingNewsSystem:
         # Higher strength = more likely to have successes, lower = more scandals/problems
         rand = random.random()
 
-        if rand < strength_factor * 0.4:  # Strong companies have more successes
+        if rand < strength_factor * 0.7:  # Strong companies have more successes
             event_type = EventType.SUCCESS
             severity = random.uniform(0.5, 1.0)  # Successes are generally impactful
             weeks_until_public = 1  # Successes are reported quickly
-        elif rand < strength_factor * 0.4 + 0.3:  # Moderate problems
+        elif rand < strength_factor * 0.7 + 0.3:  # Moderate problems
             event_type = EventType.PROBLEM
             severity = random.uniform(0.3, 0.6)
             weeks_until_public = random.randint(1, 2)  # Problems reported fairly quickly
