@@ -1143,6 +1143,8 @@ class Company:
         1. Trade value as a % of daily volume (not market cap!)
         2. Square root scaling for realistic impact
         3. Lower liquidity = higher slippage
+        4. Notional dampener: trades under $1M get reduced slippage
+        5. Volatility adjustment: calm stocks get cheaper execution
         """
         # Estimate average daily volume based on market cap and liquidity
         # (same as apply_market_impact for consistency)
@@ -1159,6 +1161,11 @@ class Company:
         trade_value = shares * self.price
         trade_pct_of_daily_volume = trade_value / estimated_daily_volume
 
+        # Apply minimum trade-size floor to prevent excessive penalties on tiny trades
+        # Prevents $20k-$50k trades from being disproportionately punished
+        min_trade_pct = 0.00005  # 0.005% of ADV
+        effective_trade_pct = max(trade_pct_of_daily_volume, min_trade_pct)
+
         # Slippage coefficient (slightly higher than market impact)
         # Market impact affects the market price, slippage is what you pay
         # Slippage includes bid-ask spread + market impact
@@ -1171,7 +1178,20 @@ class Company:
             base_coefficient *= 0.7  # 30% less slippage for highly liquid stocks
 
         # Calculate slippage using square root law
-        slippage = (trade_pct_of_daily_volume ** 0.5) * base_coefficient
+        slippage = (effective_trade_pct ** 0.5) * base_coefficient
+
+        # Apply volatility normalization: calm stocks get cheaper execution
+        # Baseline volatility of 7.5 represents "normal" medium-liquidity stocks
+        baseline_vol = 7.5
+        vol_adjustment = self.base_volatility / baseline_vol
+        # Clamp to prevent extreme cases: calm stocks ~40% cheaper, wild stocks ~60% more expensive
+        vol_adjustment = max(0.6, min(vol_adjustment, 1.6))
+        slippage *= vol_adjustment
+
+        # Apply notional-based dampener: trades under $1M get proportional forgiveness
+        # This makes early-game trading on low-liquidity stocks much less punishing
+        notional_dampener = min(1.0, trade_value / 1_000_000)
+        slippage *= notional_dampener
 
         # Apply slippage multiplier (e.g., for Mystical Lender penalty)
         slippage *= slippage_multiplier
@@ -1197,6 +1217,7 @@ class Company:
         - Mean reversion in update_price() pulls it back over time
         - Prevents pump-and-dump loops and death spirals
         - Based on daily trading volume, not market cap (more realistic)
+        - Notional dampener and volatility adjustments applied for fairness
         """
         # Estimate average daily volume based on market cap and liquidity
         # Real market research: ADV typically 0.5%-3% of market cap per day
@@ -1213,6 +1234,10 @@ class Company:
         trade_value = shares * self.price
         trade_pct_of_daily_volume = trade_value / estimated_daily_volume
 
+        # Apply minimum trade-size floor to prevent excessive penalties on tiny trades
+        min_trade_pct = 0.00005  # 0.005% of ADV
+        effective_trade_pct = max(trade_pct_of_daily_volume, min_trade_pct)
+
         # Market impact follows square root law from market microstructure research
         # Kyle's lambda / Almgren-Chriss models suggest: impact ∝ sqrt(trade_size/ADV)
         # Typical coefficient: 0.1-0.5 depending on market conditions
@@ -1227,7 +1252,17 @@ class Company:
 
         # Calculate impact using square root law
         # Example: $25k trade on $1B daily volume = sqrt(0.0025%) * 0.25 = 0.0125% impact
-        impact_multiplier = (trade_pct_of_daily_volume ** 0.5) * base_impact_coefficient
+        impact_multiplier = (effective_trade_pct ** 0.5) * base_impact_coefficient
+
+        # Apply volatility normalization: calm stocks get cheaper execution
+        baseline_vol = 7.5
+        vol_adjustment = self.base_volatility / baseline_vol
+        vol_adjustment = max(0.6, min(vol_adjustment, 1.6))
+        impact_multiplier *= vol_adjustment
+
+        # Apply notional-based dampener: trades under $1M get proportional forgiveness
+        notional_dampener = min(1.0, trade_value / 1_000_000)
+        impact_multiplier *= notional_dampener
 
         # Cap at 5% price movement per trade (prevents extreme cases)
         impact_multiplier = min(impact_multiplier, 0.05)
