@@ -4246,6 +4246,7 @@ class InvestmentGame:
                 simulated_price *= (1 + change_percent / 100)
 
             # 5. Apply pending news impacts that will occur in this future week
+            news_impact_occurred = False
             for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
                     weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4253,6 +4254,7 @@ class InvestmentGame:
                         # This impact will apply in this future week
                         if impact.is_real:
                             simulated_price *= (1 + impact.impact_magnitude / 100)
+                            news_impact_occurred = True
 
                             # News also affects fundamental value (real business impact)
                             if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4268,10 +4270,13 @@ class InvestmentGame:
                                 simulated_fundamental *= (1 + fundamental_impact / 100)
 
             # 6. Apply mean reversion - pull price back toward fundamental
-            # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
-            price_gap = simulated_fundamental - simulated_price
-            mean_reversion = price_gap * 0.30  # 30% of gap closes each week
-            simulated_price += mean_reversion
+            # SKIP mean reversion on weeks with breaking news impacts (people are in a frenzy!)
+            # Mean reversion will resume in subsequent weeks
+            if not news_impact_occurred:
+                # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                price_gap = simulated_fundamental - simulated_price
+                mean_reversion = price_gap * 0.30  # 30% of gap closes each week
+                simulated_price += mean_reversion
 
             # Ensure price stays positive
             simulated_price = max(0.01, simulated_price)
@@ -4357,6 +4362,7 @@ class InvestmentGame:
                     simulated_price *= (1 + change_percent / 100)
 
                 # 5. Apply pending news impacts that will occur in this future week
+                news_impact_occurred = False
                 for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
                         weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4364,6 +4370,7 @@ class InvestmentGame:
                             # This impact will apply in this future week
                             if impact.is_real:
                                 simulated_price *= (1 + impact.impact_magnitude / 100)
+                                news_impact_occurred = True
 
                                 # News also affects fundamental value (real business impact)
                                 if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4379,10 +4386,13 @@ class InvestmentGame:
                                     simulated_fundamental *= (1 + fundamental_impact / 100)
 
                 # 6. Apply mean reversion - pull price back toward fundamental
-                # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
-                price_gap = simulated_fundamental - simulated_price
-                mean_reversion = price_gap * 0.30  # 30% of gap closes each week
-                simulated_price += mean_reversion
+                # SKIP mean reversion on weeks with breaking news impacts (people are in a frenzy!)
+                # Mean reversion will resume in subsequent weeks
+                if not news_impact_occurred:
+                    # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                    price_gap = simulated_fundamental - simulated_price
+                    mean_reversion = price_gap * 0.30  # 30% of gap closes each week
+                    simulated_price += mean_reversion
 
                 # Ensure values stay positive
                 simulated_price = max(0.01, simulated_price)
