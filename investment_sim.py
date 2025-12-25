@@ -4192,6 +4192,15 @@ class InvestmentGame:
         - Fundamental price random walk
         - Mean reversion (price pulled back toward fundamental)
         """
+        # Build a map of when impacts will occur for each company (for lingering effect calculation)
+        impact_weeks = {}  # company_name -> set of week numbers when impacts occur
+        for impact in self.breaking_news.pending_impacts:
+            if impact.is_real:
+                impact_week = self.week_number + impact.weeks_until_impact
+                if impact.company_name not in impact_weeks:
+                    impact_weeks[impact.company_name] = set()
+                impact_weeks[impact.company_name].add(impact_week)
+
         for company_name, company in self.companies.items():
             if company_name not in self.future_prices or len(self.future_prices[company_name]) == 0:
                 # No existing future prices - recalculate all
@@ -4223,30 +4232,39 @@ class InvestmentGame:
             simulated_fundamental *= (1 + weekly_fundamental_change)
             simulated_fundamental = max(0.01, simulated_fundamental)
 
-            # 3. Apply market cycle effects if active
-            cycle_effect = 0.0
-            if self.market_cycle.active_cycle:
-                # Check if cycle will still be active
-                weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
-                if weeks_left > 0:
-                    cycle_type = self.market_cycle.active_cycle.cycle_type
-                    cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
-
-            # Check if a new cycle will trigger at this future week
-            elif future_week > 0 and future_week % 24 == 0:
-                # A new cycle would trigger - we don't know which type, so use neutral
-                cycle_effect = 0.0
+            # 3. Check if market impact will occur this week (check BEFORE applying random walk)
+            news_impact_occurred = False
+            for impact in self.breaking_news.pending_impacts:
+                if impact.company_name == company_name:
+                    weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                    if weeks_until == 0 and impact.is_real:
+                        news_impact_occurred = True
+                        break
 
             # 4. Apply cycle effect or random walk to price
-            if cycle_effect != 0:
-                simulated_price *= (1 + cycle_effect / 100)
-            else:
-                # Random walk if no cycle
-                change_percent = random.uniform(-company.base_volatility, company.base_volatility)
-                simulated_price *= (1 + change_percent / 100)
+            # SKIP on market impact weeks - let the impact be the sole driver!
+            if not news_impact_occurred:
+                cycle_effect = 0.0
+                if self.market_cycle.active_cycle:
+                    # Check if cycle will still be active
+                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                    if weeks_left > 0:
+                        cycle_type = self.market_cycle.active_cycle.cycle_type
+                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+
+                # Check if a new cycle will trigger at this future week
+                elif future_week > 0 and future_week % 24 == 0:
+                    # A new cycle would trigger - we don't know which type, so use neutral
+                    cycle_effect = 0.0
+
+                if cycle_effect != 0:
+                    simulated_price *= (1 + cycle_effect / 100)
+                else:
+                    # Random walk if no cycle
+                    change_percent = random.uniform(-company.base_volatility, company.base_volatility)
+                    simulated_price *= (1 + change_percent / 100)
 
             # 5. Apply pending news impacts that will occur in this future week
-            news_impact_occurred = False
             for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
                     weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4254,7 +4272,6 @@ class InvestmentGame:
                         # This impact will apply in this future week
                         if impact.is_real:
                             simulated_price *= (1 + impact.impact_magnitude / 100)
-                            news_impact_occurred = True
 
                             # News also affects fundamental value (real business impact)
                             if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4270,12 +4287,27 @@ class InvestmentGame:
                                 simulated_fundamental *= (1 + fundamental_impact / 100)
 
             # 6. Apply mean reversion - pull price back toward fundamental
-            # SKIP mean reversion on weeks with breaking news impacts (people are in a frenzy!)
-            # Mean reversion will resume in subsequent weeks
+            # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
+            # For 2 weeks after an impact, use dampened mean reversion (lingering fear/hype)
             if not news_impact_occurred:
-                # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                # Check if impact occurred 1 or 2 weeks ago (lingering effect)
+                weeks_since_impact = None
+                if company_name in impact_weeks:
+                    if (future_week - 1) in impact_weeks[company_name]:
+                        weeks_since_impact = 1
+                    elif (future_week - 2) in impact_weeks[company_name]:
+                        weeks_since_impact = 2
+
+                # Adjust mean reversion strength based on lingering fear/hype
+                if weeks_since_impact == 1:
+                    mean_reversion_strength = 0.10  # 10% first week after impact
+                elif weeks_since_impact == 2:
+                    mean_reversion_strength = 0.20  # 20% second week after impact
+                else:
+                    mean_reversion_strength = 0.30  # 30% normal mean reversion
+
                 price_gap = simulated_fundamental - simulated_price
-                mean_reversion = price_gap * 0.30  # 30% of gap closes each week
+                mean_reversion = price_gap * mean_reversion_strength
                 simulated_price += mean_reversion
 
             # Ensure price stays positive
@@ -4302,6 +4334,15 @@ class InvestmentGame:
         self.future_prices = {}
         self.future_eps = {}
         self.future_fundamental_prices = {}
+
+        # Build a map of when impacts will occur for each company (for lingering effect calculation)
+        impact_weeks = {}  # company_name -> set of week numbers when impacts occur
+        for impact in self.breaking_news.pending_impacts:
+            if impact.is_real:
+                impact_week = self.week_number + impact.weeks_until_impact
+                if impact.company_name not in impact_weeks:
+                    impact_weeks[impact.company_name] = set()
+                impact_weeks[impact.company_name].add(impact_week)
 
         # For each company, calculate future prices, EPS, and fundamentals
         for company_name, company in self.companies.items():
@@ -4339,30 +4380,39 @@ class InvestmentGame:
                 simulated_fundamental *= (1 + weekly_fundamental_change)
                 simulated_fundamental = max(0.01, simulated_fundamental)
 
-                # 3. Apply market cycle effects if active or triggering
-                cycle_effect = 0.0
-                if self.market_cycle.active_cycle:
-                    # Check if cycle will still be active
-                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
-                    if weeks_left > 0:
-                        cycle_type = self.market_cycle.active_cycle.cycle_type
-                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
-
-                # Check if a new cycle will trigger at this future week
-                elif future_week > 0 and future_week % 24 == 0:
-                    # A new cycle would trigger - we don't know which type, so use average effect
-                    cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+                # 3. Check if market impact will occur this week (check BEFORE applying random walk)
+                news_impact_occurred = False
+                for impact in self.breaking_news.pending_impacts:
+                    if impact.company_name == company_name:
+                        weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                        if weeks_until == 0 and impact.is_real:
+                            news_impact_occurred = True
+                            break
 
                 # 4. Apply cycle effect or random walk to price
-                if cycle_effect != 0:
-                    simulated_price *= (1 + cycle_effect / 100)
-                else:
-                    # Random walk if no cycle (additional volatility on top of fundamentals)
-                    change_percent = random.uniform(-company.base_volatility, company.base_volatility)
-                    simulated_price *= (1 + change_percent / 100)
+                # SKIP on market impact weeks - let the impact be the sole driver!
+                if not news_impact_occurred:
+                    cycle_effect = 0.0
+                    if self.market_cycle.active_cycle:
+                        # Check if cycle will still be active
+                        weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                        if weeks_left > 0:
+                            cycle_type = self.market_cycle.active_cycle.cycle_type
+                            cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+
+                    # Check if a new cycle will trigger at this future week
+                    elif future_week > 0 and future_week % 24 == 0:
+                        # A new cycle would trigger - we don't know which type, so use average effect
+                        cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+
+                    if cycle_effect != 0:
+                        simulated_price *= (1 + cycle_effect / 100)
+                    else:
+                        # Random walk if no cycle (additional volatility on top of fundamentals)
+                        change_percent = random.uniform(-company.base_volatility, company.base_volatility)
+                        simulated_price *= (1 + change_percent / 100)
 
                 # 5. Apply pending news impacts that will occur in this future week
-                news_impact_occurred = False
                 for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
                         weeks_until = impact.weeks_until_impact - (week_ahead - 1)
@@ -4370,7 +4420,6 @@ class InvestmentGame:
                             # This impact will apply in this future week
                             if impact.is_real:
                                 simulated_price *= (1 + impact.impact_magnitude / 100)
-                                news_impact_occurred = True
 
                                 # News also affects fundamental value (real business impact)
                                 if impact.impact_magnitude < 0:  # Negative news (scandals/problems)
@@ -4386,12 +4435,27 @@ class InvestmentGame:
                                     simulated_fundamental *= (1 + fundamental_impact / 100)
 
                 # 6. Apply mean reversion - pull price back toward fundamental
-                # SKIP mean reversion on weeks with breaking news impacts (people are in a frenzy!)
-                # Mean reversion will resume in subsequent weeks
+                # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
+                # For 2 weeks after an impact, use dampened mean reversion (lingering fear/hype)
                 if not news_impact_occurred:
-                    # This is KEY for bubble bursts! After boom ends, price gradually returns to fundamental
+                    # Check if impact occurred 1 or 2 weeks ago (lingering effect)
+                    weeks_since_impact = None
+                    if company_name in impact_weeks:
+                        if (future_week - 1) in impact_weeks[company_name]:
+                            weeks_since_impact = 1
+                        elif (future_week - 2) in impact_weeks[company_name]:
+                            weeks_since_impact = 2
+
+                    # Adjust mean reversion strength based on lingering fear/hype
+                    if weeks_since_impact == 1:
+                        mean_reversion_strength = 0.10  # 10% first week after impact
+                    elif weeks_since_impact == 2:
+                        mean_reversion_strength = 0.20  # 20% second week after impact
+                    else:
+                        mean_reversion_strength = 0.30  # 30% normal mean reversion
+
                     price_gap = simulated_fundamental - simulated_price
-                    mean_reversion = price_gap * 0.30  # 30% of gap closes each week
+                    mean_reversion = price_gap * mean_reversion_strength
                     simulated_price += mean_reversion
 
                 # Ensure values stay positive
