@@ -2639,7 +2639,7 @@ class MarketCycleType(Enum):
     BULL_MARKET = "bull_market"
     BEAR_MARKET = "bear_market"
     RECESSION = "recession"
-    INFLATION = "inflation"
+    ENERGY_INFLATION = "energy_inflation"
     MARKET_CRASH = "market_crash"
     RECOVERY = "recovery"
     TECH_BOOM = "tech_boom"
@@ -2654,6 +2654,9 @@ class MarketCycleType(Enum):
     BUBBLE_POP = "bubble_pop"
     PROFIT_TAKING = "profit_taking"
     SECTOR_ROTATION = "sector_rotation"
+    # Void events (ultra rare)
+    VOID_INVASION = "void_invasion"
+    VOID_BLESSING = "void_blessing"
 
 
 @dataclass
@@ -2691,13 +2694,18 @@ class MarketCycle:
         self.active_cycle: Optional[ActiveMarketCycle] = None
         self.cycle_history: List[Tuple[int, str]] = []  # (week_number, cycle_name)
         self.last_cycle_type: Optional[MarketCycleType] = None  # Track previous cycle for smart sequencing
+        # Void event tracking
+        self.void_invasion_safe_company: Optional[str] = None  # Which company is safe from void this week
+        self.void_blessing_blessed_company: Optional[str] = None  # Which company is blessed this week
 
     def to_dict(self) -> dict:
         """Serialize MarketCycle to dictionary"""
         return {
             'active_cycle': self.active_cycle.to_dict() if self.active_cycle else None,
             'cycle_history': self.cycle_history,
-            'last_cycle_type': self.last_cycle_type.value if self.last_cycle_type else None
+            'last_cycle_type': self.last_cycle_type.value if self.last_cycle_type else None,
+            'void_invasion_safe_company': self.void_invasion_safe_company,
+            'void_blessing_blessed_company': self.void_blessing_blessed_company
         }
 
     @staticmethod
@@ -2709,6 +2717,8 @@ class MarketCycle:
         market_cycle.cycle_history = [tuple(item) for item in data['cycle_history']]
         if data.get('last_cycle_type'):
             market_cycle.last_cycle_type = MarketCycleType(data['last_cycle_type'])
+        market_cycle.void_invasion_safe_company = data.get('void_invasion_safe_company')
+        market_cycle.void_blessing_blessed_company = data.get('void_blessing_blessed_company')
         return market_cycle
 
     def should_trigger_cycle(self, week_number: int) -> bool:
@@ -2776,7 +2786,7 @@ class MarketCycle:
                     MarketCycleType.BUBBLE_POP: 15,
                     MarketCycleType.SECTOR_ROTATION: 15,
                     MarketCycleType.BEAR_MARKET: 10,
-                    MarketCycleType.INFLATION: 10,
+                    MarketCycleType.ENERGY_INFLATION: 10,
                     MarketCycleType.BULL_MARKET: 5  # Small chance to continue
                 }
             else:
@@ -2785,7 +2795,7 @@ class MarketCycle:
                     MarketCycleType.SECTOR_ROTATION: 20,
                     MarketCycleType.PROFIT_TAKING: 15,
                     MarketCycleType.BULL_MARKET: 15,
-                    MarketCycleType.INFLATION: 15,
+                    MarketCycleType.ENERGY_INFLATION: 15,
                     MarketCycleType.TECH_CORRECTION: 10,
                     MarketCycleType.ENERGY_CRISIS: 10,
                     MarketCycleType.HEALTHCARE_RALLY: 10,
@@ -2811,7 +2821,7 @@ class MarketCycle:
                 MarketCycleType.BULL_MARKET: 12,
                 MarketCycleType.BEAR_MARKET: 10,
                 MarketCycleType.SECTOR_ROTATION: 12,
-                MarketCycleType.INFLATION: 10,
+                MarketCycleType.ENERGY_INFLATION: 10,
                 # Sector-specific events
                 MarketCycleType.TECH_BOOM: 8,
                 MarketCycleType.TECH_CORRECTION: 8,
@@ -2824,7 +2834,10 @@ class MarketCycle:
                 MarketCycleType.RECOVERY: 2,
                 MarketCycleType.RECESSION: 2,
                 MarketCycleType.MARKET_CRASH: 1,
-                MarketCycleType.BUBBLE_POP: 1
+                MarketCycleType.BUBBLE_POP: 1,
+                # Void events (ultra rare - ~1% chance each)
+                MarketCycleType.VOID_INVASION: 1,
+                MarketCycleType.VOID_BLESSING: 1
             }
 
         # Select cycle based on weights
@@ -2832,7 +2845,13 @@ class MarketCycle:
         weights = list(cycle_weights.values())
         cycle_type = random.choices(cycles, weights=weights, k=1)[0]
 
-        duration = random.randint(8, 16)  # 2-4 months duration
+        # Set duration based on cycle type
+        if cycle_type == MarketCycleType.VOID_INVASION:
+            duration = 4  # Exactly 4 weeks as specified
+        elif cycle_type == MarketCycleType.VOID_BLESSING:
+            duration = 12  # Exactly 12 weeks as specified
+        else:
+            duration = random.randint(8, 16)  # 2-4 months duration for normal cycles
 
         # Generate headline and description based on cycle type
         if cycle_type == MarketCycleType.BULL_MARKET:
@@ -2847,9 +2866,9 @@ class MarketCycle:
             headline = "📉 RECESSION DECLARED - Economy Contracts for Second Consecutive Quarter"
             description = "Official recession confirmed as unemployment rises, consumer spending falls, and businesses cut investment. Markets tumble."
 
-        elif cycle_type == MarketCycleType.INFLATION:
-            headline = "🔥 INFLATION CRISIS - Consumer Prices Soar to Decade Highs"
-            description = "Surging inflation erodes purchasing power. Central banks signal aggressive rate hikes. Markets volatile as sectors react differently."
+        elif cycle_type == MarketCycleType.ENERGY_INFLATION:
+            headline = "🔥 ENERGY-DRIVEN INFLATION - Oil Prices Spike, Costs Surge"
+            description = "Soaring energy prices drive broader inflation. Energy sector profits while other industries struggle with rising costs and margin pressure."
 
         elif cycle_type == MarketCycleType.MARKET_CRASH:
             headline = "💥 MARKET CRASH - Panic Selling Triggers Circuit Breakers"
@@ -2894,6 +2913,14 @@ class MarketCycle:
         elif cycle_type == MarketCycleType.PROFIT_TAKING:
             headline = "📊 PROFIT TAKING - Investors Lock in Gains After Rally"
             description = "After strong run-up, investors cash out. Broad market pullback as profits are realized. Healthy correction underway."
+
+        elif cycle_type == MarketCycleType.VOID_INVASION:
+            headline = "🌀 VOID INVASION - Reality Itself Unravels!"
+            description = "The Void consumes all but one stock each week! Markets descend into chaos as companies randomly phase in and out of existence."
+
+        elif cycle_type == MarketCycleType.VOID_BLESSING:
+            headline = "✨ VOID BLESSING - The Void Smiles Upon the Chosen"
+            description = "Mysterious void energies amplify the stock being mimicked by Void Stocks! Reality warps in favor of the chosen company."
 
         else:  # SECTOR_ROTATION
             headline = "🔄 SECTOR ROTATION - Money Flows Between Industries"
@@ -2945,8 +2972,8 @@ class MarketCycle:
                 company.price = max(0.01, company.price)
             messages.append("📊 Recession impact - Severe downward pressure on all stocks")
 
-        elif cycle.cycle_type == MarketCycleType.INFLATION:
-            # Mixed effects - energy up, others down
+        elif cycle.cycle_type == MarketCycleType.ENERGY_INFLATION:
+            # Energy up, others down due to rising energy costs
             for company in companies.values():
                 if company.industry == "Energy":
                     change = random.uniform(4.0, 8.0)
@@ -2955,7 +2982,7 @@ class MarketCycle:
                     change = random.uniform(2.0, 4.0)
                     company.price *= (1 - change / 100)
                 company.price = max(0.01, company.price)
-            messages.append("📊 Inflation effects - Energy stocks rise, others pressured by rate hikes")
+            messages.append("📊 Energy-driven inflation - Energy stocks rise as costs pressure other sectors")
 
         elif cycle.cycle_type == MarketCycleType.MARKET_CRASH:
             # Severe crash (8-15%)
@@ -3003,7 +3030,7 @@ class MarketCycle:
                 if company.industry == "Energy":
                     change = random.uniform(8.0, 14.0)
                     company.price *= (1 + change / 100)
-                elif company.industry in ["Manufacturing", "Industrial"]:
+                elif company.industry == "Golem Manufacturing":
                     # Heavy energy users hurt most
                     change = random.uniform(3.0, 6.0)
                     company.price *= (1 - change / 100)
@@ -3015,6 +3042,7 @@ class MarketCycle:
 
         elif cycle.cycle_type == MarketCycleType.FINANCIAL_SECTOR_BOOM:
             # Financials surge, others moderate gains
+            # NOTE: No companies currently have "Finance" industry, so all get modest gains
             for company in companies.values():
                 if company.industry == "Finance":
                     change = random.uniform(6.0, 11.0)
@@ -3027,6 +3055,7 @@ class MarketCycle:
 
         elif cycle.cycle_type == MarketCycleType.RETAIL_COLLAPSE:
             # Retail crashes, others slightly down
+            # NOTE: No companies currently have "Retail" industry, so all get slight declines
             for company in companies.values():
                 if company.industry == "Retail":
                     change = random.uniform(10.0, 18.0)
@@ -3038,9 +3067,9 @@ class MarketCycle:
             messages.append("📊 Retail apocalypse - Consumer spending crash devastates retail sector")
 
         elif cycle.cycle_type == MarketCycleType.HEALTHCARE_RALLY:
-            # Healthcare surges, others modest gains
+            # Pharmaceuticals surges, others modest gains
             for company in companies.values():
-                if company.industry == "Healthcare":
+                if company.industry == "Pharmaceuticals":
                     change = random.uniform(6.0, 11.0)
                     company.price *= (1 + change / 100)
                 else:
@@ -3050,9 +3079,9 @@ class MarketCycle:
             messages.append("📊 Healthcare rally - Medical sector surges on breakthrough innovations")
 
         elif cycle.cycle_type == MarketCycleType.MANUFACTURING_SLUMP:
-            # Manufacturing/Industrial down, others slightly down
+            # Golem Manufacturing down, others slightly down
             for company in companies.values():
-                if company.industry in ["Manufacturing", "Industrial"]:
+                if company.industry == "Golem Manufacturing":
                     change = random.uniform(7.0, 13.0)
                     company.price *= (1 - change / 100)
                 else:
@@ -3138,12 +3167,31 @@ class MarketCycle:
 
         return messages, False
 
+    def update_void_events(self, companies: Dict[str, Company], void_stocks: 'VoidStocks'):
+        """Update void event states for the current week"""
+        if not self.active_cycle:
+            return
+
+        # Handle Void Invasion: Pick a random safe company each week
+        if self.active_cycle.cycle_type == MarketCycleType.VOID_INVASION:
+            company_names = list(companies.keys())
+            self.void_invasion_safe_company = random.choice(company_names)
+
+        # Handle Void Blessing: Bless the company that Void Stocks is mimicking
+        elif self.active_cycle.cycle_type == MarketCycleType.VOID_BLESSING:
+            blessed_name = void_stocks.get_current_company_name()
+            # Only bless if it's not in VOID state
+            if blessed_name != "VOID":
+                self.void_blessing_blessed_company = blessed_name
+            else:
+                self.void_blessing_blessed_company = None
+
     def get_current_cycle_display(self) -> Optional[str]:
         """Get display text for current active cycle"""
         if not self.active_cycle:
             return None
 
-        return f"""
+        base_display = f"""
 {'='*60}
 🌍 ACTIVE GLOBAL MARKET CYCLE
 {'='*60}
@@ -3151,9 +3199,18 @@ class MarketCycle:
 
 {self.active_cycle.description}
 
-Duration: {self.active_cycle.weeks_remaining} weeks remaining
-{'='*60}
-"""
+Duration: {self.active_cycle.weeks_remaining} weeks remaining"""
+
+        # Add void event specific info
+        if self.active_cycle.cycle_type == MarketCycleType.VOID_INVASION:
+            if self.void_invasion_safe_company:
+                base_display += f"\n🛡️  SAFE FROM VOID: {self.void_invasion_safe_company}"
+        elif self.active_cycle.cycle_type == MarketCycleType.VOID_BLESSING:
+            if self.void_blessing_blessed_company:
+                base_display += f"\n✨ BLESSED BY VOID: {self.void_blessing_blessed_company}"
+
+        base_display += f"\n{'='*60}\n"
+        return base_display
 
 
 class HedgeFund(Player):
@@ -3769,6 +3826,9 @@ class InvestmentGame:
             if self.market_cycle.active_cycle.weeks_remaining <= 0:
                 cycle_messages.append(f"\n🔔 MARKET CYCLE ENDED: {self.market_cycle.active_cycle.cycle_type.value.replace('_', ' ').title()} has concluded")
                 self.market_cycle.active_cycle = None
+                # Clear void event states when cycle ends
+                self.market_cycle.void_invasion_safe_company = None
+                self.market_cycle.void_blessing_blessed_company = None
                 cycle_ended = True
 
         # Update pending breaking news impacts
@@ -3793,6 +3853,9 @@ class InvestmentGame:
         self.gold_coin.update_price()
         self.void_stocks.update_price()
         self.void_catalyst.update_price()
+
+        # Update void events after void_stocks updates (needs current mimicked company)
+        self.market_cycle.update_void_events(self.companies, self.void_stocks)
 
         # Process void state transitions for all players
         void_deletion_occurred = False
@@ -3907,7 +3970,7 @@ class InvestmentGame:
                     weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
                     if weeks_left > 0:
                         cycle_type = self.market_cycle.active_cycle.cycle_type
-                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
 
                 # Check if a new cycle will trigger at this future week
                 elif future_week > 0 and future_week % 24 == 0:
@@ -4055,7 +4118,7 @@ class InvestmentGame:
                         weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
                         if weeks_left > 0:
                             cycle_type = self.market_cycle.active_cycle.cycle_type
-                            cycle_effect = self._get_cycle_effect(cycle_type, company.industry)
+                            cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
 
                     # Check if a new cycle will trigger at this future week
                     elif future_week > 0 and future_week % 24 == 0:
@@ -4127,8 +4190,26 @@ class InvestmentGame:
             self.future_eps[company_name] = future_company_eps
             self.future_fundamental_prices[company_name] = future_company_fundamentals
 
-    def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str) -> float:
+    def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str, company_name: str = "") -> float:
         """Get the average price change effect for a cycle type"""
+        # Handle Void Invasion - all companies except the safe one go to void state
+        if cycle_type == MarketCycleType.VOID_INVASION:
+            if company_name == self.market_cycle.void_invasion_safe_company:
+                # Safe company - normal random walk
+                return 0.0
+            else:
+                # Void state - crash to near zero
+                return -99.5  # Will set price to ~$0.01
+
+        # Handle Void Blessing - blessed company gets massive boost
+        elif cycle_type == MarketCycleType.VOID_BLESSING:
+            if company_name == self.market_cycle.void_blessing_blessed_company:
+                # Blessed company - 200% boost
+                return 200.0
+            else:
+                # Other companies - normal random walk
+                return 0.0
+
         if cycle_type == MarketCycleType.BULL_MARKET:
             if industry == "Rare Fantasy Goods":
                 # Rare goods don't follow bull markets - ultra-wealthy always buy
@@ -4144,7 +4225,7 @@ class InvestmentGame:
                 # Ultra-wealthy unaffected by recession, still buying rare items
                 return random.uniform(-1.0, 2.0)
             return -random.uniform(4.0, 8.0)
-        elif cycle_type == MarketCycleType.INFLATION:
+        elif cycle_type == MarketCycleType.ENERGY_INFLATION:
             if industry == "Energy":
                 return random.uniform(4.0, 8.0)
             elif industry == "Mana Extraction":
