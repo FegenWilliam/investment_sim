@@ -2,7 +2,7 @@
 """Test the new breaking news system"""
 
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '..')
 
 from investment_sim import BreakingNewsSystem, Company, LiquidityLevel, EventType
 
