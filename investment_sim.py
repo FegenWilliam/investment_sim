@@ -2520,6 +2520,29 @@ class Player:
                 print(f"{warning_icon} Equity Ratio: {equity_ratio:.1f}% (Margin Call at {margin_threshold:.1f}%)")
                 print(f"   Distance to Margin Call: {distance_to_margin_call:.1f}%")
 
+        # Show short position maintenance margin warning
+        if len(self.short_positions) > 0:
+            total_short_value = 0.0
+            for company_name, shares in self.short_positions.items():
+                if company_name in companies:
+                    total_short_value += companies[company_name].price * shares
+
+            if total_short_value > 0:
+                equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+                required_maintenance = total_short_value * 1.25
+                short_equity_ratio = (equity / required_maintenance * 100) if required_maintenance > 0 else 100
+                distance_to_short_call = short_equity_ratio - 100
+
+                if distance_to_short_call < 10:
+                    warning_icon = "🚨"
+                elif distance_to_short_call < 20:
+                    warning_icon = "⚠️"
+                else:
+                    warning_icon = "✓"
+
+                print(f"{warning_icon} Short Equity: {short_equity_ratio:.1f}% of required (Short Call at 100%)")
+                print(f"   Distance to Short Call: {distance_to_short_call:.1f}%")
+
         # Show collateral info
         if self.collateral_deposited > 0:
             print(f"🏦 Collateral Deposited: ${self.collateral_deposited:.2f}")
@@ -5161,43 +5184,6 @@ class InvestmentGame:
         for rank, (name, net_worth, equity, player, is_npc) in enumerate(standings, 1):
             npc_marker = " 🤖" if is_npc else ""
             print(f"{rank}. {name}{npc_marker}: ${net_worth:.2f} | Equity: ${equity:.2f}")
-
-            # Show short position warning if applicable
-            if len(player.short_positions) > 0:
-                total_short_value = 0.0
-                for company_name, shares in player.short_positions.items():
-                    if company_name in self.companies:
-                        total_short_value += self.companies[company_name].price * shares
-
-                required_maintenance = total_short_value * 1.25
-                short_equity_ratio = (equity / required_maintenance * 100) if required_maintenance > 0 else 100
-                distance_to_short_call = short_equity_ratio - 100
-
-                if distance_to_short_call < 10:
-                    warning_icon = "🚨"
-                elif distance_to_short_call < 20:
-                    warning_icon = "⚠️"
-                else:
-                    warning_icon = "✓"
-
-                print(f"   {warning_icon} Short Equity: {short_equity_ratio:.1f}% of required (Short Call at 100%)")
-
-            # Show leverage warning if applicable
-            if player.borrowed_amount > 0:
-                total_position = equity + player.borrowed_amount
-                if total_position > 0:
-                    equity_ratio = (equity / total_position) * 100
-                    margin_threshold = player.get_margin_call_threshold(equity) * 100
-                    distance_to_margin_call = equity_ratio - margin_threshold
-
-                    if distance_to_margin_call < 10:
-                        warning_icon = "🚨"
-                    elif distance_to_margin_call < 20:
-                        warning_icon = "⚠️"
-                    else:
-                        warning_icon = "✓"
-
-                    print(f"   {warning_icon} Leverage Equity: {equity_ratio:.1f}% (Margin Call at {margin_threshold:.1f}%)")
 
         print("="*60)
 
