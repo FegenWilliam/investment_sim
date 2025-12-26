@@ -837,7 +837,8 @@ class Company:
         self.base_volatility = volatility
         self.price_history = [initial_price]
         self.liquidity = liquidity
-        self.market_cap = market_cap  # Market capitalization in dollars
+        # Calculate total shares from initial market cap and price
+        self.total_shares = int(market_cap / initial_price)
         # Hidden fundamentals for research hints (not directly visible to players)
         self.true_strength = random.uniform(0.3, 0.9)  # 0-1 scale, affects hint accuracy
         self.hidden_sentiment = random.choice([-1, 0, 1])  # -1: bearish, 0: neutral, 1: bullish
@@ -845,6 +846,11 @@ class Company:
         # Start with a "reasonable" P/E ratio between 12-25
         target_pe = random.uniform(12.0, 25.0)
         self.earnings_per_share = initial_price / target_pe  # Derive EPS from target P/E
+
+    @property
+    def market_cap(self) -> float:
+        """Calculate market cap dynamically as price * total_shares"""
+        return self.price * self.total_shares
 
     def update_earnings(self):
         """Update earnings per share with slow fundamental growth
@@ -1056,7 +1062,7 @@ class Company:
             'base_volatility': self.base_volatility,
             'price_history': self.price_history,
             'liquidity': self.liquidity.value,
-            'market_cap': self.market_cap,
+            'total_shares': self.total_shares,
             'true_strength': self.true_strength,
             'hidden_sentiment': self.hidden_sentiment,
             'earnings_per_share': self.earnings_per_share
@@ -1065,17 +1071,30 @@ class Company:
     @staticmethod
     def from_dict(data: dict) -> 'Company':
         """Deserialize company from dictionary"""
+        # Handle backward compatibility: old saves have market_cap, new saves have total_shares
+        if 'total_shares' in data:
+            # New save format: calculate market_cap from total_shares
+            market_cap = data['price'] * data['total_shares']
+        else:
+            # Old save format: use market_cap directly
+            market_cap = data.get('market_cap', 10000000.0)
+
         company = Company(
             name=data['name'],
             industry=data['industry'],
             initial_price=data['price'],
             volatility=data['base_volatility'],
             liquidity=LiquidityLevel(data['liquidity']),
-            market_cap=data.get('market_cap', 10000000.0)  # Default for old saves
+            market_cap=market_cap
         )
         company.price = data['price']
         company.fundamental_price = data.get('fundamental_price', data['price'])  # Default to price for old saves
         company.price_history = data['price_history']
+
+        # Override total_shares if explicitly saved (for new saves)
+        if 'total_shares' in data:
+            company.total_shares = data['total_shares']
+
         company.true_strength = data['true_strength']
         company.hidden_sentiment = data['hidden_sentiment']
         # For old saves without EPS, calculate from current price with reasonable P/E
@@ -3678,16 +3697,16 @@ class InvestmentGame:
     def _initialize_companies(self):
         """Initialize the 8 companies with different industries and liquidity levels"""
         # Format: (name, industry, price, volatility, liquidity, market_cap)
-        # Market caps range from $1.5B (micro cap) to $50B (large cap)
+        # Market caps range from $35B to $400B for realistic deep liquidity
         company_data = [
-            ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 50_000_000_000),  # $50B - Large cap
-            ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM, 10_000_000_000),  # $10B - Mid cap
-            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW, 8_000_000_000),  # $8B - Mid cap
-            ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM, 12_000_000_000),  # $12B - Mid cap
-            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW, 5_000_000_000),  # $5B - Small cap
-            ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 3_000_000_000),  # $3B - Small cap
-            ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 2_000_000_000),  # $2B - Small cap
-            ("Out of This World Enterprises", "Rare Fantasy Goods", 666.0, 13.0, LiquidityLevel.LOW, 1_500_000_000),  # $1.5B - Micro cap, ultra-rare goods
+            ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 400_000_000_000),  # $400B - Mega cap
+            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW, 250_000_000_000),  # $250B - Large cap
+            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW, 200_000_000_000),  # $200B - Large cap
+            ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM, 160_000_000_000),  # $160B - Large cap
+            ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM, 150_000_000_000),  # $150B - Large cap
+            ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 120_000_000_000),  # $120B - Large cap
+            ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 60_000_000_000),  # $60B - Mid cap
+            ("Out of This World Enterprises", "Rare Fantasy Goods", 666.0, 13.0, LiquidityLevel.LOW, 35_000_000_000),  # $35B - Mid cap, ultra-rare goods
         ]
 
         for name, industry, price, volatility, liquidity, market_cap in company_data:
