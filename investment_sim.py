@@ -222,6 +222,26 @@ class BreakingNewsSystem:
             "{company} CEO arrested for selling fake dragon hearts made from salamander organs",
             "{company} warehouse breach releases 47 reality-defying artifacts, multiverse stability at risk",
         ],
+        "Magical Publishing": [
+            "{company} cursed grimoire mass printing causes readers to spontaneously combust, 47 deaths reported",
+            "{company} plagiarism scandal: stolen ancient spells from sealed demon library, lawsuits mounting",
+            "{company} printing press malfunction releases forbidden knowledge into public domain",
+            "{company} bestselling spellbook contains fatal errors, 200+ wizards hospitalized from backfiring magic",
+            "{company} caught using unethical soul-binding to force authors to write eternally",
+            "{company} dark magic textbook accidentally summons demon army, entire district evacuated",
+            "{company} copyright violation: published classified Archmage Guild secrets, criminal charges filed",
+            "{company} enchanted ink contamination causes books to rewrite themselves with dangerous spells",
+        ],
+        "Divine Services": [
+            "{company} blessing ritual goes catastrophically wrong, converts 300 worshippers into newts",
+            "{company} caught selling fake divine interventions, deities threatening to revoke licenses",
+            "{company} miracle workers exposed as charlatans using illusion magic, faith crisis erupts",
+            "{company} botched resurrection service brings back wrong souls, 15 families suing",
+            "{company} holy water supply contaminated with unholy essence, mass exorcisms needed",
+            "{company} priests arrested for fraudulent salvation guarantees, regulators investigating",
+            "{company} divine channeling accident summons wrathful deity, $2B in property damage",
+            "{company} blessed artifacts found to be cursed counterfeits, mass recalls ordered",
+        ],
     }
 
     # Sector-specific success templates
@@ -306,6 +326,26 @@ class BreakingNewsSystem:
             "{company} time-locked vault opens revealing lost artifacts from erased timeline",
             "{company} alien civilization grants exclusive rights to reality-bending gemstones",
         ],
+        "Magical Publishing": [
+            "{company} revolutionary auto-translating grimoire works in all 47 magical languages, orders surging",
+            "{company} exclusive publishing rights secured for Grand Archmage's complete works",
+            "{company} bestselling spellbook series hits 50M copies sold, film adaptation announced",
+            "{company} enchanted e-reader allows instant spell casting from books, revolutionizing magic",
+            "{company} discovers lost library dimension with infinite ancient texts, monopoly on forgotten spells",
+            "{company} AI-assisted spell optimization increases book effectiveness 300%, becoming industry standard",
+            "{company} partnership with top 10 magical academies makes textbooks mandatory, $8B revenue secured",
+            "{company} breakthrough printing technique reduces grimoire costs 70%, market share exploding",
+        ],
+        "Divine Services": [
+            "{company} miracle success rate reaches 99.8%, highest ever recorded in divine industry",
+            "{company} deity partnership grants exclusive blessing rights for 100 years, competitors shut out",
+            "{company} revolutionary prayer efficiency breakthrough reduces ritual time 80%",
+            "{company} mass resurrection service brings back 500 souls flawlessly, governments ordering bulk services",
+            "{company} divine healing treatment approved by Celestial Council, projected $10B annual revenue",
+            "{company} blessed water purification process solves global water crisis, orders flooding in",
+            "{company} afterlife insurance product achieves 2M subscriptions in first month, stock soaring",
+            "{company} direct deity hotline service launched, 15M faithful signing up for premium access",
+        ],
     }
 
     # Sector-specific problem templates (moderate negative events)
@@ -365,6 +405,20 @@ class BreakingNewsSystem:
             "{company} dimensional customs imposes new tariffs on exotic goods, profit margins squeezed",
             "{company} rival collector outbids on 3 major artifacts, acquisition pipeline weakening",
             "{company} storage facility experiences minor containment breach, 5 items lost to void",
+        ],
+        "Magical Publishing": [
+            "{company} enchanted paper shortage delays new grimoire releases by 8 weeks",
+            "{company} bestselling author defects to rival publisher, taking loyal fanbase",
+            "{company} spell accuracy complaints rise 40%, returns cutting into margins",
+            "{company} printing press breakdown disrupts production schedule, missing holiday rush",
+            "{company} competitor releases superior spellbook series, market share eroding",
+        ],
+        "Divine Services": [
+            "{company} miracle backlog grows to 6 months, customer satisfaction plummeting",
+            "{company} deity partnership renegotiation stalls, service quality declining",
+            "{company} blessing potency drops 25%, effectiveness complaints surging",
+            "{company} holy artifact supplier raises prices 40%, profit margins compressed",
+            "{company} competitor offers faster resurrection service, losing market share",
         ],
     }
 
@@ -3710,18 +3764,20 @@ class InvestmentGame:
         self._precalculate_future_prices()
 
     def _initialize_companies(self):
-        """Initialize the 8 companies with different industries and liquidity levels"""
+        """Initialize the 10 companies with different industries and liquidity levels"""
         # Format: (name, industry, price, volatility, liquidity, market_cap)
-        # Market caps range from $35B to $400B for realistic deep liquidity
+        # Market caps range from $30B to $400B for realistic deep liquidity
         company_data = [
             ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 400_000_000_000),  # $400B - Mega cap
-            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW, 250_000_000_000),  # $250B - Large cap
-            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.LOW, 200_000_000_000),  # $200B - Large cap
+            ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.MEDIUM, 250_000_000_000),  # $250B - Large cap
+            ("EnergyPlus", "Energy", 110.0, 9.0, LiquidityLevel.MEDIUM, 200_000_000_000),  # $200B - Large cap
             ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM, 160_000_000_000),  # $160B - Large cap
             ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM, 150_000_000_000),  # $150B - Large cap
             ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 120_000_000_000),  # $120B - Large cap
             ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 60_000_000_000),  # $60B - Mid cap
+            ("Grimoire Creators Ltd", "Magical Publishing", 300.0, 10.0, LiquidityLevel.LOW, 50_000_000_000),  # $50B - Mid cap
             ("Out of This World Enterprises", "Rare Fantasy Goods", 666.0, 13.0, LiquidityLevel.LOW, 35_000_000_000),  # $35B - Mid cap, ultra-rare goods
+            ("Blessings of All Enterprises", "Divine Services", 90.0, 12.0, LiquidityLevel.LOW, 30_000_000_000),  # $30B - Mid cap
         ]
 
         for name, industry, price, volatility, liquidity, market_cap in company_data:
@@ -4300,16 +4356,34 @@ class InvestmentGame:
             if industry == "Rare Fantasy Goods":
                 # Rare goods don't follow bull markets - ultra-wealthy always buy
                 return random.uniform(1.0, 3.0)
+            elif industry == "Divine Services":
+                # People feel blessed, want to share prosperity with deities
+                return random.uniform(4.0, 8.0)
+            elif industry == "Magical Publishing":
+                # More disposable income for books and grimoires
+                return random.uniform(3.5, 6.0)
             return random.uniform(3.0, 7.0)
         elif cycle_type == MarketCycleType.BEAR_MARKET:
             if industry == "Rare Fantasy Goods":
                 # Counter-cyclical: rich seek rare luxury goods as safe haven
                 return random.uniform(2.0, 6.0)
+            elif industry == "Divine Services":
+                # Counter-cyclical: people seek divine help during hard times
+                return random.uniform(3.0, 7.0)
+            elif industry == "Magical Publishing":
+                # Mixed: some buying for self-help, but less discretionary spending
+                return random.uniform(-1.0, 2.0)
             return -random.uniform(2.0, 5.0)
         elif cycle_type == MarketCycleType.RECESSION:
             if industry == "Rare Fantasy Goods":
                 # Ultra-wealthy unaffected by recession, still buying rare items
                 return random.uniform(-1.0, 2.0)
+            elif industry == "Divine Services":
+                # Counter-cyclical: desperation drives people to seek miracles
+                return random.uniform(5.0, 10.0)
+            elif industry == "Magical Publishing":
+                # Books are somewhat discretionary, but educational aspect helps
+                return -random.uniform(1.0, 3.0)
             return -random.uniform(4.0, 8.0)
         elif cycle_type == MarketCycleType.ENERGY_INFLATION:
             if industry == "Energy":
@@ -4320,6 +4394,12 @@ class InvestmentGame:
             elif industry == "Rare Fantasy Goods":
                 # Rare goods are ultimate inflation hedge - hard assets
                 return random.uniform(8.0, 15.0)
+            elif industry == "Divine Services":
+                # People pray for relief from inflation, but can't afford services
+                return -random.uniform(1.0, 3.0)
+            elif industry == "Magical Publishing":
+                # Paper costs rise, but books are inflation hedge knowledge
+                return random.uniform(-0.5, 2.0)
             else:
                 return -random.uniform(2.0, 4.0)
         elif cycle_type == MarketCycleType.MARKET_CRASH:
@@ -4332,6 +4412,12 @@ class InvestmentGame:
             elif industry == "Rare Fantasy Goods":
                 # Chaotic behavior during crashes - sometimes gains (flight to rarity)
                 return random.uniform(-5.0, 8.0)
+            elif industry == "Divine Services":
+                # Counter-cyclical: panic drives people to seek divine intervention
+                return random.uniform(8.0, 15.0)
+            elif industry == "Magical Publishing":
+                # People buy books on "How to Survive a Market Crash"
+                return random.uniform(1.0, 4.0)
             else:
                 return -random.uniform(8.0, 15.0)
         elif cycle_type == MarketCycleType.RECOVERY:
@@ -4341,6 +4427,12 @@ class InvestmentGame:
             elif industry == "Rare Fantasy Goods":
                 # Doesn't need recovery - operates outside normal cycles
                 return random.uniform(0.0, 3.0)
+            elif industry == "Divine Services":
+                # Moderate recovery - people have less need for emergency prayers
+                return random.uniform(2.0, 5.0)
+            elif industry == "Magical Publishing":
+                # Normal recovery
+                return random.uniform(4.0, 8.0)
             else:
                 return random.uniform(5.0, 10.0)
         elif cycle_type == MarketCycleType.TECH_BOOM:
@@ -4355,6 +4447,12 @@ class InvestmentGame:
             elif industry == "Rare Fantasy Goods":
                 # Tech boom doesn't affect cosmic artifact market
                 return random.uniform(-1.0, 2.0)
+            elif industry == "Divine Services":
+                # People turn to tech instead of faith during tech boom
+                return -random.uniform(2.0, 5.0)
+            elif industry == "Magical Publishing":
+                # Digital grimoires and e-books boom with tech
+                return random.uniform(5.0, 9.0)
             else:
                 return random.uniform(2.0, 4.0)
         return 0.0
