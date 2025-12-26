@@ -2639,7 +2639,7 @@ class MarketCycleType(Enum):
     BULL_MARKET = "bull_market"
     BEAR_MARKET = "bear_market"
     RECESSION = "recession"
-    INFLATION = "inflation"
+    ENERGY_INFLATION = "energy_inflation"
     MARKET_CRASH = "market_crash"
     RECOVERY = "recovery"
     TECH_BOOM = "tech_boom"
@@ -2776,7 +2776,7 @@ class MarketCycle:
                     MarketCycleType.BUBBLE_POP: 15,
                     MarketCycleType.SECTOR_ROTATION: 15,
                     MarketCycleType.BEAR_MARKET: 10,
-                    MarketCycleType.INFLATION: 10,
+                    MarketCycleType.ENERGY_INFLATION: 10,
                     MarketCycleType.BULL_MARKET: 5  # Small chance to continue
                 }
             else:
@@ -2785,7 +2785,7 @@ class MarketCycle:
                     MarketCycleType.SECTOR_ROTATION: 20,
                     MarketCycleType.PROFIT_TAKING: 15,
                     MarketCycleType.BULL_MARKET: 15,
-                    MarketCycleType.INFLATION: 15,
+                    MarketCycleType.ENERGY_INFLATION: 15,
                     MarketCycleType.TECH_CORRECTION: 10,
                     MarketCycleType.ENERGY_CRISIS: 10,
                     MarketCycleType.HEALTHCARE_RALLY: 10,
@@ -2811,7 +2811,7 @@ class MarketCycle:
                 MarketCycleType.BULL_MARKET: 12,
                 MarketCycleType.BEAR_MARKET: 10,
                 MarketCycleType.SECTOR_ROTATION: 12,
-                MarketCycleType.INFLATION: 10,
+                MarketCycleType.ENERGY_INFLATION: 10,
                 # Sector-specific events
                 MarketCycleType.TECH_BOOM: 8,
                 MarketCycleType.TECH_CORRECTION: 8,
@@ -2847,9 +2847,9 @@ class MarketCycle:
             headline = "📉 RECESSION DECLARED - Economy Contracts for Second Consecutive Quarter"
             description = "Official recession confirmed as unemployment rises, consumer spending falls, and businesses cut investment. Markets tumble."
 
-        elif cycle_type == MarketCycleType.INFLATION:
-            headline = "🔥 INFLATION CRISIS - Consumer Prices Soar to Decade Highs"
-            description = "Surging inflation erodes purchasing power. Central banks signal aggressive rate hikes. Markets volatile as sectors react differently."
+        elif cycle_type == MarketCycleType.ENERGY_INFLATION:
+            headline = "🔥 ENERGY-DRIVEN INFLATION - Oil Prices Spike, Costs Surge"
+            description = "Soaring energy prices drive broader inflation. Energy sector profits while other industries struggle with rising costs and margin pressure."
 
         elif cycle_type == MarketCycleType.MARKET_CRASH:
             headline = "💥 MARKET CRASH - Panic Selling Triggers Circuit Breakers"
@@ -2945,8 +2945,8 @@ class MarketCycle:
                 company.price = max(0.01, company.price)
             messages.append("📊 Recession impact - Severe downward pressure on all stocks")
 
-        elif cycle.cycle_type == MarketCycleType.INFLATION:
-            # Mixed effects - energy up, others down
+        elif cycle.cycle_type == MarketCycleType.ENERGY_INFLATION:
+            # Energy up, others down due to rising energy costs
             for company in companies.values():
                 if company.industry == "Energy":
                     change = random.uniform(4.0, 8.0)
@@ -2955,7 +2955,7 @@ class MarketCycle:
                     change = random.uniform(2.0, 4.0)
                     company.price *= (1 - change / 100)
                 company.price = max(0.01, company.price)
-            messages.append("📊 Inflation effects - Energy stocks rise, others pressured by rate hikes")
+            messages.append("📊 Energy-driven inflation - Energy stocks rise as costs pressure other sectors")
 
         elif cycle.cycle_type == MarketCycleType.MARKET_CRASH:
             # Severe crash (8-15%)
@@ -3003,7 +3003,7 @@ class MarketCycle:
                 if company.industry == "Energy":
                     change = random.uniform(8.0, 14.0)
                     company.price *= (1 + change / 100)
-                elif company.industry in ["Manufacturing", "Industrial"]:
+                elif company.industry == "Golem Manufacturing":
                     # Heavy energy users hurt most
                     change = random.uniform(3.0, 6.0)
                     company.price *= (1 - change / 100)
@@ -3015,6 +3015,7 @@ class MarketCycle:
 
         elif cycle.cycle_type == MarketCycleType.FINANCIAL_SECTOR_BOOM:
             # Financials surge, others moderate gains
+            # NOTE: No companies currently have "Finance" industry, so all get modest gains
             for company in companies.values():
                 if company.industry == "Finance":
                     change = random.uniform(6.0, 11.0)
@@ -3027,6 +3028,7 @@ class MarketCycle:
 
         elif cycle.cycle_type == MarketCycleType.RETAIL_COLLAPSE:
             # Retail crashes, others slightly down
+            # NOTE: No companies currently have "Retail" industry, so all get slight declines
             for company in companies.values():
                 if company.industry == "Retail":
                     change = random.uniform(10.0, 18.0)
@@ -3038,9 +3040,9 @@ class MarketCycle:
             messages.append("📊 Retail apocalypse - Consumer spending crash devastates retail sector")
 
         elif cycle.cycle_type == MarketCycleType.HEALTHCARE_RALLY:
-            # Healthcare surges, others modest gains
+            # Pharmaceuticals surges, others modest gains
             for company in companies.values():
-                if company.industry == "Healthcare":
+                if company.industry == "Pharmaceuticals":
                     change = random.uniform(6.0, 11.0)
                     company.price *= (1 + change / 100)
                 else:
@@ -3050,9 +3052,9 @@ class MarketCycle:
             messages.append("📊 Healthcare rally - Medical sector surges on breakthrough innovations")
 
         elif cycle.cycle_type == MarketCycleType.MANUFACTURING_SLUMP:
-            # Manufacturing/Industrial down, others slightly down
+            # Golem Manufacturing down, others slightly down
             for company in companies.values():
-                if company.industry in ["Manufacturing", "Industrial"]:
+                if company.industry == "Golem Manufacturing":
                     change = random.uniform(7.0, 13.0)
                     company.price *= (1 - change / 100)
                 else:
