@@ -3932,19 +3932,23 @@ class InvestmentGame:
                 print(f"{'='*60}")
                 input("\nPress Enter to continue...")
 
+        # Generate breaking news for the NEXT week (all players will see the same news)
+        # This must happen BEFORE updating future prices so the instant impact and pending
+        # delayed impact are reflected in the precompiled future prices
+        # This ensures consistent news across all players in the same week
+        news_generated = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
+        self.pending_breaking_news = news_generated
+
         # Update future prices: shift array and calculate new week+4
-        # If a cycle was triggered or ended, recalculate all future prices
+        # If a cycle was triggered/ended OR breaking news was generated, recalculate all future prices
+        # to ensure price changes (like instant impacts) are reflected in future prices
         # Otherwise, just shift the array and add one new week
-        if cycle_triggered or cycle_ended:
+        if cycle_triggered or cycle_ended or news_generated is not None:
             # Major market event - recalculate all future prices
             self._precalculate_future_prices()
         else:
             # Normal week - shift prices and calculate one new week+4
             self._advance_future_prices()
-
-        # Generate breaking news for the NEXT week (all players will see the same news)
-        # This ensures consistent news across all players in the same week
-        self.pending_breaking_news = self.breaking_news.generate_breaking_news(self.companies, self.week_number)
 
     def _advance_future_prices(self):
         """
