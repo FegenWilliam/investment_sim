@@ -3,6 +3,7 @@
 
 import sys
 import pickle
+import json
 
 def debug_pending_impacts(save_file):
     """Load a save file and show all pending impacts"""
@@ -11,8 +12,13 @@ def debug_pending_impacts(save_file):
     print("="*70)
 
     try:
-        with open(save_file, 'rb') as f:
-            save_data = pickle.load(f)
+        # Try JSON first, then pickle
+        if save_file.endswith('.json'):
+            with open(save_file, 'r') as f:
+                save_data = json.load(f)
+        else:
+            with open(save_file, 'rb') as f:
+                save_data = pickle.load(f)
 
         print(f"\nLoaded save file: {save_file}")
         print(f"Current week: {save_data['week_number']}")
