@@ -1621,11 +1621,14 @@ class Player:
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
         self.interest_rate_weekly = 0.115  # ~6% annual = 0.115% weekly
         self.collateral_deposited = 0.0  # Cash deposited as collateral to reduce margin call threshold
+        # Slippage Bank - separate from normal borrowing, no margin calls, 2% weekly interest
+        self.slippage_bank_debt = 0.0
+        self.slippage_bank_interest_rate = 2.0  # 2% weekly interest
         # Short selling system
         self.short_positions: Dict[str, int] = {}  # company_name -> shares borrowed and owed
         self.short_borrow_fee_weekly = 0.02  # ~1% annual = 0.02% weekly
 
-    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None) -> Tuple[bool, str]:
+    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
         """Buy shares of a company using dollar amount with optional leverage
 
         Args:
@@ -1688,6 +1691,11 @@ class Player:
 
         # Build message
         slippage_cost = (effective_price - old_price) * shares
+
+        # Accumulate slippage to slippage bank (if provided)
+        if slippage_bank is not None and slippage_cost > 0:
+            slippage_bank[0] += slippage_cost
+
         leverage_msg = f" (with {leverage:.1f}x leverage)" if leverage > 1.0 else ""
 
         message = f"Purchased {shares:.4f} shares for ${dollar_amount:.2f}{leverage_msg}"
@@ -1700,7 +1708,7 @@ class Player:
 
         return True, message
 
-    def sell_stock(self, company: Company, dollar_amount: float = None, shares: float = None) -> Tuple[bool, str]:
+    def sell_stock(self, company: Company, dollar_amount: float = None, shares: float = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
         """Sell shares of a company with liquidity slippage
 
         Args:
@@ -1764,6 +1772,10 @@ class Player:
         # Calculate and show slippage impact
         slippage_loss = (old_price - effective_price) * shares_to_sell
 
+        # Accumulate slippage to slippage bank (if provided)
+        if slippage_bank is not None and slippage_loss > 0:
+            slippage_bank[0] += slippage_loss
+
         message = f"Sold {shares_to_sell:.4f} shares for ${total_value:.2f}"
         if slippage_loss > 0.01:
             message += f"\n  Price slippage: -${slippage_loss:.2f}"
@@ -1772,7 +1784,7 @@ class Player:
 
         return True, message
 
-    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> Tuple[bool, str]:
+    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
         """Short sell shares: borrow and sell them, must cover later"""
         if shares <= 0:
             return False, "Invalid number of shares!"
@@ -1809,6 +1821,11 @@ class Player:
 
         # Calculate and show slippage impact
         slippage_loss = (old_price - effective_price) * shares
+
+        # Accumulate slippage to slippage bank (if provided)
+        if slippage_bank is not None and slippage_loss > 0:
+            slippage_bank[0] += slippage_loss
+
         message = f"Short sale successful! Received ${total_proceeds:.2f}"
         if slippage_loss > 0.01:
             message += f"\n  Price slippage: -${slippage_loss:.2f}"
@@ -1817,7 +1834,7 @@ class Player:
 
         return True, message
 
-    def cover_short(self, company: Company, shares: int) -> Tuple[bool, str]:
+    def cover_short(self, company: Company, shares: int, slippage_bank: List[float] = None) -> Tuple[bool, str]:
         """Cover (close) a short position by buying back the shares"""
         if company.name not in self.short_positions or self.short_positions[company.name] < shares:
             return False, "You don't have that many shares shorted!"
@@ -1847,6 +1864,11 @@ class Player:
 
         # Calculate and show slippage impact
         slippage_cost = (effective_price - old_price) * shares
+
+        # Accumulate slippage to slippage bank (if provided)
+        if slippage_bank is not None and slippage_cost > 0:
+            slippage_bank[0] += slippage_cost
+
         message = f"Short position covered! Cost ${total_cost:.2f}"
         if slippage_cost > 0.01:
             message += f"\n  Price slippage: ${slippage_cost:.2f}"
@@ -2256,6 +2278,61 @@ class Player:
         self.cash -= amount
         return True, f"Successfully repaid ${amount:.2f}! Remaining debt: ${self.borrowed_amount:.2f}"
 
+    def borrow_from_slippage_bank(self, amount: float, slippage_bank: List[float]) -> Tuple[bool, str]:
+        """Borrow from the slippage bank - no limits, no margin calls, but 2% weekly interest
+
+        Args:
+            amount: Amount to borrow
+            slippage_bank: List containing [total_slippage_bank_amount] (mutable to update)
+        """
+        if amount <= 0:
+            return False, "Invalid amount!"
+
+        # Check if slippage bank has enough funds
+        if amount > slippage_bank[0]:
+            return False, f"Slippage bank only has ${slippage_bank[0]:.2f} available!"
+
+        # No limit checks, no margin call checks - that's the whole point!
+        self.slippage_bank_debt += amount
+        self.cash += amount
+        slippage_bank[0] -= amount
+
+        return True, f"Borrowed ${amount:.2f} from slippage bank at 2% weekly interest!\nSlippage bank debt: ${self.slippage_bank_debt:.2f}"
+
+    def repay_slippage_bank(self, amount: float, slippage_bank: List[float]) -> Tuple[bool, str]:
+        """Repay slippage bank debt
+
+        Args:
+            amount: Amount to repay
+            slippage_bank: List containing [total_slippage_bank_amount] (mutable to update)
+        """
+        if amount <= 0:
+            return False, "Invalid amount!"
+
+        if amount > self.cash:
+            return False, f"Insufficient cash! You have ${self.cash:.2f}"
+
+        if amount > self.slippage_bank_debt:
+            amount = self.slippage_bank_debt
+
+        self.slippage_bank_debt -= amount
+        self.cash -= amount
+        slippage_bank[0] += amount
+
+        if self.slippage_bank_debt < 0.01:
+            self.slippage_bank_debt = 0.0
+            return True, f"Repaid ${amount:.2f}. Slippage bank debt is now FULLY REPAID!"
+        else:
+            return True, f"Repaid ${amount:.2f}. Remaining slippage bank debt: ${self.slippage_bank_debt:.2f}"
+
+    def apply_slippage_bank_interest(self) -> float:
+        """Apply 2% weekly interest on slippage bank debt"""
+        if self.slippage_bank_debt > 0:
+            interest = self.slippage_bank_debt * (self.slippage_bank_interest_rate / 100)
+            self.slippage_bank_debt += interest
+            return interest
+        return 0.0
+
     def get_margin_call_threshold(self, equity: float) -> float:
         """Calculate the margin call threshold based on collateral deposited
 
@@ -2462,7 +2539,8 @@ class Player:
             'void_stocks_purchases': self.void_stocks_purchases,
             'void_catalyst_owned': self.void_catalyst_owned,
             'mystical_lender_debt': self.mystical_lender_debt,
-            'collateral_deposited': self.collateral_deposited
+            'collateral_deposited': self.collateral_deposited,
+            'slippage_bank_debt': self.slippage_bank_debt
         }
 
     @staticmethod
@@ -2486,6 +2564,7 @@ class Player:
         player.void_catalyst_owned = data.get('void_catalyst_owned', False)
         player.mystical_lender_debt = data.get('mystical_lender_debt', 0.0)  # Default to 0.0 for backwards compatibility
         player.collateral_deposited = data.get('collateral_deposited', 0.0)  # Default to 0.0 for backwards compatibility
+        player.slippage_bank_debt = data.get('slippage_bank_debt', 0.0)  # Default to 0.0 for backwards compatibility
         return player
 
     def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None):
@@ -2552,6 +2631,10 @@ class Player:
         # Show Mystical Lender debt
         if self.mystical_lender_debt > 0:
             print(f"📜 Mystical Lender Debt: ${self.mystical_lender_debt:.2f}")
+
+        # Show Slippage Bank debt
+        if self.slippage_bank_debt > 0:
+            print(f"🏦💸 Slippage Bank Debt: ${self.slippage_bank_debt:.2f} (2% weekly interest)")
 
         print()
 
@@ -3617,6 +3700,9 @@ class InvestmentGame:
         self.void_catalyst = VoidCatalyst()
         self.mystical_lender = MysticalLender()
 
+        # Slippage Bank - accumulates all trading slippage from all players
+        self.slippage_bank = 0.0
+
         self._initialize_players()
         self._initialize_hedge_funds()
 
@@ -4284,6 +4370,11 @@ class InvestmentGame:
         if interest > 0:
             print(f"\n💳 Weekly interest charged on loan: ${interest:.2f}")
 
+        # Apply weekly interest on slippage bank debt (2% weekly)
+        slippage_bank_interest = player.apply_slippage_bank_interest()
+        if slippage_bank_interest > 0:
+            print(f"🏦💸 Slippage bank interest (2% weekly): ${slippage_bank_interest:.2f}")
+
         # Apply weekly short borrow fees
         short_fees = player.apply_short_borrow_fees(self.companies)
         if short_fees > 0:
@@ -4330,11 +4421,13 @@ class InvestmentGame:
             print("12. Repay Loan")
             print("13. Deposit Collateral (Reduces Margin Call Threshold)")
             print("14. Withdraw Collateral")
-            print("15. Save Game")
-            print("16. End Turn")
+            print(f"15. Borrow from Slippage Bank (Available: ${self.slippage_bank:.2f}, 2% weekly interest)")
+            print("16. Repay Slippage Bank")
+            print("17. Save Game")
+            print("18. End Turn")
             print("-"*60)
 
-            choice = input("Enter choice (1-16): ").strip()
+            choice = input("Enter choice (1-18): ").strip()
 
             if choice == "1":
                 self.display_market()
@@ -4379,12 +4472,18 @@ class InvestmentGame:
                 self._withdraw_collateral_menu(player)
 
             elif choice == "15":
+                self._borrow_from_slippage_bank_menu(player)
+
+            elif choice == "16":
+                self._repay_slippage_bank_menu(player)
+
+            elif choice == "17":
                 filename = input("Enter save filename (default: savegame.json): ").strip()
                 if not filename:
                     filename = "savegame.json"
                 self.save_game(filename)
 
-            elif choice == "16":
+            elif choice == "18":
                 # Check for margin call warning before ending turn
                 if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
                     print("\n" + "⚠️ " + "="*58)
@@ -4450,7 +4549,7 @@ class InvestmentGame:
                 break
 
             else:
-                print("Invalid choice! Please enter a number between 1 and 15.")
+                print("Invalid choice! Please enter a number between 1 and 18.")
 
     def _buy_stocks_menu(self, player: Player):
         """Menu for buying stocks"""
@@ -4513,7 +4612,11 @@ class InvestmentGame:
                     print("Purchase cancelled.")
                     return
 
-                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                # Pass slippage_bank as a list to make it mutable
+                slippage_bank_ref = [self.slippage_bank]
+                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst, slippage_bank_ref)
+                # Update game's slippage bank from the reference
+                self.slippage_bank = slippage_bank_ref[0]
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
@@ -4555,8 +4658,11 @@ class InvestmentGame:
 
                 sell_input = input("Amount: ").strip().lower()
 
+                # Pass slippage_bank as a list to make it mutable
+                slippage_bank_ref = [self.slippage_bank]
+
                 if sell_input == 'all':
-                    success, message = player.sell_stock(company, shares=owned_shares)
+                    success, message = player.sell_stock(company, shares=owned_shares, slippage_bank=slippage_bank_ref)
                 else:
                     try:
                         dollar_amount = float(sell_input)
@@ -4564,11 +4670,13 @@ class InvestmentGame:
                             print("Invalid amount!")
                             return
 
-                        success, message = player.sell_stock(company, dollar_amount=dollar_amount)
+                        success, message = player.sell_stock(company, dollar_amount=dollar_amount, slippage_bank=slippage_bank_ref)
                     except ValueError:
                         print("Invalid input!")
                         return
 
+                # Update game's slippage bank from the reference
+                self.slippage_bank = slippage_bank_ref[0]
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
@@ -4618,7 +4726,11 @@ class InvestmentGame:
                 print(f"Total proceeds: ${total_proceeds:.2f}")
                 print(f"Required equity: ${required_equity:.2f} (you have ${equity:.2f})")
 
-                success, message = player.short_sell(company, shares, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                # Pass slippage_bank as a list to make it mutable
+                slippage_bank_ref = [self.slippage_bank]
+                success, message = player.short_sell(company, shares, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst, slippage_bank_ref)
+                # Update game's slippage bank from the reference
+                self.slippage_bank = slippage_bank_ref[0]
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
@@ -4669,7 +4781,11 @@ class InvestmentGame:
                 print(f"Effective price (with slippage): ${effective_price:.2f} per share")
                 print(f"Total cost to cover: ${total_cost:.2f}")
 
-                success, message = player.cover_short(company, shares)
+                # Pass slippage_bank as a list to make it mutable
+                slippage_bank_ref = [self.slippage_bank]
+                success, message = player.cover_short(company, shares, slippage_bank_ref)
+                # Update game's slippage bank from the reference
+                self.slippage_bank = slippage_bank_ref[0]
                 print(f"\n{message}")
             else:
                 print("Invalid choice!")
@@ -4998,6 +5114,77 @@ class InvestmentGame:
         except ValueError:
             print("Invalid input!")
 
+    def _borrow_from_slippage_bank_menu(self, player: Player):
+        """Menu for borrowing from the slippage bank"""
+        print("\n" + "="*60)
+        print("BORROW FROM SLIPPAGE BANK")
+        print("="*60)
+
+        print(f"Slippage Bank Available: ${self.slippage_bank:.2f}")
+        print(f"Your Current Slippage Bank Debt: ${player.slippage_bank_debt:.2f}")
+        print(f"Your Cash: ${player.cash:.2f}")
+        print()
+        print("⚠️  WARNING: Slippage Bank loans have 2% WEEKLY interest!")
+        print("⚠️  No margin calls, no limits - but interest compounds FAST!")
+        print()
+
+        if self.slippage_bank <= 0:
+            print("The slippage bank is empty! No funds available to borrow.")
+            return
+
+        try:
+            amount = float(input("How much to borrow? $"))
+
+            if amount <= 0:
+                print("Invalid amount!")
+                return
+
+            # Pass slippage_bank as a list to make it mutable
+            slippage_bank_ref = [self.slippage_bank]
+            success, message = player.borrow_from_slippage_bank(amount, slippage_bank_ref)
+            # Update game's slippage bank from the reference
+            self.slippage_bank = slippage_bank_ref[0]
+            print(f"\n{message}")
+
+        except ValueError:
+            print("Invalid input!")
+
+    def _repay_slippage_bank_menu(self, player: Player):
+        """Menu for repaying slippage bank debt"""
+        print("\n" + "="*60)
+        print("REPAY SLIPPAGE BANK")
+        print("="*60)
+
+        if player.slippage_bank_debt <= 0:
+            print("You don't have any slippage bank debt!")
+            return
+
+        print(f"Slippage Bank Debt: ${player.slippage_bank_debt:.2f} (2% weekly interest)")
+        print(f"Available Cash: ${player.cash:.2f}")
+        print()
+
+        try:
+            amount_input = input("How much to repay? (Enter amount or 'all' for full repayment): $").strip()
+
+            if amount_input.lower() == 'all':
+                amount = player.slippage_bank_debt
+            else:
+                amount = float(amount_input)
+
+            if amount <= 0:
+                print("Invalid amount!")
+                return
+
+            # Pass slippage_bank as a list to make it mutable
+            slippage_bank_ref = [self.slippage_bank]
+            success, message = player.repay_slippage_bank(amount, slippage_bank_ref)
+            # Update game's slippage bank from the reference
+            self.slippage_bank = slippage_bank_ref[0]
+            print(f"\n{message}")
+
+        except ValueError:
+            print("Invalid input!")
+
     def _deposit_collateral_menu(self, player: Player):
         """Menu for depositing collateral to reduce margin call threshold"""
         print("\n" + "="*60)
@@ -5105,7 +5292,8 @@ class InvestmentGame:
                 'gold_coin': self.gold_coin.to_dict(),
                 'void_stocks': self.void_stocks.to_dict(),
                 'void_catalyst': self.void_catalyst.to_dict(),
-                'mystical_lender': self.mystical_lender.to_dict()
+                'mystical_lender': self.mystical_lender.to_dict(),
+                'slippage_bank': self.slippage_bank
             }
 
             with open(filename, 'w') as f:
@@ -5230,6 +5418,9 @@ class InvestmentGame:
                 game.mystical_lender = MysticalLender.from_dict(game_state['mystical_lender'])
             else:
                 game.mystical_lender = MysticalLender()
+
+            # Restore slippage bank (default to 0.0 for backwards compatibility)
+            game.slippage_bank = game_state.get('slippage_bank', 0.0)
 
             print(f"\n✅ Game loaded successfully from {filename}!")
             return game
