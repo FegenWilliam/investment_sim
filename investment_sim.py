@@ -2520,6 +2520,29 @@ class Player:
                 print(f"{warning_icon} Equity Ratio: {equity_ratio:.1f}% (Margin Call at {margin_threshold:.1f}%)")
                 print(f"   Distance to Margin Call: {distance_to_margin_call:.1f}%")
 
+        # Show short position maintenance margin warning
+        if len(self.short_positions) > 0:
+            total_short_value = 0.0
+            for company_name, shares in self.short_positions.items():
+                if company_name in companies:
+                    total_short_value += companies[company_name].price * shares
+
+            if total_short_value > 0:
+                equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+                required_maintenance = total_short_value * 1.25
+                short_equity_ratio = (equity / required_maintenance * 100) if required_maintenance > 0 else 100
+                distance_to_short_call = short_equity_ratio - 100
+
+                if distance_to_short_call < 10:
+                    warning_icon = "🚨"
+                elif distance_to_short_call < 20:
+                    warning_icon = "⚠️"
+                else:
+                    warning_icon = "✓"
+
+                print(f"{warning_icon} Short Equity: {short_equity_ratio:.1f}% of required (Short Call at 100%)")
+                print(f"   Distance to Short Call: {distance_to_short_call:.1f}%")
+
         # Show collateral info
         if self.collateral_deposited > 0:
             print(f"🏦 Collateral Deposited: ${self.collateral_deposited:.2f}")
@@ -5146,19 +5169,21 @@ class InvestmentGame:
         # Calculate net worth for all players and hedge funds
         standings = []
         for player in self.players:
-            net_worth = player.calculate_net_worth(self.companies, self.treasury)
-            standings.append((player.name, net_worth, False))
+            net_worth = player.calculate_net_worth(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            standings.append((player.name, net_worth, equity, player, False))
 
         for hedge_fund in self.hedge_funds:
-            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury)
-            standings.append((hedge_fund.name, net_worth, True))
+            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            equity = hedge_fund.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            standings.append((hedge_fund.name, net_worth, equity, hedge_fund, True))
 
         # Sort by net worth descending
         standings.sort(key=lambda x: x[1], reverse=True)
 
-        for rank, (name, net_worth, is_npc) in enumerate(standings, 1):
+        for rank, (name, net_worth, equity, player, is_npc) in enumerate(standings, 1):
             npc_marker = " 🤖" if is_npc else ""
-            print(f"{rank}. {name}{npc_marker}: ${net_worth:.2f}")
+            print(f"{rank}. {name}{npc_marker}: ${net_worth:.2f} | Equity: ${equity:.2f}")
 
         print("="*60)
 
