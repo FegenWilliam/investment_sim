@@ -92,14 +92,20 @@ class NewsReport:
 
 @dataclass
 class PendingNewsImpact:
-    """Tracks a news story that will affect stock price in the future"""
+    """Tracks a news story that will affect stock price in the future
+
+    Uses a two-stage impact system:
+    - Instant impact (20%): Applied immediately as panic response
+    - Delayed impact (80%): Applied after 1-2 weeks as actual market adjustment
+    """
     company_name: str
     sentiment: NewsSentiment
-    impact_magnitude: float  # Percentage change
+    impact_magnitude: float  # Percentage change (this is the TOTAL impact, will be split 20%/80%)
     weeks_until_impact: int
     is_real: bool  # True if real news, False if hoax
     news_text: str
     news_report: NewsReport  # All three news sources
+    instant_impact_applied: bool = False  # Tracks if the 20% instant impact has been applied
 
     def to_dict(self) -> dict:
         """Serialize PendingNewsImpact to dictionary"""
@@ -110,7 +116,8 @@ class PendingNewsImpact:
             'weeks_until_impact': self.weeks_until_impact,
             'is_real': self.is_real,
             'news_text': self.news_text,
-            'news_report': self.news_report.to_dict()
+            'news_report': self.news_report.to_dict(),
+            'instant_impact_applied': self.instant_impact_applied
         }
 
     @staticmethod
@@ -123,7 +130,8 @@ class PendingNewsImpact:
             weeks_until_impact=data['weeks_until_impact'],
             is_real=data['is_real'],
             news_text=data['news_text'],
-            news_report=NewsReport.from_dict(data['news_report'])
+            news_report=NewsReport.from_dict(data['news_report']),
+            instant_impact_applied=data.get('instant_impact_applied', False)  # Default False for old saves
         )
 
 
@@ -719,15 +727,23 @@ class BreakingNewsSystem:
                         sentiment = NewsSentiment.NEGATIVE
                         impact_magnitude = -base_impact
 
-                    # Create pending impact (only for confirmed Financial Times news)
+                    # Apply instant impact (20% panic response)
+                    instant_impact_pct = impact_magnitude * 0.20
+                    company = companies[company_name]
+                    company.price *= (1 + instant_impact_pct / 100)
+                    company.price = max(0.01, company.price)
+
+                    # Create pending impact for delayed portion (80% actual market adjustment)
+                    # Note: impact_magnitude is still the TOTAL impact, we'll apply 80% in update_pending_impacts
                     pending_impact = PendingNewsImpact(
                         company_name=company_name,
                         sentiment=sentiment,
                         impact_magnitude=impact_magnitude,
-                        weeks_until_impact=random.randint(1, 3),  # Impact occurs 1-3 weeks after news
+                        weeks_until_impact=random.randint(1, 2),  # Delayed impact occurs 1-2 weeks after news
                         is_real=True,  # Financial Times is always real
                         news_text=event.description,
-                        news_report=news_report
+                        news_report=news_report,
+                        instant_impact_applied=True  # 20% instant impact has been applied
                     )
 
                     self.pending_impacts.append(pending_impact)
@@ -766,24 +782,31 @@ class BreakingNewsSystem:
             impact.weeks_until_impact -= 1
 
             if impact.weeks_until_impact <= 0:
-                # Time to apply the impact (or just announce it if using precompiled prices)
+                # Time to apply the delayed impact (80% of total)
                 company = companies[impact.company_name]
+
+                # Calculate the delayed impact (80% of total impact)
+                # If instant_impact_applied is True, this is the new two-stage system
+                # If False, it's an old save file and we apply 100% for backwards compatibility
+                delayed_impact_pct = impact.impact_magnitude * 0.80 if impact.instant_impact_applied else impact.impact_magnitude
 
                 # If using precompiled prices, the impact is already baked in
                 # Just display the message without modifying price
                 if not use_precompiled_prices:
-                    # Apply the actual impact (only when NOT using precompiled prices)
-                    company.price *= (1 + impact.impact_magnitude / 100)
+                    # Apply the delayed impact (only when NOT using precompiled prices)
+                    company.price *= (1 + delayed_impact_pct / 100)
                     company.price = max(0.01, company.price)
 
+                # Show the appropriate message based on the impact amount
+                display_magnitude = abs(delayed_impact_pct)
                 if impact.sentiment == NewsSentiment.POSITIVE:
                     impact_messages.append(
-                        f"📈 MARKET IMPACT: {impact.company_name} surges {abs(impact.impact_magnitude):.1f}% "
+                        f"📈 MARKET IMPACT: {impact.company_name} surges {display_magnitude:.1f}% "
                         f"following recent breaking news!"
                     )
                 else:
                     impact_messages.append(
-                        f"📉 MARKET IMPACT: {impact.company_name} drops {abs(impact.impact_magnitude):.1f}% "
+                        f"📉 MARKET IMPACT: {impact.company_name} drops {display_magnitude:.1f}% "
                         f"following recent breaking news!"
                     )
 
