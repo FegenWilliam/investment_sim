@@ -839,9 +839,8 @@ class Company:
         self.liquidity = liquidity
         # Calculate total shares from initial market cap and price
         self.total_shares = int(market_cap / initial_price)
-        # Hidden fundamentals for research hints (not directly visible to players)
-        self.true_strength = random.uniform(0.3, 0.9)  # 0-1 scale, affects hint accuracy
-        self.hidden_sentiment = random.choice([-1, 0, 1])  # -1: bearish, 0: neutral, 1: bullish
+        # Hidden fundamentals (affects news event generation)
+        self.true_strength = random.uniform(0.3, 0.9)  # 0-1 scale, affects event probabilities
         # Earnings metrics (not visible to players, used for market valuation)
         # Start with a "reasonable" P/E ratio between 12-25
         target_pe = random.uniform(12.0, 25.0)
@@ -1064,7 +1063,6 @@ class Company:
             'liquidity': self.liquidity.value,
             'total_shares': self.total_shares,
             'true_strength': self.true_strength,
-            'hidden_sentiment': self.hidden_sentiment,
             'earnings_per_share': self.earnings_per_share
         }
 
@@ -1096,7 +1094,6 @@ class Company:
             company.total_shares = data['total_shares']
 
         company.true_strength = data['true_strength']
-        company.hidden_sentiment = data['hidden_sentiment']
         # For old saves without EPS, calculate from current price with reasonable P/E
         if 'earnings_per_share' in data:
             company.earnings_per_share = data['earnings_per_share']
@@ -1627,9 +1624,6 @@ class Player:
         # Short selling system
         self.short_positions: Dict[str, int] = {}  # company_name -> shares borrowed and owed
         self.short_borrow_fee_weekly = 0.02  # ~1% annual = 0.02% weekly
-        # Research tracking
-        self.researched_this_week = False
-        self.research_history: Dict[str, List[str]] = {}  # company_name -> list of hints received
 
     def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None) -> Tuple[bool, str]:
         """Buy shares of a company using dollar amount with optional leverage
@@ -2447,215 +2441,6 @@ class Player:
 
         return actions
 
-    def research_company(self, company: Company, future_price: float = None) -> str:
-        """Research a company to get a hint (once per week)"""
-        if self.researched_this_week:
-            return "You've already researched a company this week!"
-
-        # Generate a hint based on company fundamentals AND future price movements
-        # Hints are "mostly true" - 85% accuracy
-        is_accurate = random.random() < 0.85
-
-        hint_templates = [
-            # Volatility and risk hints
-            ("Technical analysis reveals {company} exhibits {level} beta coefficient, suggesting price movements could be {magnitude} compared to broader market trends.",
-             lambda c: {"level": "an elevated" if c.base_volatility > 7.5 else "a moderate" if c.base_volatility > 6 else "a relatively low",
-                       "magnitude": "substantially amplified" if c.base_volatility > 7.5 else "moderately volatile" if c.base_volatility > 6 else "relatively stable"}),
-
-            ("Quantitative risk models indicate {company} displays {pattern} variance patterns with {description} in the {industry} sector.",
-             lambda c: {"pattern": "high-frequency" if c.base_volatility > 8 else "medium-frequency" if c.base_volatility > 6 else "low-frequency",
-                       "description": "significant outlier characteristics" if c.base_volatility > 8 else "typical behavior" if c.base_volatility > 6 else "defensive qualities",
-                       "industry": c.industry}),
-
-            # Industry and sector sentiment
-            ("Industry analysts from leading {industry} research firms are {sentiment} about sector tailwinds, citing {factors}.",
-             lambda c: {"industry": c.industry,
-                       "sentiment": "increasingly bullish" if c.hidden_sentiment > 0 else "growing pessimistic" if c.hidden_sentiment < 0 else "cautiously neutral",
-                       "factors": "favorable regulatory environment and strong demand" if c.hidden_sentiment > 0 else "headwinds from competition and margin pressure" if c.hidden_sentiment < 0 else "mixed macroeconomic signals"}),
-
-            ("Sector rotation analysis suggests {industry} stocks like {company} may be {position} institutional portfolio allocations over the next quarter.",
-             lambda c: {"industry": c.industry,
-                       "position": "entering" if c.hidden_sentiment > 0 else "exiting" if c.hidden_sentiment < 0 else "maintaining stable presence in"}),
-
-            # Fundamental strength and valuation
-            ("Deep dive fundamental analysis of {company} reveals {strength} balance sheet metrics, with debt-to-equity ratios {ratio_desc} and cash flow generation {cash_desc}.",
-             lambda c: {"strength": "robust" if c.true_strength > 0.65 else "concerning" if c.true_strength < 0.5 else "adequate",
-                       "ratio_desc": "well below industry averages" if c.true_strength > 0.65 else "elevated compared to peers" if c.true_strength < 0.5 else "in line with sector norms",
-                       "cash_desc": "exceeding expectations" if c.true_strength > 0.65 else "underperforming forecasts" if c.true_strength < 0.5 else "meeting baseline requirements"}),
-
-            ("Proprietary valuation models comparing {company} to peer group suggest shares are currently trading at {valuation} relative to intrinsic value estimates.",
-             lambda c: {"valuation": "a discount" if c.true_strength > 0.65 else "a premium" if c.true_strength < 0.5 else "fair value"}),
-
-            ("Management quality assessment for {company} indicates {quality} corporate governance and {execution} track record of strategic execution.",
-             lambda c: {"quality": "exemplary" if c.true_strength > 0.65 else "questionable" if c.true_strength < 0.5 else "acceptable",
-                       "execution": "a strong" if c.true_strength > 0.65 else "a weak" if c.true_strength < 0.5 else "a mixed"}),
-
-            # Liquidity and market microstructure
-            ("Market microstructure analysis of {company} shows {liquidity} order book depth with bid-ask spreads {spread} and daily trading volumes {volume}.",
-             lambda c: {"liquidity": "exceptional" if c.liquidity == LiquidityLevel.HIGH else "constrained" if c.liquidity == LiquidityLevel.LOW else "moderate",
-                       "spread": "remaining tight" if c.liquidity == LiquidityLevel.HIGH else "widening significantly" if c.liquidity == LiquidityLevel.LOW else "within normal ranges",
-                       "volume": "consistently robust" if c.liquidity == LiquidityLevel.HIGH else "disappointingly thin" if c.liquidity == LiquidityLevel.LOW else "adequate for most positions"}),
-
-            ("Trading desk liquidity report flags {company} as {classification} for large block trades, with estimated market impact costs {impact}.",
-             lambda c: {"classification": "highly favorable" if c.liquidity == LiquidityLevel.HIGH else "challenging" if c.liquidity == LiquidityLevel.LOW else "manageable",
-                       "impact": "minimal even for substantial positions" if c.liquidity == LiquidityLevel.HIGH else "potentially significant for moderate-sized orders" if c.liquidity == LiquidityLevel.LOW else "reasonable for typical retail trades"}),
-
-            # Price momentum and technical analysis
-            ("{company}'s recent price action demonstrates {trend} momentum with {pattern} chart patterns suggesting {direction} pressure.",
-             lambda c: {"trend": "strong bullish" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "bearish" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "sideways consolidation",
-                       "pattern": "continuation" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "reversal" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "indecisive",
-                       "direction": "continued upward" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "downward" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "range-bound"}),
-
-            ("Moving average convergence analysis for {company} indicates {signal} crossover patterns with RSI readings {rsi} and MACD trends {macd}.",
-             lambda c: {"signal": "bullish golden cross" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "bearish death cross" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "neutral",
-                       "rsi": "approaching overbought territory" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "drifting into oversold zones" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "hovering near midpoint",
-                       "macd": "strengthening upward" if len(c.price_history) >= 2 and c.price > c.price_history[-2] else "weakening considerably" if len(c.price_history) >= 2 and c.price < c.price_history[-2] else "showing no clear direction"}),
-
-            # Comprehensive outlook and forecasting
-            ("Comprehensive research synthesis on {company} yields {outlook} outlook, with analyst price targets {targets} and institutional sentiment {sentiment}.",
-             lambda c: {"outlook": "a constructive" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "a cautious" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "a neutral",
-                       "targets": "skewed to the upside" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "pointing toward downside risk" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "clustered around current levels",
-                       "sentiment": "building conviction" if c.hidden_sentiment >= 0 and c.true_strength > 0.6 else "exhibiting caution" if c.hidden_sentiment < 0 or c.true_strength < 0.45 else "remaining on the sidelines"}),
-
-            ("Multi-factor quantitative scoring places {company} in the {percentile} percentile of our {industry} coverage universe, with {rating} recommendations.",
-             lambda c: {"percentile": "upper" if c.true_strength > 0.65 else "lower" if c.true_strength < 0.5 else "middle",
-                       "industry": c.industry,
-                       "rating": "predominantly buy-side" if c.true_strength > 0.65 else "mostly sell-side" if c.true_strength < 0.5 else "mixed hold and neutral"}),
-
-            # Institutional and insider activity
-            ("Recent SEC filings reveal {activity} institutional ownership changes in {company}, with hedge funds {action} and insider transactions {insider}.",
-             lambda c: {"activity": "notable" if c.liquidity == LiquidityLevel.HIGH else "limited" if c.liquidity == LiquidityLevel.LOW else "moderate",
-                       "action": "accumulating significant positions" if c.liquidity == LiquidityLevel.HIGH else "reducing exposure" if c.liquidity == LiquidityLevel.LOW else "maintaining current stakes",
-                       "insider": "showing confidence through purchases" if c.true_strength > 0.6 else "raising concerns via sales" if c.true_strength < 0.5 else "remaining neutral"}),
-
-            ("Smart money tracker algorithms detect {flow} capital flows into {company}, suggesting {implication} from sophisticated investors.",
-             lambda c: {"flow": "aggressive" if c.liquidity == LiquidityLevel.HIGH and c.true_strength > 0.6 else "weak" if c.liquidity == LiquidityLevel.LOW or c.true_strength < 0.5 else "steady",
-                       "implication": "strong conviction and positive positioning" if c.liquidity == LiquidityLevel.HIGH and c.true_strength > 0.6 else "lack of interest or distributional activity" if c.liquidity == LiquidityLevel.LOW or c.true_strength < 0.5 else "wait-and-see approach"}),
-
-            # Risk-specific insights
-            ("Stress testing scenarios for {company} indicate {resilience} to market shocks, with downside protection {protection} and volatility buffers {buffer}.",
-             lambda c: {"resilience": "strong resilience" if c.base_volatility < 6.5 and c.true_strength > 0.6 else "vulnerability" if c.base_volatility > 8 or c.true_strength < 0.45 else "moderate stability",
-                       "protection": "well-established" if c.base_volatility < 6.5 else "minimal" if c.base_volatility > 8 else "present but limited",
-                       "buffer": "providing substantial cushion" if c.true_strength > 0.6 else "offering little safety margin" if c.true_strength < 0.5 else "adequate for normal conditions"}),
-
-            ("Value-at-risk calculations for {company} suggest {risk} portfolio impact under adverse scenarios, with tail risk exposures {tail}.",
-             lambda c: {"risk": "contained" if c.base_volatility < 7 else "elevated" if c.base_volatility > 8 else "moderate",
-                       "tail": "largely mitigated" if c.base_volatility < 7 else "requiring careful monitoring" if c.base_volatility > 8 else "within acceptable parameters"}),
-
-            # Growth and earnings insights
-            ("Forward earnings projections for {company} show {growth} trajectory with revenue growth {revenue} and margin expansion {margin}.",
-             lambda c: {"growth": "an accelerating" if c.hidden_sentiment > 0 and c.true_strength > 0.6 else "a decelerating" if c.hidden_sentiment < 0 or c.true_strength < 0.5 else "a stable",
-                       "revenue": "outpacing sector averages" if c.hidden_sentiment > 0 else "lagging competitors" if c.hidden_sentiment < 0 else "matching industry benchmarks",
-                       "margin": "expected to improve materially" if c.true_strength > 0.65 else "likely to contract" if c.true_strength < 0.5 else "forecasted to remain steady"}),
-
-            ("Competitive positioning analysis suggests {company} maintains {position} market share with {moat} competitive advantages.",
-             lambda c: {"position": "expanding" if c.true_strength > 0.65 and c.hidden_sentiment > 0 else "eroding" if c.true_strength < 0.5 or c.hidden_sentiment < 0 else "stable",
-                       "moat": "durable and widening" if c.true_strength > 0.65 else "questionable or narrowing" if c.true_strength < 0.5 else "moderate"}),
-
-            # Fantasy-themed research hints
-            ("Arcane analysts report {company}'s dimensional rift stability metrics showing {stability} patterns with mana flow consistency rated as {consistency}.",
-             lambda c: {"stability": "exceptional" if c.base_volatility < 7 else "concerning fluctuation" if c.base_volatility > 9 else "moderate variance",
-                       "consistency": "highly reliable" if c.true_strength > 0.65 else "unpredictable" if c.true_strength < 0.5 else "adequate"}),
-
-            ("Golem safety auditors indicate {company} autonomous worker units exhibit {safety} incident rates with sentience drift metrics {drift}.",
-             lambda c: {"safety": "industry-leading low" if c.true_strength > 0.65 and c.base_volatility < 7 else "elevated" if c.true_strength < 0.5 or c.base_volatility > 9 else "acceptable",
-                       "drift": "well-controlled" if c.base_volatility < 7 else "requiring enhanced monitoring" if c.base_volatility > 9 else "within normal parameters"}),
-
-            ("Interdimensional commerce reports suggest {company} mana extraction permits face {regulatory} outlook with cross-realm compliance status {compliance}.",
-             lambda c: {"regulatory": "favorable renewal" if c.hidden_sentiment > 0 else "restrictive challenges" if c.hidden_sentiment < 0 else "neutral review",
-                       "compliance": "exceeding requirements" if c.true_strength > 0.65 else "under scrutiny" if c.true_strength < 0.5 else "meeting baseline standards"}),
-
-            ("Wizard's Guild assessment of {company} reveals {ethics} magical ethics score with reality distortion impact rated {impact}.",
-             lambda c: {"ethics": "exemplary sustainable practices" if c.true_strength > 0.65 else "questionable methodology concerns" if c.true_strength < 0.5 else "standard industry practices",
-                       "impact": "minimal and well-managed" if c.base_volatility < 7 else "significant and unstable" if c.base_volatility > 9 else "moderate and monitored"}),
-
-            ("Golem workforce productivity analysis shows {company} automation efficiency at {efficiency} with labor displacement sentiment {sentiment}.",
-             lambda c: {"efficiency": "peak performance levels" if c.true_strength > 0.65 else "suboptimal operational rates" if c.true_strength < 0.5 else "industry-standard metrics",
-                       "sentiment": "broadly positive with union support" if c.hidden_sentiment > 0 else "facing public backlash" if c.hidden_sentiment < 0 else "mixed public perception"}),
-
-            ("Mana reserve projections for {company} indicate {reserves} long-term supply outlook with rift depletion risk assessed as {depletion}.",
-             lambda c: {"reserves": "abundant multi-decade" if c.true_strength > 0.65 and c.hidden_sentiment > 0 else "concerning near-term shortage" if c.true_strength < 0.5 or c.hidden_sentiment < 0 else "adequate medium-term",
-                       "depletion": "minimal given diversification" if c.true_strength > 0.65 else "elevated without new sources" if c.true_strength < 0.5 else "moderate requiring monitoring"}),
-
-            ("Golem intelligence containment protocols at {company} rated {containment} with artificial sentience emergence probability {emergence}.",
-             lambda c: {"containment": "robust and failsafe" if c.base_volatility < 7 and c.true_strength > 0.6 else "inadequate with breach risk" if c.base_volatility > 9 or c.true_strength < 0.5 else "functional with standard safeguards",
-                       "emergence": "negligible under current architecture" if c.base_volatility < 7 else "concerning given recent incidents" if c.base_volatility > 9 else "low but non-zero"}),
-
-            ("Dimensional market analysis shows {company} cross-realm energy demand trending {trend} with interdimensional competition pressure {pressure}.",
-             lambda c: {"trend": "strongly upward" if c.hidden_sentiment > 0 else "declining sharply" if c.hidden_sentiment < 0 else "sideways consolidation",
-                       "pressure": "minimal due to unique positioning" if c.true_strength > 0.65 else "intense from rival extractors" if c.true_strength < 0.5 else "moderate from established players"}),
-
-            ("Arcane energy conversion efficiency metrics place {company} at {efficiency} performance with magical-to-electrical loss rates {loss}.",
-             lambda c: {"efficiency": "cutting-edge optimization" if c.true_strength > 0.65 else "below industry benchmarks" if c.true_strength < 0.5 else "competitive mid-tier",
-                       "loss": "exceptionally low" if c.true_strength > 0.65 else "problematically high" if c.true_strength < 0.5 else "within acceptable ranges"}),
-
-            ("Golem liability exposure analysis flags {company} risk profile as {risk} with insurance premium trajectory {premiums}.",
-             lambda c: {"risk": "low given safety record" if c.base_volatility < 7 and c.true_strength > 0.6 else "high due to incident frequency" if c.base_volatility > 9 or c.true_strength < 0.5 else "moderate requiring standard coverage",
-                       "premiums": "declining favorably" if c.true_strength > 0.6 else "increasing substantially" if c.true_strength < 0.5 else "stable at current levels"}),
-        ]
-
-        # Add future price-based hints if future_price is provided
-        if future_price is not None:
-            price_change_pct = ((future_price - company.price) / company.price) * 100
-
-            # Create a lambda that captures the future price movement
-            def future_momentum_data(c):
-                return {
-                    "trend": "accelerating upward" if price_change_pct > 3 else "declining" if price_change_pct < -3 else "consolidating",
-                    "direction": "positive" if price_change_pct > 1 else "negative" if price_change_pct < -1 else "neutral",
-                    "strength": "strong" if abs(price_change_pct) > 5 else "moderate" if abs(price_change_pct) > 2 else "weak"
-                }
-
-            hint_templates.extend([
-                ("Our proprietary momentum indicators suggest {company} is showing {trend} momentum with {strength} directional signals in the near term.",
-                 future_momentum_data),
-
-                ("Algorithmic trading models detect {direction} flow patterns for {company}, with institutional positioning suggesting {trend} price action ahead.",
-                 future_momentum_data),
-
-                ("Short-term predictive analytics for {company} indicate {trend} momentum, with our quant models flagging {strength} probability of continuation.",
-                 future_momentum_data),
-            ])
-
-        # Select random hint template
-        template, data_func = random.choice(hint_templates)
-
-        # Get data for this company
-        data = data_func(company)
-        data["company"] = company.name
-
-        # If inaccurate, flip the sentiment/direction
-        if not is_accurate:
-            # Flip certain descriptors to make hint misleading
-            flips = {
-                "optimistic": "pessimistic", "pessimistic": "optimistic",
-                "solid": "questionable", "questionable": "solid",
-                "excellent": "limited", "limited": "excellent",
-                "bullish": "bearish", "bearish": "bullish",
-                "favorable": "concerning", "concerning": "favorable",
-                "strong": "weak", "weak": "strong",
-                "significant": "mild", "mild": "significant"
-            }
-            for key, value in data.items():
-                if value in flips:
-                    data[key] = flips[value]
-
-        hint = template.format(**data)
-
-        # Mark research as used
-        self.researched_this_week = True
-
-        # Store hint in history
-        if company.name not in self.research_history:
-            self.research_history[company.name] = []
-        self.research_history[company.name].append(hint)
-
-        return hint
-
-    def reset_weekly_research(self):
-        """Reset research availability for new week"""
-        self.researched_this_week = False
-
     def to_dict(self) -> dict:
         """Serialize player to dictionary"""
         return {
@@ -2668,8 +2453,6 @@ class Player:
             'interest_rate_weekly': self.interest_rate_weekly,
             'short_positions': self.short_positions,
             'short_borrow_fee_weekly': self.short_borrow_fee_weekly,
-            'researched_this_week': self.researched_this_week,
-            'research_history': self.research_history,
             'quantum_singularity_units': self.quantum_singularity_units,
             'gold_ounces': self.gold_ounces,
             'holy_water_vials': self.holy_water_vials,
@@ -2693,8 +2476,6 @@ class Player:
         player.interest_rate_weekly = data['interest_rate_weekly']
         player.short_positions = data.get('short_positions', {})  # Default to empty dict for backwards compatibility
         player.short_borrow_fee_weekly = data.get('short_borrow_fee_weekly', 0.02)  # Default value
-        player.researched_this_week = data['researched_this_week']
-        player.research_history = data['research_history']
         player.quantum_singularity_units = data.get('quantum_singularity_units', 0)  # Default to 0 for backwards compatibility
         player.gold_ounces = data.get('gold_ounces', 0)  # Default to 0 for backwards compatibility
         player.holy_water_vials = data.get('holy_water_vials', 0)  # Default to 0 for backwards compatibility
@@ -3376,22 +3157,90 @@ class HedgeFund(Player):
         hedge_fund.borrowed_amount = data['borrowed_amount']
         hedge_fund.max_leverage_ratio = data['max_leverage_ratio']
         hedge_fund.interest_rate_weekly = data['interest_rate_weekly']
-        hedge_fund.researched_this_week = data['researched_this_week']
-        hedge_fund.research_history = data['research_history']
         return hedge_fund
 
     def make_automated_trade(self, companies: Dict[str, Company], treasury: Treasury,
-                           market_cycle: 'MarketCycle', week_number: int) -> List[str]:
+                           market_cycle: 'MarketCycle', week_number: int,
+                           breaking_news: Optional[Tuple[str, 'NewsReport', 'EventType']] = None) -> List[str]:
         """Execute automated trading based on strategy"""
         actions = []
 
-        # NPCs occasionally research companies (30% chance per week) to make informed decisions
-        if not self.researched_this_week and random.random() < 0.3:
-            # Pick a random company to research
-            company_to_research = random.choice(list(companies.values()))
-            # Research WITHOUT future price (no insider trading!)
-            hint = self.research_company(company_to_research, future_price=None)
-            actions.append(f"🔍 {self.name} researched {company_to_research.name}")
+        # React to breaking news from various outlets
+        if breaking_news:
+            company_name, news_report, event_type = breaking_news
+            
+            # Always trust Financial Times (100% reliable)
+            if news_report.trustworthy_source and company_name:
+                company = companies.get(company_name)
+                if company:
+                    is_positive = (event_type == EventType.SUCCESS)
+                    
+                    if is_positive:
+                        # Buy on good news (Financial Times)
+                        investment = min(self.cash * 0.15, 30000)  # Invest up to 15% cash or $30k
+                        if investment > 1000:
+                            success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
+                            if success:
+                                actions.append(f"📰 {self.name} bought {company.name} based on Financial Times news")
+                    else:
+                        # Sell or short on bad news (Financial Times)
+                        if company.name in self.portfolio and self.portfolio[company.name] > 0:
+                            shares = int(self.portfolio[company.name] * 0.3)  # Sell 30% of position
+                            success, msg = self.sell_stock(company, shares)
+                            if success:
+                                actions.append(f"📰 {self.name} sold {company.name} based on Financial Times news")
+                        else:
+                            # Consider shorting if we don't own it
+                            if random.random() < 0.3:  # 30% chance to short
+                                short_value = min(self.cash * 0.10, 20000)  # Short up to 10% cash or $20k
+                                if short_value > 1000:
+                                    shares_to_short = int(short_value / company.price)
+                                    success, msg = self.short_sell(company, shares_to_short)
+                                    if success:
+                                        actions.append(f"📰 {self.name} shorted {company.name} based on Financial Times news")
+            
+            # Market Pulse (20% credibility - 80% is fake clickbait)
+            if news_report.market_pulse_source and random.random() < 0.20:
+                company = companies.get(company_name)
+                if company:
+                    # React more cautiously
+                    investment = min(self.cash * 0.08, 15000)  # Smaller position
+                    if investment > 1000 and event_type == EventType.SUCCESS:
+                        success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
+                        if success:
+                            actions.append(f"📱 {self.name} bought {company.name} based on Market Pulse rumor")
+            
+            # Insider Tip (40% credibility - catches real success events early)
+            if news_report.insider_source and random.random() < 0.40:
+                company = companies.get(company_name)
+                if company:
+                    investment = min(self.cash * 0.12, 25000)  # Moderate position
+                    if investment > 1000:
+                        success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
+                        if success:
+                            actions.append(f"💡 {self.name} bought {company.name} based on Insider Tip")
+            
+            # Rumor Mill (40% credibility - 60% is fake)
+            if news_report.rumor_mill_source and random.random() < 0.40:
+                company = companies.get(company_name)
+                if company:
+                    is_positive = (event_type == EventType.SUCCESS)
+                    
+                    if is_positive:
+                        investment = min(self.cash * 0.08, 15000)  # Small position
+                        if investment > 1000:
+                            success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
+                            if success:
+                                actions.append(f"💬 {self.name} bought {company.name} based on Rumor Mill")
+                    else:
+                        # Sell on bad rumors
+                        if company.name in self.portfolio and self.portfolio[company.name] > 0:
+                            shares = int(self.portfolio[company.name] * 0.15)  # Sell 15% of position
+                            success, msg = self.sell_stock(company, shares)
+                            if success:
+                                actions.append(f"💬 {self.name} sold {company.name} based on Rumor Mill")
+
+
 
         # Aggressive Growth Fund Strategy
         if self.strategy == "aggressive":
@@ -3833,18 +3682,16 @@ class InvestmentGame:
         all_actions = []
 
         for hedge_fund in self.hedge_funds:
-            # Reset weekly research at start of turn
-            hedge_fund.reset_weekly_research()
-
             # Apply interest on borrowed amounts
             interest = hedge_fund.apply_interest()
 
             # Apply short borrow fees
             short_fees = hedge_fund.apply_short_borrow_fees(self.companies)
 
-            # Make automated trades based on strategy
+            # Make automated trades based on strategy (and react to breaking news)
             actions = hedge_fund.make_automated_trade(
-                self.companies, self.treasury, self.market_cycle, self.week_number
+                self.companies, self.treasury, self.market_cycle, self.week_number,
+                breaking_news=self.pending_breaking_news
             )
             all_actions.extend(actions)
 
@@ -4327,9 +4174,6 @@ class InvestmentGame:
         print(f"\n\n{'#'*60}")
         print(f"Round {self.round_number} - Week {self.week_number} - {player.name}'s Turn")
         print(f"{'#'*60}")
-
-        # Reset weekly research at start of turn
-        player.reset_weekly_research()
 
         # Apply weekly interest on borrowed amount
         interest = player.apply_interest()
@@ -5124,62 +4968,6 @@ class InvestmentGame:
 
             success, message = player.withdraw_collateral(amount)
             print(f"\n{message}")
-
-        except ValueError:
-            print("Invalid input!")
-
-    def _research_company_menu(self, player: Player):
-        """Menu for researching a company to get hints"""
-        print("\n" + "="*60)
-        print("RESEARCH COMPANY")
-        print("="*60)
-
-        if player.researched_this_week:
-            print("You've already researched a company this week!")
-            print("You can research one company per week.")
-            return
-
-        print("Select a company to research (you'll receive a strategic hint):")
-        print()
-
-        companies_list = list(self.companies.values())
-        for i, company in enumerate(companies_list, 1):
-            # Show if player has researched this company before
-            research_count = len(player.research_history.get(company.name, []))
-            history_marker = f" [Researched {research_count}x]" if research_count > 0 else ""
-            print(f"{i}. {company.name} ({company.industry}){history_marker}")
-        print("0. Cancel")
-
-        try:
-            choice = int(input("\nSelect company to research (0 to cancel): "))
-            if choice == 0:
-                return
-
-            if 1 <= choice <= len(companies_list):
-                company = companies_list[choice - 1]
-
-                print("\n" + "="*60)
-                print(f"RESEARCH REPORT: {company.name}")
-                print("="*60)
-
-                # Get future price for next week (hidden from player, used for hint generation)
-                future_price = self.future_prices.get(company.name, [None])[0]
-                hint = player.research_company(company, future_price)
-                print(f"\n🔍 {hint}")
-
-                print("\n" + "="*60)
-                print("Note: Research insights are usually reliable but not guaranteed.")
-                print("="*60)
-
-                # Show previous research if any
-                if len(player.research_history[company.name]) > 1:
-                    print(f"\nPrevious research on {company.name}:")
-                    for i, old_hint in enumerate(player.research_history[company.name][:-1], 1):
-                        print(f"  {i}. {old_hint}")
-
-                input("\nPress Enter to continue...")
-            else:
-                print("Invalid choice!")
 
         except ValueError:
             print("Invalid input!")
