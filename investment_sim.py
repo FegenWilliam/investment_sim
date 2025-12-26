@@ -5146,19 +5146,58 @@ class InvestmentGame:
         # Calculate net worth for all players and hedge funds
         standings = []
         for player in self.players:
-            net_worth = player.calculate_net_worth(self.companies, self.treasury)
-            standings.append((player.name, net_worth, False))
+            net_worth = player.calculate_net_worth(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            standings.append((player.name, net_worth, equity, player, False))
 
         for hedge_fund in self.hedge_funds:
-            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury)
-            standings.append((hedge_fund.name, net_worth, True))
+            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            equity = hedge_fund.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            standings.append((hedge_fund.name, net_worth, equity, hedge_fund, True))
 
         # Sort by net worth descending
         standings.sort(key=lambda x: x[1], reverse=True)
 
-        for rank, (name, net_worth, is_npc) in enumerate(standings, 1):
+        for rank, (name, net_worth, equity, player, is_npc) in enumerate(standings, 1):
             npc_marker = " 🤖" if is_npc else ""
-            print(f"{rank}. {name}{npc_marker}: ${net_worth:.2f}")
+            print(f"{rank}. {name}{npc_marker}: ${net_worth:.2f} | Equity: ${equity:.2f}")
+
+            # Show short position warning if applicable
+            if len(player.short_positions) > 0:
+                total_short_value = 0.0
+                for company_name, shares in player.short_positions.items():
+                    if company_name in self.companies:
+                        total_short_value += self.companies[company_name].price * shares
+
+                required_maintenance = total_short_value * 1.25
+                short_equity_ratio = (equity / required_maintenance * 100) if required_maintenance > 0 else 100
+                distance_to_short_call = short_equity_ratio - 100
+
+                if distance_to_short_call < 10:
+                    warning_icon = "🚨"
+                elif distance_to_short_call < 20:
+                    warning_icon = "⚠️"
+                else:
+                    warning_icon = "✓"
+
+                print(f"   {warning_icon} Short Equity: {short_equity_ratio:.1f}% of required (Short Call at 100%)")
+
+            # Show leverage warning if applicable
+            if player.borrowed_amount > 0:
+                total_position = equity + player.borrowed_amount
+                if total_position > 0:
+                    equity_ratio = (equity / total_position) * 100
+                    margin_threshold = player.get_margin_call_threshold(equity) * 100
+                    distance_to_margin_call = equity_ratio - margin_threshold
+
+                    if distance_to_margin_call < 10:
+                        warning_icon = "🚨"
+                    elif distance_to_margin_call < 20:
+                        warning_icon = "⚠️"
+                    else:
+                        warning_icon = "✓"
+
+                    print(f"   {warning_icon} Leverage Equity: {equity_ratio:.1f}% (Margin Call at {margin_threshold:.1f}%)")
 
         print("="*60)
 
