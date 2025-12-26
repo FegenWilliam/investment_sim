@@ -2,7 +2,7 @@
 Test to verify that mean reversion no longer dampens news impacts
 """
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '..')
 
 from investment_sim import BreakingNewsSystem, Company, LiquidityLevel, PendingNewsImpact
 
