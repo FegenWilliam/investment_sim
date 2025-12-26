@@ -3758,7 +3758,8 @@ class InvestmentGame:
             print("📊 Financial Times Report")
             print("-" * 60)
             if news_report.trustworthy_source:
-                print(f"  {news_report.trustworthy_source}")
+                for line in news_report.trustworthy_source.split('\n'):
+                    print(f"  {line}")
             else:
                 print("  [No major developments to report at this time]")
             print()
@@ -3766,19 +3767,22 @@ class InvestmentGame:
             # Source 2: Market Pulse Daily (Posts rumors as clickbait FACTS - no "rumor" tag)
             print("📢 Market Pulse Daily")
             print("-" * 60)
-            print(f"  {news_report.market_pulse_source}")
+            for line in news_report.market_pulse_source.split('\n'):
+                print(f"  {line}")
             print()
 
             # Source 3: Wall Street Wire (Insider Source - 52.5% accurate overall)
             print("🔍 Wall Street Wire (Insider Tip)")
             print("-" * 60)
-            print(f"  {news_report.insider_source}")
+            for line in news_report.insider_source.split('\n'):
+                print(f"  {line}")
             print()
 
             # Source 4: The Rumor Mill (Explicitly marks rumors with "RUMOR: " prefix)
             print("📣 The Rumor Mill")
             print("-" * 60)
-            print(f"  {news_report.rumor_mill_source}")
+            for line in news_report.rumor_mill_source.split('\n'):
+                print(f"  {line}")
 
             print("="*60)
 
