@@ -3977,7 +3977,7 @@ class InvestmentGame:
             news_impact_occurred = False
             for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
-                    weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                    weeks_until = impact.weeks_until_impact - week_ahead
                     if weeks_until == 0 and impact.is_real:
                         news_impact_occurred = True
                         break
@@ -4008,7 +4008,7 @@ class InvestmentGame:
             # 5. Apply pending news impacts that will occur in this future week
             for impact in self.breaking_news.pending_impacts:
                 if impact.company_name == company_name:
-                    weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                    weeks_until = impact.weeks_until_impact - week_ahead
                     if weeks_until == 0:
                         # This impact will apply in this future week
                         if impact.is_real:
@@ -4125,7 +4125,7 @@ class InvestmentGame:
                 news_impact_occurred = False
                 for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
-                        weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                        weeks_until = impact.weeks_until_impact - week_ahead
                         if weeks_until == 0 and impact.is_real:
                             news_impact_occurred = True
                             break
@@ -4156,7 +4156,7 @@ class InvestmentGame:
                 # 5. Apply pending news impacts that will occur in this future week
                 for impact in self.breaking_news.pending_impacts:
                     if impact.company_name == company_name:
-                        weeks_until = impact.weeks_until_impact - (week_ahead - 1)
+                        weeks_until = impact.weeks_until_impact - week_ahead
                         if weeks_until == 0:
                             # This impact will apply in this future week
                             if impact.is_real:
