@@ -7,7 +7,7 @@ sys.path.insert(0, '..')
 from investment_sim import BreakingNewsSystem, Company, LiquidityLevel
 
 def test_two_stage_impact():
-    """Test that market impacts are split into 20% instant and 80% delayed"""
+    """Test that market impacts are split into 40% instant and 60% delayed"""
 
     print("="*70)
     print("TESTING TWO-STAGE MARKET IMPACT SYSTEM")
@@ -58,16 +58,16 @@ def test_two_stage_impact():
                 # Check the price after instant impact
                 price_after_instant = companies[test_company].price
                 instant_change_pct = ((price_after_instant - initial_price) / initial_price) * 100
-                expected_instant_pct = impact.impact_magnitude * 0.20
+                expected_instant_pct = impact.impact_magnitude * 0.40
 
-                print(f"\n💥 INSTANT IMPACT (20%):")
+                print(f"\n💥 INSTANT IMPACT (40%):")
                 print(f"   Expected: {expected_instant_pct:+.1f}%")
                 print(f"   Actual:   {instant_change_pct:+.1f}%")
                 print(f"   Price: ${initial_price:.2f} -> ${price_after_instant:.2f}")
 
-                # Verify timing is 1-2 weeks
-                assert 1 <= impact.weeks_until_impact <= 2, f"Timing should be 1-2 weeks, got {impact.weeks_until_impact}"
-                print(f"\n✅ Timing verified: {impact.weeks_until_impact} week(s) (1-2 weeks range)")
+                # Verify timing is 1 week
+                assert impact.weeks_until_impact == 1, f"Timing should be 1 week, got {impact.weeks_until_impact}"
+                print(f"\n✅ Timing verified: {impact.weeks_until_impact} week")
 
                 # Verify instant impact was applied
                 assert impact.instant_impact_applied == True, "instant_impact_applied should be True"
@@ -83,7 +83,7 @@ def test_two_stage_impact():
                 final_price = companies[test_company].price
                 total_change_pct = ((final_price - initial_price) / initial_price) * 100
 
-                print(f"\n💰 FINAL IMPACT (20% instant + 80% delayed):")
+                print(f"\n💰 FINAL IMPACT (40% instant + 60% delayed):")
                 print(f"   Expected total: {impact.impact_magnitude:+.1f}%")
                 print(f"   Actual total:   {total_change_pct:+.1f}%")
                 print(f"   Final price: ${final_price:.2f}")
@@ -91,7 +91,7 @@ def test_two_stage_impact():
                 # Verify the total impact is approximately correct
                 # Note: Due to compounding (instant impact changes the base for delayed impact),
                 # the total will be slightly higher than the original magnitude
-                # Expected compounding: (1 + 0.20*mag) * (1 + 0.80*mag) ≈ 1 + mag + 0.16*mag^2
+                # Expected compounding: (1 + 0.40*mag) * (1 + 0.60*mag) ≈ 1 + mag + 0.24*mag^2
                 difference = abs(total_change_pct - impact.impact_magnitude)
                 assert difference < 0.5, f"Total impact should be ~{impact.impact_magnitude:+.1f}%, got {total_change_pct:+.1f}%"
                 print(f"\n✅ Total impact verified (difference: {difference:.3f}% due to compounding)")

@@ -55,7 +55,7 @@ def test_news_during_cycle():
     )
     breaking_news.company_events["TestCorp"] = [event]
 
-    # Generate breaking news (this should apply 20% instant impact)
+    # Generate breaking news (this should apply 40% instant impact)
     print("\n⚡ GENERATING BREAKING NEWS")
     price_before_news = companies["TestCorp"].price
     news_result = breaking_news.generate_breaking_news(companies, 25)
@@ -66,7 +66,7 @@ def test_news_during_cycle():
         print(f"   News for: {company_name}")
         print(f"   Event type: {event_type.value}")
         print(f"   Price before news: ${price_before_news:.2f}")
-        print(f"   Price after news (20% instant): ${price_after_news:.2f}")
+        print(f"   Price after news (40% instant): ${price_after_news:.2f}")
         instant_impact = ((price_after_news - price_before_news) / price_before_news) * 100
         print(f"   Instant impact: {instant_impact:.1f}%")
 
@@ -87,10 +87,10 @@ def test_news_during_cycle():
     # So the instant impact should be preserved
 
     print("\n✅ TEST EXPECTATIONS:")
-    print("   1. Breaking news should apply 20% instant impact")
+    print("   1. Breaking news should apply 40% instant impact")
     print("   2. Future prices should be calculated AFTER news generation")
     print("   3. The instant impact should be preserved in current price")
-    print("   4. The 80% delayed impact should be in pending impacts")
+    print("   4. The 60% delayed impact should be in pending impacts")
     print("   5. Future prices should account for both instant and delayed impacts")
 
     # Verify the fix
