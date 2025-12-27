@@ -1274,33 +1274,20 @@ class Gold:
 
 
 class HolyWater:
-    """Represents Holy Water - fantasy blessed commodity with divine properties"""
+    """Represents Holy Water - volatile liquid commodity with unpredictable price swings"""
 
     def __init__(self):
         self.name = "Holy Water"
-        self.price = 1800.0  # $1800 per vial
-        self.base_volatility = 4.5  # Higher volatility than gold (divine unpredictability)
+        self.price = 10000.0  # $10,000 per vial
+        self.base_volatility = 10.0  # Exactly 10% jumps
         self.price_history: List[float] = []
-        self.blessing_intensity = 1.0  # Multiplier for weird behavior
-        self.description = "Divinely blessed liquid - fantasy gold with unpredictable properties"
+        self.description = "Mysterious liquid - unpredictable 10% price swings each week"
 
     def update_price(self):
-        """Update Holy Water price with occasional divine intervention"""
-        # Base price change
-        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
-
-        # Occasional "divine blessing" or "curse" (10% chance)
-        if random.random() < 0.1:
-            blessing = random.choice([-1, 1])
-            divine_modifier = blessing * random.uniform(5.0, 15.0)
-            change_percent += divine_modifier
-            if blessing > 0:
-                self.blessing_intensity = 1.2  # Temporarily blessed
-            else:
-                self.blessing_intensity = 0.8  # Temporarily cursed
-        else:
-            # Slowly return blessing intensity to normal
-            self.blessing_intensity = self.blessing_intensity * 0.9 + 1.0 * 0.1
+        """Update Holy Water price with random 10% jump up or down"""
+        # Randomly go up or down by exactly 10%
+        direction = random.choice([-1, 1])
+        change_percent = direction * 10.0
 
         self.price *= (1 + change_percent / 100)
         self.price = max(self.price, 100.0)  # Floor price
@@ -1313,8 +1300,7 @@ class HolyWater:
         return {
             'price': self.price,
             'base_volatility': self.base_volatility,
-            'price_history': self.price_history,
-            'blessing_intensity': self.blessing_intensity
+            'price_history': self.price_history
         }
 
     @staticmethod
@@ -1324,26 +1310,19 @@ class HolyWater:
         hw.price = data['price']
         hw.base_volatility = data['base_volatility']
         hw.price_history = data['price_history']
-        hw.blessing_intensity = data.get('blessing_intensity', 1.0)
         return hw
 
     def __str__(self):
         trend = ""
         if len(self.price_history) >= 2:
             if self.price > self.price_history[-2]:
-                trend = " ↗️"
+                trend = " ↗️ +10%"
             elif self.price < self.price_history[-2]:
-                trend = " ↘️"
+                trend = " ↘️ -10%"
             else:
                 trend = " ➡️"
 
-        blessing_status = ""
-        if self.blessing_intensity > 1.1:
-            blessing_status = " ✨ BLESSED"
-        elif self.blessing_intensity < 0.9:
-            blessing_status = " 💀 CURSED"
-
-        return f"{self.name} - ${self.price:.2f}/vial (Volatility: {self.base_volatility}%){trend}{blessing_status}"
+        return f"{self.name} - ${self.price:.2f}/vial{trend}"
 
 
 class ElfQueenWater:
@@ -1990,12 +1969,7 @@ class Player:
 
         self.cash -= total_cost
         self.holy_water_vials += vials
-        blessing_msg = ""
-        if holy_water.blessing_intensity > 1.1:
-            blessing_msg = " The water glows with divine light! ✨"
-        elif holy_water.blessing_intensity < 0.9:
-            blessing_msg = " The water seems... tainted. 💀"
-        return True, f"Purchase successful! Bought {vials} vials of Holy Water for ${total_cost:.2f}{blessing_msg}"
+        return True, f"Purchase successful! Bought {vials} vials of Holy Water for ${total_cost:.2f}"
 
     def sell_holy_water(self, holy_water: HolyWater, vials: int) -> Tuple[bool, str]:
         """Sell Holy Water vials"""
@@ -2005,12 +1979,7 @@ class Player:
         total_value = holy_water.price * vials
         self.cash += total_value
         self.holy_water_vials -= vials
-        blessing_msg = ""
-        if holy_water.blessing_intensity > 1.1:
-            blessing_msg = " The buyer seems blessed by the transaction! ✨"
-        elif holy_water.blessing_intensity < 0.9:
-            blessing_msg = " The buyer looks nervous... 💀"
-        return True, f"Sale successful! Sold {vials} vials of Holy Water for ${total_value:.2f}{blessing_msg}"
+        return True, f"Sale successful! Sold {vials} vials of Holy Water for ${total_value:.2f}"
 
     def buy_elf_queen_water(self, elf_queen_water: ElfQueenWater, vials: int) -> Tuple[bool, str]:
         """Buy Elf Queen's Water vials"""
