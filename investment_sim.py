@@ -2704,12 +2704,7 @@ class Player:
             has_themed = True
         if holy_water and self.holy_water_vials > 0:
             value = self.holy_water_vials * holy_water.price
-            blessing_status = ""
-            if holy_water.blessing_intensity > 1.1:
-                blessing_status = " ✨"
-            elif holy_water.blessing_intensity < 0.9:
-                blessing_status = " 💀"
-            print(f"  Holy Water: {self.holy_water_vials} vials @ ${holy_water.price:.2f} = ${value:.2f}{blessing_status}")
+            print(f"  Holy Water: {self.holy_water_vials} vials @ ${holy_water.price:.2f} = ${value:.2f}")
             has_themed = True
 
         if elf_queen_water and self.elf_queen_water_vials > 0:
