@@ -4104,27 +4104,28 @@ class InvestmentGame:
                         break
 
             # 4. Apply cycle effect or random walk to price
-            # SKIP on market impact weeks - let the impact be the sole driver!
-            if not news_impact_occurred:
+            # On market impact weeks, halve volatility instead of skipping it entirely
+            volatility_multiplier = 0.5 if news_impact_occurred else 1.0
+
+            cycle_effect = 0.0
+            if self.market_cycle.active_cycle:
+                # Check if cycle will still be active
+                weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                if weeks_left > 0:
+                    cycle_type = self.market_cycle.active_cycle.cycle_type
+                    cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
+
+            # Check if a new cycle will trigger at this future week
+            elif future_week > 0 and future_week % 24 == 0:
+                # A new cycle would trigger - we don't know which type, so use neutral
                 cycle_effect = 0.0
-                if self.market_cycle.active_cycle:
-                    # Check if cycle will still be active
-                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
-                    if weeks_left > 0:
-                        cycle_type = self.market_cycle.active_cycle.cycle_type
-                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
 
-                # Check if a new cycle will trigger at this future week
-                elif future_week > 0 and future_week % 24 == 0:
-                    # A new cycle would trigger - we don't know which type, so use neutral
-                    cycle_effect = 0.0
-
-                if cycle_effect != 0:
-                    simulated_price *= (1 + cycle_effect / 100)
-                else:
-                    # Random walk if no cycle
-                    change_percent = random.uniform(-company.base_volatility, company.base_volatility)
-                    simulated_price *= (1 + change_percent / 100)
+            if cycle_effect != 0:
+                simulated_price *= (1 + (cycle_effect * volatility_multiplier) / 100)
+            else:
+                # Random walk if no cycle (apply halved volatility during market impacts)
+                change_percent = random.uniform(-company.base_volatility, company.base_volatility) * volatility_multiplier
+                simulated_price *= (1 + change_percent / 100)
 
             # 5. Apply pending news impacts that will occur in this future week
             for impact in self.breaking_news.pending_impacts:
@@ -4151,6 +4152,7 @@ class InvestmentGame:
             # 6. Apply mean reversion - pull price back toward fundamental
             # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
             # For 2 weeks after an impact, use dampened mean reversion (lingering fear/hype)
+            # Note: mean reversion is still fully skipped during impact weeks, unlike volatility which is halved
             if not news_impact_occurred:
                 # Check if impact occurred 1 or 2 weeks ago (lingering effect)
                 weeks_since_impact = None
@@ -4252,27 +4254,28 @@ class InvestmentGame:
                             break
 
                 # 4. Apply cycle effect or random walk to price
-                # SKIP on market impact weeks - let the impact be the sole driver!
-                if not news_impact_occurred:
-                    cycle_effect = 0.0
-                    if self.market_cycle.active_cycle:
-                        # Check if cycle will still be active
-                        weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
-                        if weeks_left > 0:
-                            cycle_type = self.market_cycle.active_cycle.cycle_type
-                            cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
+                # On market impact weeks, halve volatility instead of skipping it entirely
+                volatility_multiplier = 0.5 if news_impact_occurred else 1.0
 
-                    # Check if a new cycle will trigger at this future week
-                    elif future_week > 0 and future_week % 24 == 0:
-                        # A new cycle would trigger - we don't know which type, so use average effect
-                        cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+                cycle_effect = 0.0
+                if self.market_cycle.active_cycle:
+                    # Check if cycle will still be active
+                    weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
+                    if weeks_left > 0:
+                        cycle_type = self.market_cycle.active_cycle.cycle_type
+                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
 
-                    if cycle_effect != 0:
-                        simulated_price *= (1 + cycle_effect / 100)
-                    else:
-                        # Random walk if no cycle (additional volatility on top of fundamentals)
-                        change_percent = random.uniform(-company.base_volatility, company.base_volatility)
-                        simulated_price *= (1 + change_percent / 100)
+                # Check if a new cycle will trigger at this future week
+                elif future_week > 0 and future_week % 24 == 0:
+                    # A new cycle would trigger - we don't know which type, so use average effect
+                    cycle_effect = 0.0  # Neutral assumption for future cycle triggers
+
+                if cycle_effect != 0:
+                    simulated_price *= (1 + (cycle_effect * volatility_multiplier) / 100)
+                else:
+                    # Random walk if no cycle (apply halved volatility during market impacts)
+                    change_percent = random.uniform(-company.base_volatility, company.base_volatility) * volatility_multiplier
+                    simulated_price *= (1 + change_percent / 100)
 
                 # 5. Apply pending news impacts that will occur in this future week
                 for impact in self.breaking_news.pending_impacts:
@@ -4299,6 +4302,7 @@ class InvestmentGame:
                 # 6. Apply mean reversion - pull price back toward fundamental
                 # SKIP mean reversion on weeks with ANY market impact (positive OR negative)
                 # For 2 weeks after an impact, use dampened mean reversion (lingering fear/hype)
+                # Note: mean reversion is still fully skipped during impact weeks, unlike volatility which is halved
                 if not news_impact_occurred:
                     # Check if impact occurred 1 or 2 weeks ago (lingering effect)
                     weeks_since_impact = None
