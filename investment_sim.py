@@ -3381,7 +3381,7 @@ class HedgeFund(Player):
                                 short_value = min(self.cash * 0.10, 20000)  # Short up to 10% cash or $20k
                                 if short_value > 1000:
                                     shares_to_short = int(short_value / company.price)
-                                    success, msg = self.short_sell(company, shares_to_short)
+                                    success, msg = self.short_sell(company, shares_to_short, companies, treasury)
                                     if success:
                                         actions.append(f"📰 {self.name} shorted {company.name} based on Financial Times news")
             
