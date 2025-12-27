@@ -95,17 +95,17 @@ class PendingNewsImpact:
     """Tracks a news story that will affect stock price in the future
 
     Uses a two-stage impact system:
-    - Instant impact (20%): Applied immediately as panic response
-    - Delayed impact (80%): Applied after 1-2 weeks as actual market adjustment
+    - Instant impact (40%): Applied immediately as panic response
+    - Delayed impact (60%): Applied after 1 week as actual market adjustment
     """
     company_name: str
     sentiment: NewsSentiment
-    impact_magnitude: float  # Percentage change (this is the TOTAL impact, will be split 20%/80%)
+    impact_magnitude: float  # Percentage change (this is the TOTAL impact, will be split 40%/60%)
     weeks_until_impact: int
     is_real: bool  # True if real news, False if hoax
     news_text: str
     news_report: NewsReport  # All three news sources
-    instant_impact_applied: bool = False  # Tracks if the 20% instant impact has been applied
+    instant_impact_applied: bool = False  # Tracks if the 40% instant impact has been applied
 
     def to_dict(self) -> dict:
         """Serialize PendingNewsImpact to dictionary"""
@@ -781,23 +781,23 @@ class BreakingNewsSystem:
                         sentiment = NewsSentiment.NEGATIVE
                         impact_magnitude = -base_impact
 
-                    # Apply instant impact (20% panic response)
-                    instant_impact_pct = impact_magnitude * 0.20
+                    # Apply instant impact (40% panic response)
+                    instant_impact_pct = impact_magnitude * 0.40
                     company = companies[company_name]
                     company.price *= (1 + instant_impact_pct / 100)
                     company.price = max(0.01, company.price)
 
-                    # Create pending impact for delayed portion (80% actual market adjustment)
-                    # Note: impact_magnitude is still the TOTAL impact, we'll apply 80% in update_pending_impacts
+                    # Create pending impact for delayed portion (60% actual market adjustment)
+                    # Note: impact_magnitude is still the TOTAL impact, we'll apply 60% in update_pending_impacts
                     pending_impact = PendingNewsImpact(
                         company_name=company_name,
                         sentiment=sentiment,
                         impact_magnitude=impact_magnitude,
-                        weeks_until_impact=random.randint(1, 2),  # Delayed impact occurs 1-2 weeks after news
+                        weeks_until_impact=1,  # Delayed impact occurs 1 week after news
                         is_real=True,  # Financial Times is always real
                         news_text=event.description,
                         news_report=news_report,
-                        instant_impact_applied=True  # 20% instant impact has been applied
+                        instant_impact_applied=True  # 40% instant impact has been applied
                     )
 
                     self.pending_impacts.append(pending_impact)
@@ -836,13 +836,13 @@ class BreakingNewsSystem:
             impact.weeks_until_impact -= 1
 
             if impact.weeks_until_impact <= 0:
-                # Time to apply the delayed impact (80% of total)
+                # Time to apply the delayed impact (60% of total)
                 company = companies[impact.company_name]
 
-                # Calculate the delayed impact (80% of total impact)
+                # Calculate the delayed impact (60% of total impact)
                 # If instant_impact_applied is True, this is the new two-stage system
                 # If False, it's an old save file and we apply 100% for backwards compatibility
-                delayed_impact_pct = impact.impact_magnitude * 0.80 if impact.instant_impact_applied else impact.impact_magnitude
+                delayed_impact_pct = impact.impact_magnitude * 0.60 if impact.instant_impact_applied else impact.impact_magnitude
 
                 # If using precompiled prices, the impact is already baked in
                 # Just display the message without modifying price

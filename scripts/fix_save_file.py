@@ -42,24 +42,24 @@ def fix_save_file(save_file, output_file=None, apply_two_stage_impacts=False):
                 # This is an old-style impact, convert it
                 print(f"  Converting {impact.company_name}: {impact.impact_magnitude:+.1f}% impact")
 
-                # Apply 20% instant impact to current price
-                instant_impact_pct = impact.impact_magnitude * 0.20
+                # Apply 40% instant impact to current price
+                instant_impact_pct = impact.impact_magnitude * 0.40
                 company = game.companies[impact.company_name]
                 old_price = company.price
                 company.price *= (1 + instant_impact_pct / 100)
                 company.price = max(0.01, company.price)
 
-                print(f"    Instant impact (20%): {instant_impact_pct:+.1f}% - Price: ${old_price:.2f} -> ${company.price:.2f}")
+                print(f"    Instant impact (40%): {instant_impact_pct:+.1f}% - Price: ${old_price:.2f} -> ${company.price:.2f}")
 
-                # Adjust timing to 1-2 weeks if it was set to 3 weeks
-                if impact.weeks_until_impact > 2:
+                # Adjust timing to 1 week if it was set differently
+                if impact.weeks_until_impact != 1:
                     old_weeks = impact.weeks_until_impact
-                    impact.weeks_until_impact = 2
-                    print(f"    Adjusted timing: {old_weeks} weeks -> 2 weeks")
+                    impact.weeks_until_impact = 1
+                    print(f"    Adjusted timing: {old_weeks} weeks -> 1 week")
 
                 # Mark as converted
                 impact.instant_impact_applied = True
-                print(f"    Delayed impact (80%): {impact.impact_magnitude * 0.80:+.1f}% in {impact.weeks_until_impact} week(s)")
+                print(f"    Delayed impact (60%): {impact.impact_magnitude * 0.60:+.1f}% in {impact.weeks_until_impact} week(s)")
 
                 impacts_converted += 1
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
         print("Usage: python3 fix_save_file.py <save_file.json> [output_file.json] [--two-stage]")
         print("\nOptions:")
         print("  --two-stage    Convert old single-stage impacts to new two-stage system")
-        print("                 (applies 20% instant impact, 80% delayed impact over 1-2 weeks)")
+        print("                 (applies 40% instant impact, 60% delayed impact over 1 week)")
         print("\nExamples:")
         print("  python3 fix_save_file.py savegame.json savegame_fixed.json")
         print("  python3 fix_save_file.py savegame.json  (creates savegame_fixed.json)")
