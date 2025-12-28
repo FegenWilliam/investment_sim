@@ -1457,31 +1457,6 @@ class VoidCatalyst:
                 return f"{self.name} - ${self.price:.2f} [AVAILABLE - 1 unit only]"
 
 
-class MysticalLender:
-    """Represents The Mystical Lender - a trap loan with hidden 5x slippage penalty"""
-
-    def __init__(self):
-        self.name = "The Mystical Lender"
-        self.loan_amount = 250000.0  # $250k
-        self.description = "Sign a blank paper and get $250k!***\n*** : TERMS AND CONDITIONS APPLY"
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary"""
-        return {
-            'loan_amount': self.loan_amount
-        }
-
-    @staticmethod
-    def from_dict(data: dict) -> 'MysticalLender':
-        """Deserialize from dictionary"""
-        ml = MysticalLender()
-        ml.loan_amount = data.get('loan_amount', 250000.0)
-        return ml
-
-    def __str__(self):
-        return f"{self.name} - Get ${self.loan_amount:.2f}! (Sign a blank paper)"
-
-
 class Player:
     """Represents a player in the game"""
 
@@ -1496,7 +1471,6 @@ class Player:
         self.void_stocks_shares = 0  # Void Stocks shares
         self.void_stocks_purchases = []  # List of void stock purchase batches: {'purchase_week': int, 'shares': int, 'void_state_count': int}
         self.void_catalyst_owned = False  # Void Catalyst (only 1 exists)
-        self.mystical_lender_debt = 0.0  # Mystical Lender debt (hidden 5x slippage until repaid)
         # Leverage system
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
@@ -1540,12 +1514,9 @@ class Player:
         # We need to find how many shares we can buy with total_investment considering slippage
         shares = total_investment / company.price  # Initial estimate
 
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
-
         # Iteratively refine to account for slippage
         for _ in range(5):  # A few iterations should converge
-            slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=slippage_multiplier)
+            slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=1.0)
             effective_price = company.price * slippage_factor
             shares = total_investment / effective_price
 
@@ -1606,9 +1577,6 @@ class Player:
         if dollar_amount is not None and shares is not None:
             return False, "Specify either dollar_amount or shares, not both!"
 
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
-
         if dollar_amount is not None:
             # Calculate shares from dollar amount (iterative for slippage)
             shares_to_sell = dollar_amount / company.price  # Initial estimate
@@ -1618,7 +1586,7 @@ class Player:
                 if shares_to_sell > owned_shares:
                     shares_to_sell = owned_shares
                     break
-                slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=slippage_multiplier)
+                slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=1.0)
                 effective_price = company.price * slippage_factor
                 shares_to_sell = dollar_amount / effective_price
 
@@ -1636,7 +1604,7 @@ class Player:
 
         # Calculate effective price with slippage
         old_price = company.price
-        slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=slippage_multiplier)
+        slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=1.0)
         effective_price = old_price * slippage_factor
         total_value = effective_price * shares_to_sell
 
@@ -1669,9 +1637,6 @@ class Player:
         """Short sell shares: borrow and sell them, must cover later"""
         if shares <= 0:
             return False, "Invalid number of shares!"
-
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
 
         # Calculate effective price with slippage (selling borrowed shares)
         old_price = company.price
@@ -1719,9 +1684,6 @@ class Player:
         """Cover (close) a short position by buying back the shares"""
         if company.name not in self.short_positions or self.short_positions[company.name] < shares:
             return False, "You don't have that many shares shorted!"
-
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
 
         # Calculate effective price with slippage (buying to cover)
         old_price = company.price
@@ -1950,41 +1912,6 @@ class Player:
             return True, msg, sell_price
         return False, "", 0.0
 
-    def accept_mystical_lender(self, mystical_lender: MysticalLender) -> Tuple[bool, str]:
-        """Accept loan from The Mystical Lender (hidden 5x slippage until repaid)"""
-        if self.mystical_lender_debt > 0:
-            return False, "You already have a loan from The Mystical Lender!"
-
-        loan_amount = mystical_lender.loan_amount
-        self.cash += loan_amount
-        self.mystical_lender_debt = loan_amount
-
-        return True, f"Sign a blank paper and get ${loan_amount:.2f}!\n*** : TERMS AND CONDITIONS APPLY"
-
-    def repay_mystical_lender(self, amount: float = None) -> Tuple[bool, str]:
-        """Repay The Mystical Lender debt (partially or fully)"""
-        if self.mystical_lender_debt <= 0:
-            return False, "You have no debt with The Mystical Lender!"
-
-        # If no amount specified, repay all
-        if amount is None:
-            amount = self.mystical_lender_debt
-
-        if amount > self.mystical_lender_debt:
-            amount = self.mystical_lender_debt
-
-        if amount > self.cash:
-            return False, f"Insufficient funds! You need ${amount:.2f} but only have ${self.cash:.2f}"
-
-        self.cash -= amount
-        self.mystical_lender_debt -= amount
-
-        if self.mystical_lender_debt < 0.01:
-            self.mystical_lender_debt = 0.0
-            return True, f"Repaid ${amount:.2f}. The Mystical Lender debt is now FULLY REPAID! The strange terms are lifted..."
-        else:
-            return True, f"Repaid ${amount:.2f}. Remaining debt: ${self.mystical_lender_debt:.2f}"
-
     def apply_quantum_singularity_income(self, quantum_singularity: QuantumSingularity) -> float:
         """Apply monthly passive income from Quantum Singularity (called every 4 weeks)"""
         if self.quantum_singularity_units > 0:
@@ -2024,7 +1951,7 @@ class Player:
 
     def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate equity (net worth minus debt)"""
-        return self.calculate_net_worth(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst) - self.borrowed_amount - self.slippage_bank_debt - self.mystical_lender_debt
+        return self.calculate_net_worth(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst) - self.borrowed_amount - self.slippage_bank_debt
 
     def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate total portfolio value (not including cash, only investments)"""
@@ -2334,7 +2261,6 @@ class Player:
             'void_stocks_shares': self.void_stocks_shares,
             'void_stocks_purchases': self.void_stocks_purchases,
             'void_catalyst_owned': self.void_catalyst_owned,
-            'mystical_lender_debt': self.mystical_lender_debt,
             'collateral_deposited': self.collateral_deposited,
             'slippage_bank_debt': self.slippage_bank_debt
         }
@@ -2355,7 +2281,6 @@ class Player:
         player.void_stocks_shares = data.get('void_stocks_shares', 0)
         player.void_stocks_purchases = data.get('void_stocks_purchases', [])  # Default to empty list for backwards compatibility
         player.void_catalyst_owned = data.get('void_catalyst_owned', False)
-        player.mystical_lender_debt = data.get('mystical_lender_debt', 0.0)  # Default to 0.0 for backwards compatibility
         player.collateral_deposited = data.get('collateral_deposited', 0.0)  # Default to 0.0 for backwards compatibility
         player.slippage_bank_debt = data.get('slippage_bank_debt', 0.0)  # Default to 0.0 for backwards compatibility
         return player
@@ -2420,10 +2345,6 @@ class Player:
             print(f"🏦 Collateral Deposited: ${self.collateral_deposited:.2f}")
             if self.borrowed_amount == 0:
                 print(f"   (Can be withdrawn - you are debt-free)")
-
-        # Show Mystical Lender debt
-        if self.mystical_lender_debt > 0:
-            print(f"📜 Mystical Lender Debt: ${self.mystical_lender_debt:.2f}")
 
         # Show Slippage Bank debt
         if self.slippage_bank_debt > 0:
@@ -3483,7 +3404,6 @@ class InvestmentGame:
         self.elf_queen_water = ElfQueenWater()
         self.void_stocks = VoidStocks(self.companies)
         self.void_catalyst = VoidCatalyst()
-        self.mystical_lender = MysticalLender()
 
         # Slippage Bank - accumulates all trading slippage from all players
         self.slippage_bank = 0.0
@@ -4684,7 +4604,6 @@ class InvestmentGame:
         print("2. " + str(self.elf_queen_water))
         print("3. " + str(self.void_stocks))
         print("4. " + str(self.void_catalyst))
-        print("5. " + str(self.mystical_lender))
         print("0. Cancel")
         print()
 
@@ -4725,14 +4644,6 @@ class InvestmentGame:
                     human_players = [p.name for p in self.players if not getattr(p, 'is_npc', False)]
                     success, msg = player.buy_void_catalyst(self.void_catalyst, human_players)
                     print(msg)
-            elif choice == 5:
-                # Mystical Lender
-                print("\n" + str(self.mystical_lender))
-                print(f"\n{self.mystical_lender.description}")
-                confirm = input(f"\nAccept the loan? (y/n): ")
-                if confirm.lower() == 'y':
-                    success, msg = player.accept_mystical_lender(self.mystical_lender)
-                    print(msg)
             else:
                 print("Invalid choice!")
 
@@ -4749,13 +4660,9 @@ class InvestmentGame:
         print(f"Your Holdings:")
         print(f"  Elf Queen's Water: {player.elf_queen_water_vials} vials @ ${self.elf_queen_water.price:.2f}")
         print(f"  Void Stocks: {player.void_stocks_shares} shares @ ${self.void_stocks.price:.2f}")
-        if player.mystical_lender_debt > 0:
-            print(f"  Mystical Lender Debt: ${player.mystical_lender_debt:.2f}")
         print()
         print("1. Sell Elf Queen's Water")
         print("2. Sell Void Stocks")
-        if player.mystical_lender_debt > 0:
-            print("3. Repay Mystical Lender")
         print("0. Cancel")
         print()
 
@@ -4786,23 +4693,6 @@ class InvestmentGame:
                     return
                 success, msg = player.sell_void_stocks(self.void_stocks, shares)
                 print(msg)
-            elif choice == 3:
-                # Repay Mystical Lender
-                if player.mystical_lender_debt <= 0:
-                    print("You have no debt with The Mystical Lender!")
-                    return
-                print(f"\nMystical Lender Debt: ${player.mystical_lender_debt:.2f}")
-                print(f"Your Cash: ${player.cash:.2f}")
-                amount_input = input(f"How much to repay? (Enter amount or 'all' for full repayment): ")
-                try:
-                    if amount_input.lower() == 'all':
-                        success, msg = player.repay_mystical_lender()
-                    else:
-                        amount = float(amount_input)
-                        success, msg = player.repay_mystical_lender(amount)
-                    print(msg)
-                except ValueError:
-                    print("Invalid amount!")
             else:
                 print("Invalid choice!")
 
@@ -5047,7 +4937,6 @@ class InvestmentGame:
                 'elf_queen_water': self.elf_queen_water.to_dict(),
                 'void_stocks': self.void_stocks.to_dict(),
                 'void_catalyst': self.void_catalyst.to_dict(),
-                'mystical_lender': self.mystical_lender.to_dict(),
                 'slippage_bank': self.slippage_bank
             }
 
@@ -5153,11 +5042,6 @@ class InvestmentGame:
                 game.void_catalyst = VoidCatalyst.from_dict(game_state['void_catalyst'])
             else:
                 game.void_catalyst = VoidCatalyst()
-
-            if 'mystical_lender' in game_state:
-                game.mystical_lender = MysticalLender.from_dict(game_state['mystical_lender'])
-            else:
-                game.mystical_lender = MysticalLender()
 
             # Restore slippage bank (default to 0.0 for backwards compatibility)
             game.slippage_bank = game_state.get('slippage_bank', 0.0)
