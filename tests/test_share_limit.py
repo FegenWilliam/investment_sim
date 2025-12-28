@@ -96,7 +96,7 @@ def test_all_companies():
         ("AutoDrive", "Automotive", 95.0, 160_000_000_000),
         ("ElectroMax", "Electronics", 85.0, 150_000_000_000),
         ("Blue Energy Industries", "Mana Extraction", 125.0, 120_000_000_000),
-        ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 60_000_000_000),
+        ("AutoDrive", "Automotive", 95.0, 60_000_000_000),
         ("Out of This World Enterprises", "Rare Fantasy Goods", 666.0, 35_000_000_000),
     ]
 

@@ -4,7 +4,7 @@
 import sys
 sys.path.insert(0, '/home/user/investment_sim')
 
-from investment_sim import QuantumSingularity, Gold, HolyWater, Player
+from investment_sim import QuantumSingularity, ElfQueenWater, Player
 
 def test_themed_investments():
     print("Testing Themed Investments")
@@ -16,23 +16,16 @@ def test_themed_investments():
     print(f"   {qs}")
     print(f"   Monthly return for 5 units: ${qs.calculate_monthly_return(5):.2f}")
 
-    # Test Gold
-    print("\n2. Testing Gold")
-    gold = Gold()
-    print(f"   {gold}")
-    gold.update_price()
-    print(f"   After update: {gold}")
-
-    # Test Holy Water
-    print("\n3. Testing Holy Water")
-    hw = HolyWater()
-    print(f"   {hw}")
+    # Test Elf Queen's Water
+    print("\n2. Testing Elf Queen's Water")
+    eqw = ElfQueenWater()
+    print(f"   {eqw}")
     for i in range(10):
-        hw.update_price()
-    print(f"   After 10 updates: {hw}")
+        eqw.update_price()
+    print(f"   After 10 updates: {eqw}")
 
     # Test Player buying
-    print("\n4. Testing Player purchases")
+    print("\n3. Testing Player purchases")
     player = Player("TestPlayer", 50000.0)
     print(f"   Starting cash: ${player.cash:.2f}")
 
@@ -42,31 +35,20 @@ def test_themed_investments():
     print(f"   Cash after: ${player.cash:.2f}")
     print(f"   QS units: {player.quantum_singularity_units}")
 
-    # Buy Gold
-    success, msg = player.buy_gold(gold, 5)
-    print(f"   Buy Gold: {msg}")
-    print(f"   Gold ounces: {player.gold_ounces}")
-
-    # Buy Holy Water
-    success, msg = player.buy_holy_water(hw, 10)
-    print(f"   Buy HW: {msg}")
-    print(f"   HW vials: {player.holy_water_vials}")
+    # Buy Elf Queen's Water
+    success, msg = player.buy_elf_queen_water(eqw, 5)
+    print(f"   Buy Elf Queen's Water: {msg}")
+    print(f"   EQW vials: {player.elf_queen_water_vials}")
 
     # Apply monthly income
     income = player.apply_quantum_singularity_income(qs)
-    print(f"\n5. Monthly QS income: ${income:.2f}")
+    print(f"\n4. Monthly QS income: ${income:.2f}")
     print(f"   Cash after income: ${player.cash:.2f}")
 
-    # Sell Gold
-    success, msg = player.sell_gold(gold, 2)
-    print(f"\n6. Sell Gold: {msg}")
-    print(f"   Gold ounces remaining: {player.gold_ounces}")
-    print(f"   Cash: ${player.cash:.2f}")
-
-    # Sell Holy Water
-    success, msg = player.sell_holy_water(hw, 5)
-    print(f"\n7. Sell HW: {msg}")
-    print(f"   HW vials remaining: {player.holy_water_vials}")
+    # Sell Elf Queen's Water
+    success, msg = player.sell_elf_queen_water(eqw, 2)
+    print(f"\n5. Sell Elf Queen's Water: {msg}")
+    print(f"   EQW vials remaining: {player.elf_queen_water_vials}")
     print(f"   Cash: ${player.cash:.2f}")
 
     print("\n" + "="*60)

@@ -48,7 +48,7 @@ scenarios = [
     ("ElectroMax ($10B, MEDIUM liquidity)", 25_000, 10_000_000_000, "MEDIUM", 85.0),
     ("PharmaCare ($8B, LOW liquidity)", 25_000, 8_000_000_000, "LOW", 220.0),
     ("TechCorp - Large trade", 500_000, 50_000_000_000, "HIGH", 150.0),
-    ("Rock Friends ($2B, LOW liquidity)", 25_000, 2_000_000_000, "LOW", 78.0),
+    ("AutoDrive ($2B, LOW liquidity)", 25_000, 2_000_000_000, "LOW", 95.0),
 ]
 
 for scenario_name, trade_value, market_cap, liquidity, price in scenarios:
