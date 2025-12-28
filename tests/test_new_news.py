@@ -33,42 +33,32 @@ def test_news_generation():
         if result:
             company_name, news_report, event_type = result
 
-            print("📊 Financial Times Report (Always True)")
+            print("📊 Financial Times (70% Accurate)")
             print("-" * 80)
-            if news_report.trustworthy_source:
-                print(f"  ✓ {news_report.trustworthy_source}")
-                print(f"  → Company: {company_name} | Event Type: {event_type.value}")
+            if news_report.financial_times:
+                print(f"  {news_report.financial_times}")
             else:
-                print("  [No major developments to report at this time]")
+                print("  [No reports at this time]")
             print()
 
-            print("📢 Market Pulse Daily (80% Fake, Clickbait)")
+            print("📈 Market Watch (70% Accurate)")
             print("-" * 80)
-            if news_report.market_pulse_source:
-                print(f"  {news_report.market_pulse_source}")
+            if news_report.market_watch:
+                print(f"  {news_report.market_watch}")
             else:
-                print("  [No report]")
+                print("  [No reports at this time]")
             print()
 
-            print("🔍 Wall Street Wire (Insider Tip - 10% chance for SUCCESS spawns)")
+            print("📉 Bloomberg (70% Accurate)")
             print("-" * 80)
-            if news_report.insider_source:
-                print(f"  {news_report.insider_source}")
-                if news_report.insider_flipped:
-                    print("  ⚠️  [DEBUG: Sentiment was FLIPPED]")
+            if news_report.bloomberg:
+                print(f"  {news_report.bloomberg}")
             else:
-                print("  [No insider tips]")
+                print("  [No reports at this time]")
             print()
 
-            print("📣 The Rumor Mill (60% Fake, Only Negative Rumors)")
-            print("-" * 80)
-            if news_report.rumor_mill_source:
-                print(f"  {news_report.rumor_mill_source}")
-            else:
-                print("  [No rumors]")
-            print()
-
-            print(f"Report Type: {'RUMOR' if news_report.is_rumor else 'CONFIRMED NEWS'}")
+            if company_name:
+                print(f"Market-Moving Event: {company_name} | Event Type: {event_type.value}")
 
         else:
             print("No news this week from any outlet.")
@@ -87,10 +77,10 @@ def test_news_generation():
     print("TEST COMPLETE")
     print(f"{'='*80}")
     print("\nKey Observations to Check:")
-    print("✓ Market Pulse should be clickbait and mostly present")
-    print("✓ Rumor Mill should only have PROBLEM/SCANDAL rumors")
-    print("✓ Financial Times should only report confirmed major events")
-    print("✓ Insider Tip should occasionally catch SUCCESS events early")
+    print("✓ All three outlets should have 70% accuracy")
+    print("✓ Early reports should be marked with 'RUMOR:'")
+    print("✓ Outlets may agree or disagree on events")
+    print("✓ Market movements are independent of outlet reporting")
 
 if __name__ == "__main__":
     test_news_generation()

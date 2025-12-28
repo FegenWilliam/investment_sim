@@ -82,7 +82,7 @@ def test_news_generation_uses_future_prices():
 
     print(f"✅ News generated using future price data!")
     print(f"   Future trend: UP (+{((110.0-100.0)/100.0)*100:.1f}%)")
-    print(f"   Trustworthy source: {news_report.trustworthy_source[:80] if news_report.trustworthy_source else '[No report]'}...")
+    print(f"   Financial Times: {news_report.financial_times[:80] if news_report.financial_times else '[No report]'}...")
 
     return True
 

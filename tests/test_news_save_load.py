@@ -34,13 +34,11 @@ def test_news_save_load():
         print("\n📰 ORIGINAL NEWS (Week 3):")
         print("-" * 80)
         print(f"\n📊 Financial Times:")
-        print(news_report.trustworthy_source if news_report.trustworthy_source else "[No report]")
-        print(f"\n📢 Market Pulse Daily:")
-        print(news_report.market_pulse_source)
-        print(f"\n🔍 Insider Tip:")
-        print(news_report.insider_source if news_report.insider_source else "[No tips]")
-        print(f"\n📣 Rumor Mill:")
-        print(news_report.rumor_mill_source)
+        print(news_report.financial_times if news_report.financial_times else "[No report]")
+        print(f"\n📈 Market Watch:")
+        print(news_report.market_watch if news_report.market_watch else "[No report]")
+        print(f"\n📉 Bloomberg:")
+        print(news_report.bloomberg if news_report.bloomberg else "[No report]")
 
         # Save to dict
         print("\n" + "="*80)
@@ -61,13 +59,11 @@ def test_news_save_load():
         print("\n📰 LOADED NEWS (After Save/Load):")
         print("-" * 80)
         print(f"\n📊 Financial Times:")
-        print(loaded_news.trustworthy_source if loaded_news.trustworthy_source else "[No report]")
-        print(f"\n📢 Market Pulse Daily:")
-        print(loaded_news.market_pulse_source)
-        print(f"\n🔍 Insider Tip:")
-        print(loaded_news.insider_source if loaded_news.insider_source else "[No tips]")
-        print(f"\n📣 Rumor Mill:")
-        print(loaded_news.rumor_mill_source)
+        print(loaded_news.financial_times if loaded_news.financial_times else "[No report]")
+        print(f"\n📈 Market Watch:")
+        print(loaded_news.market_watch if loaded_news.market_watch else "[No report]")
+        print(f"\n📉 Bloomberg:")
+        print(loaded_news.bloomberg if loaded_news.bloomberg else "[No report]")
 
         # Verify they match
         print("\n" + "="*80)
@@ -75,12 +71,9 @@ def test_news_save_load():
         print("-" * 80)
 
         checks = [
-            ("Financial Times", news_report.trustworthy_source == loaded_news.trustworthy_source),
-            ("Market Pulse", news_report.market_pulse_source == loaded_news.market_pulse_source),
-            ("Insider Tip", news_report.insider_source == loaded_news.insider_source),
-            ("Rumor Mill", news_report.rumor_mill_source == loaded_news.rumor_mill_source),
-            ("Insider Flipped", news_report.insider_flipped == loaded_news.insider_flipped),
-            ("Is Rumor", news_report.is_rumor == loaded_news.is_rumor),
+            ("Financial Times", news_report.financial_times == loaded_news.financial_times),
+            ("Market Watch", news_report.market_watch == loaded_news.market_watch),
+            ("Bloomberg", news_report.bloomberg == loaded_news.bloomberg),
         ]
 
         all_passed = True

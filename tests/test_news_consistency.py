@@ -34,7 +34,7 @@ def test_news_consistency():
     print(f"\nWeek {game.week_number}:")
     if initial_news:
         company_name, news_report, event_type = initial_news
-        print(f"  Breaking News: {news_report.trustworthy_source[:80] if news_report.trustworthy_source else 'No trustworthy source'}")
+        print(f"  Breaking News: {news_report.financial_times[:80] if news_report.financial_times else 'No Financial Times report'}")
         print(f"  Company: {company_name}")
         print(f"  Event Type: {event_type.value}")
     else:
@@ -53,7 +53,7 @@ def test_news_consistency():
         if initial_news == current_news:
             if current_news:
                 company_name, news_report, event_type = current_news
-                news_text = news_report.trustworthy_source[:50] if news_report.trustworthy_source else "No trustworthy source"
+                news_text = news_report.financial_times[:50] if news_report.financial_times else "No Financial Times report"
                 print(f"  Player {i} ({player.name}): ✅ Sees same news - {news_text}...")
             else:
                 print(f"  Player {i} ({player.name}): ✅ No news (consistent)")
@@ -76,7 +76,7 @@ def test_news_consistency():
     print(f"\nWeek {game.week_number}:")
     if next_week_news:
         company_name, news_report, event_type = next_week_news
-        print(f"  Breaking News: {news_report.trustworthy_source[:80] if news_report.trustworthy_source else 'No trustworthy source'}")
+        print(f"  Breaking News: {news_report.financial_times[:80] if news_report.financial_times else 'No Financial Times report'}")
         print(f"  Company: {company_name}")
         print(f"  Event Type: {event_type.value}")
     else:

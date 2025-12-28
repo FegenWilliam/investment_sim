@@ -4,6 +4,8 @@ Competitive Investment Simulation Game
 A turn-based stock market simulation for 1-4 players
 """
 
+from __future__ import annotations
+
 import random
 import json
 from typing import Dict, List, Optional, Tuple
@@ -58,36 +60,45 @@ class CompanyEvent:
 
 @dataclass
 class NewsReport:
-    """Represents news from all four sources"""
-    trustworthy_source: str  # Empty if news is fake or not major enough
-    market_pulse_source: str  # Posts rumors as clickbait facts (no "rumor" tag)
-    insider_source: str  # 5% true insider info (100% accurate), 95% unreliable (50% flip) = 52.5% overall accuracy
-    rumor_mill_source: str  # Explicitly marked rumors: "RUMOR: ..."
-    insider_flipped: bool  # Whether insider source flipped
-    is_rumor: bool  # True if this is a rumor about a pending event, False if confirmed news
+    """Represents news from three reputable sources
+
+    Each source has 70% accuracy - they can report early (marked RUMOR:) or confirmed news.
+    No source is always correct - players must compare reports to find the truth.
+    """
+    financial_times: str  # Reputable outlet #1 (70% accurate)
+    market_watch: str  # Reputable outlet #2 (70% accurate)
+    bloomberg: str  # Reputable outlet #3 (70% accurate)
 
     def to_dict(self) -> dict:
         """Serialize NewsReport to dictionary"""
         return {
-            'trustworthy_source': self.trustworthy_source,
-            'market_pulse_source': self.market_pulse_source,
-            'insider_source': self.insider_source,
-            'rumor_mill_source': self.rumor_mill_source,
-            'insider_flipped': self.insider_flipped,
-            'is_rumor': self.is_rumor
+            'financial_times': self.financial_times,
+            'market_watch': self.market_watch,
+            'bloomberg': self.bloomberg
         }
 
     @staticmethod
     def from_dict(data: dict) -> 'NewsReport':
         """Deserialize NewsReport from dictionary"""
-        return NewsReport(
-            trustworthy_source=data['trustworthy_source'],
-            market_pulse_source=data.get('market_pulse_source', data.get('sensationalist_source', '')),  # Backward compat
-            insider_source=data['insider_source'],
-            rumor_mill_source=data.get('rumor_mill_source', ''),
-            insider_flipped=data['insider_flipped'],
-            is_rumor=data.get('is_rumor', False)
-        )
+        # Backward compatibility - merge old sources into new ones
+        if 'financial_times' in data:
+            return NewsReport(
+                financial_times=data['financial_times'],
+                market_watch=data['market_watch'],
+                bloomberg=data['bloomberg']
+            )
+        else:
+            # Old format - convert to new format
+            combined = []
+            for key in ['trustworthy_source', 'market_pulse_source', 'insider_source', 'rumor_mill_source']:
+                if key in data and data[key]:
+                    combined.append(data[key])
+            combined_text = "\n\n".join(combined) if combined else ""
+            return NewsReport(
+                financial_times=combined_text,
+                market_watch="",
+                bloomberg=""
+            )
 
 
 @dataclass
@@ -521,13 +532,13 @@ class BreakingNewsSystem:
         return (company_name, rumor_text, event_type)
 
     def _generate_news_report(self, companies: Dict[str, 'Company'], week_number: int) -> NewsReport:
-        """Generate news from all four outlets independently
+        """Generate news from three reputable outlets independently
 
-        Each outlet has different reporting behavior:
-        - Financial Times: Only confirmed major events (always true)
-        - Market Pulse: Clickbait, 80% fake, reports 1 week before confirmation
-        - Insider Tip: 10% chance to report SUCCESS events as they spawn
-        - Rumor Mill: Fastest for PROBLEMS/SCANDALS, 60% fake
+        Each outlet has 70% accuracy:
+        - 70% chance to report correctly
+        - 30% chance to report completely wrong (opposite sentiment or fake news)
+        - Early reports (before weeks_until_public) are marked with "RUMOR:"
+        - Outlets sometimes agree, sometimes differ based on their independent reporting
         """
 
         # Collect all events by status
@@ -545,203 +556,79 @@ class BreakingNewsSystem:
                 elif weeks_elapsed > 0:
                     pending_events.append((company_name, event))
 
-        # === 1. FINANCIAL TIMES (Trustworthy Source) ===
-        # Reports ALL confirmed major events
-        trustworthy_source = ""
-        financial_times_items = []
+        # All events available for reporting (pending and ready)
+        all_events = pending_events + ready_events
 
-        if ready_events:
-            # Filter for major events (severity > 0.5)
-            major_events = [(cn, ev) for cn, ev in ready_events if ev.severity > 0.5]
-            if major_events:
-                # Report ALL major confirmed events
-                for company_name, event in major_events:
-                    financial_times_items.append(f"• {event.description}")
+        # Helper function to generate a report for an outlet
+        def generate_outlet_report(outlet_name: str) -> str:
+            """Generate report for a single outlet with 70% accuracy"""
+            items = []
+            num_items = random.randint(2, 4)  # Each outlet reports 2-4 items
 
-                trustworthy_source = "\n".join(financial_times_items)
+            for _ in range(num_items):
+                # 60% chance to report a real event, 40% chance to generate fake news
+                if all_events and random.random() < 0.6:
+                    # Report a real event
+                    company_name, event = random.choice(all_events)
+                    weeks_elapsed = week_number - event.discovery_week
+                    is_rumor = weeks_elapsed < event.weeks_until_public
 
-        # === 2. MARKET PULSE DAILY ===
-        # Generates 2-3 clickbait items (80% fake, 20% real per item)
-        # Reports events 1 week before they're confirmed when real
-        market_pulse_items = []
-        num_market_pulse_items = random.randint(2, 3)
+                    # 70% chance to report accurately, 30% chance to get it wrong
+                    is_accurate = random.random() < 0.7
 
-        almost_ready = [(cn, ev) for cn, ev in pending_events
-                      if week_number - ev.discovery_week == ev.weeks_until_public - 1]
-
-        for _ in range(num_market_pulse_items):
-            # 20% chance per item to report real event
-            use_real_event = random.random() < 0.2 and almost_ready
-
-            if use_real_event:
-                # Report real event 1 week before confirmation
-                company_name, event = random.choice(almost_ready)
-                if event.event_type == EventType.SUCCESS:
-                    templates = [
-                        f"🚀 {company_name} ABOUT TO EXPLODE! {event.description.upper()}",
-                        f"💰 BREAKING: {company_name} TO THE MOON! {event.description}",
-                    ]
-                else:
-                    templates = [
-                        f"💀 {company_name} COLLAPSING! {event.description.upper()} SELL NOW!",
-                        f"🔥 DISASTER: {company_name} IN FREE FALL! {event.description}",
-                    ]
-                market_pulse_items.append(f"• {random.choice(templates)}")
-            else:
-                # Generate fake clickbait
-                company_name, rumor_text, event_type = self._generate_fake_rumor(companies)
-                if event_type == EventType.SUCCESS:
-                    templates = [
-                        f"🚀 {company_name} ABOUT TO EXPLODE! {rumor_text.upper()}",
-                        f"💰 BREAKING: {company_name} TO THE MOON! {rumor_text}",
-                        f"🔥 {company_name} REVOLUTIONIZES EVERYTHING! {rumor_text} BUY NOW!",
-                    ]
-                else:
-                    templates = [
-                        f"💀 {company_name} COLLAPSING! {rumor_text.upper()} SELL NOW!",
-                        f"🔥 DISASTER: {company_name} IN FREE FALL! {rumor_text}",
-                        f"⚠️ ALERT: {company_name} DOOMED! {rumor_text} GET OUT!",
-                    ]
-                market_pulse_items.append(f"• {random.choice(templates)}")
-
-        market_pulse_source = "\n".join(market_pulse_items)
-
-        # === 3. INSIDER TIP ===
-        # Reports 1-2 tips
-        # 10% chance to report SUCCESS events as they spawn
-        # Otherwise, unreliable reporting
-        insider_items = []
-        insider_flipped = False
-        num_insider_tips = random.randint(1, 2)
-
-        all_events = spawned_events + pending_events + ready_events
-        success_spawns = [(cn, ev) for cn, ev in spawned_events if ev.event_type == EventType.SUCCESS]
-
-        for _ in range(num_insider_tips):
-            if not all_events:
-                break
-
-            # 10% chance to report newly spawned SUCCESS event
-            if success_spawns and random.random() < 0.1:
-                company_name, event = random.choice(success_spawns)
-                insider_items.append(f"• {event.description}")
-                # Remove from list to avoid duplicates
-                success_spawns.remove((company_name, event))
-            else:
-                # Normal behavior: report any event with unreliable accuracy
-                company_name, event = random.choice(all_events)
-
-                # 5% chance to have true insider info
-                has_insider_info = random.random() < 0.05
-
-                if has_insider_info:
-                    insider_items.append(f"• {event.description}")
-                else:
-                    # 50% chance to flip sentiment
-                    if random.random() < 0.5:
-                        insider_flipped = True
-                        # Report opposite
+                    if is_accurate:
+                        # Report the truth
+                        prefix = "RUMOR: " if is_rumor else ""
+                        items.append(f"• {prefix}{event.description}")
+                    else:
+                        # Report the opposite or completely wrong
+                        prefix = "RUMOR: " if is_rumor else ""
                         if event.event_type == EventType.SUCCESS:
+                            # Wrong: report as negative
                             templates = self.SCANDAL_TEMPLATES.get(event.industry, self.SCANDAL_TEMPLATES["Technology"])
                         else:
+                            # Wrong: report as positive
                             templates = self.SUCCESS_TEMPLATES.get(event.industry, self.SUCCESS_TEMPLATES["Technology"])
-                        insider_text = random.choice(templates).format(company=company_name)
-                        insider_items.append(f"• {insider_text}")
-                    else:
-                        insider_items.append(f"• {event.description}")
-
-                # Remove from all_events to avoid reporting same event twice
-                all_events.remove((company_name, event))
-
-        insider_source = "\n".join(insider_items) if insider_items else ""
-
-        # === 4. RUMOR MILL ===
-        # Reports 2-4 rumors (only PROBLEMS and SCANDALS)
-        # 40% chance real rumor, 60% chance fake per rumor
-        # Fastest outlet for negative news
-        rumor_mill_items = []
-        num_rumors = random.randint(2, 4)
-
-        negative_spawns = [(cn, ev) for cn, ev in spawned_events
-                         if ev.event_type in [EventType.PROBLEM, EventType.SCANDAL]]
-        negative_pending = [(cn, ev) for cn, ev in pending_events
-                          if ev.event_type in [EventType.PROBLEM, EventType.SCANDAL]]
-
-        # Create weighted list for pending events (closer to public = higher weight)
-        weighted_pending = []
-        for cn, ev in negative_pending:
-            weeks_until_public_remaining = ev.weeks_until_public - (week_number - ev.discovery_week)
-            weight = max(1, 4 - weeks_until_public_remaining)
-            weighted_pending.extend([(cn, ev)] * weight)
-
-        for _ in range(num_rumors):
-            # 60% chance per rumor to be fake
-            if random.random() < 0.6:
-                # Generate fake negative rumor
-                company_name = random.choice(list(companies.keys()))
-                company = companies[company_name]
-
-                # Only generate PROBLEM or SCANDAL fake rumors
-                if random.random() < 0.5:
-                    event_type = EventType.PROBLEM
-                    templates = self.PROBLEM_TEMPLATES.get(company.industry, self.PROBLEM_TEMPLATES["Technology"])
+                        wrong_text = random.choice(templates).format(company=company_name)
+                        items.append(f"• {prefix}{wrong_text}")
                 else:
-                    event_type = EventType.SCANDAL
-                    templates = self.SCANDAL_TEMPLATES.get(company.industry, self.SCANDAL_TEMPLATES["Technology"])
-
-                rumor_text = random.choice(templates).format(company=company_name)
-                rumor_mill_items.append(f"• {rumor_text}")
-            else:
-                # 40% chance: Report real unconfirmed PROBLEM or SCANDAL
-                # 10% chance to catch newly spawned events
-                if negative_spawns and random.random() < 0.1:
-                    company_name, event = random.choice(negative_spawns)
-                    rumor_mill_items.append(f"• {event.description}")
-                    negative_spawns.remove((company_name, event))
-                elif weighted_pending:
-                    # Report from weighted pending events
-                    company_name, event = random.choice(weighted_pending)
-                    rumor_mill_items.append(f"• {event.description}")
-                    # Remove all instances of this event from weighted list
-                    weighted_pending = [(cn, ev) for cn, ev in weighted_pending
-                                       if not (cn == company_name and ev == event)]
-                else:
-                    # No real negative events available, generate fake one instead
+                    # Generate completely fake news
                     company_name = random.choice(list(companies.keys()))
                     company = companies[company_name]
+
+                    # 50/50 positive or negative fake news
                     if random.random() < 0.5:
-                        templates = self.PROBLEM_TEMPLATES.get(company.industry, self.PROBLEM_TEMPLATES["Technology"])
+                        templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
                     else:
                         templates = self.SCANDAL_TEMPLATES.get(company.industry, self.SCANDAL_TEMPLATES["Technology"])
-                    rumor_text = random.choice(templates).format(company=company_name)
-                    rumor_mill_items.append(f"• {rumor_text}")
 
-        rumor_mill_source = "\n".join(rumor_mill_items)
+                    fake_text = random.choice(templates).format(company=company_name)
+                    # Fake news is always marked as rumor since it's unconfirmed
+                    items.append(f"• RUMOR: {fake_text}")
 
-        # Determine if this is a rumor report (any outlet reporting unconfirmed news)
-        is_rumor = not bool(trustworthy_source)
+            return "\n".join(items) if items else ""
+
+        # Generate reports for all three outlets independently
+        financial_times = generate_outlet_report("Financial Times")
+        market_watch = generate_outlet_report("Market Watch")
+        bloomberg = generate_outlet_report("Bloomberg")
 
         return NewsReport(
-            trustworthy_source=trustworthy_source,
-            market_pulse_source=market_pulse_source,
-            insider_source=insider_source,
-            rumor_mill_source=rumor_mill_source,
-            insider_flipped=insider_flipped,
-            is_rumor=is_rumor
+            financial_times=financial_times,
+            market_watch=market_watch,
+            bloomberg=bloomberg
         )
 
     def generate_breaking_news(self, companies: Dict[str, 'Company'], week_number: int) -> Optional[Tuple[str, NewsReport, EventType]]:
-        """Generate breaking news from all four outlets independently
+        """Generate breaking news and calculate market impacts
 
-        Each outlet reports based on its own criteria:
-        - Financial Times: Confirmed major events only (creates market impact)
-        - Market Pulse: 80% fake clickbait, 20% real (1 week early)
-        - Insider Tip: 10% chance to catch SUCCESS events as they spawn
-        - Rumor Mill: Fastest for PROBLEMS/SCANDALS, 60% fake
+        Market impacts are now calculated internally based on actual events becoming public,
+        not based on any particular outlet's reporting. All three outlets report independently
+        with 70% accuracy, and outlets may agree or disagree on what's happening.
 
         Returns:
-            Tuple of (company_name, news_report, event_type) if Financial Times reports something
-            None if no confirmed news (but outlets may still have rumors)
+            Tuple of (company_name, news_report, event_type) if there's any news
+            None if no news this week
         """
 
         # Step 1: Generate new internal events for all companies
@@ -753,73 +640,79 @@ class BreakingNewsSystem:
             if event:
                 self.company_events[company_name].append(event)
 
-        # Step 2: Generate news from all four outlets independently
+        # Step 2: Calculate market impacts based on events becoming public
+        # This is independent of what outlets report
+        ready_events = []
+        for company_name, events in self.company_events.items():
+            for event in events:
+                weeks_elapsed = week_number - event.discovery_week
+                # Event becomes public and affects market when weeks_elapsed >= weeks_until_public
+                if weeks_elapsed >= event.weeks_until_public and event.severity > 0.5:
+                    ready_events.append((company_name, event))
+
+        # Apply market impacts for all confirmed major events
+        for company_name, event in ready_events:
+            # Calculate impact magnitude based on severity
+            base_impact = event.severity * 15.0  # Scale: 0 to 15%
+
+            # Determine sentiment for impact
+            if event.event_type == EventType.SUCCESS:
+                sentiment = NewsSentiment.POSITIVE
+                impact_magnitude = base_impact
+            else:
+                sentiment = NewsSentiment.NEGATIVE
+                impact_magnitude = -base_impact
+
+            # Apply instant impact (40% panic response)
+            instant_impact_pct = impact_magnitude * 0.40
+            company = companies[company_name]
+            company.price *= (1 + instant_impact_pct / 100)
+            company.price = max(0.01, company.price)
+
+            # Create pending impact for delayed portion (60% actual market adjustment)
+            # Generate news report placeholder for this event
+            placeholder_report = NewsReport(
+                financial_times="",
+                market_watch="",
+                bloomberg=""
+            )
+
+            pending_impact = PendingNewsImpact(
+                company_name=company_name,
+                sentiment=sentiment,
+                impact_magnitude=impact_magnitude,
+                weeks_until_impact=1,  # Delayed impact occurs 1 week after news
+                is_real=True,
+                news_text=event.description,
+                news_report=placeholder_report,
+                instant_impact_applied=True  # 40% instant impact has been applied
+            )
+
+            self.pending_impacts.append(pending_impact)
+            self.news_history.append((week_number, event.description))
+
+            # Remove the confirmed event
+            self.company_events[company_name].remove(event)
+
+        # Step 3: Generate news from all three outlets independently
+        # This is separate from market impacts - outlets report with 70% accuracy
         news_report = self._generate_news_report(companies, week_number)
 
-        # Step 3: Check if Financial Times reported confirmed news
-        # Only Financial Times creates market impacts
-        if news_report.trustworthy_source:
-            # Financial Times reported something - find ALL major confirmed events
-            ready_events = []
-            for company_name, events in self.company_events.items():
-                for event in events:
-                    weeks_elapsed = week_number - event.discovery_week
-                    if weeks_elapsed >= event.weeks_until_public and event.severity > 0.5:
-                        ready_events.append((company_name, event))
-
-            if ready_events:
-                # Create market impacts for ALL confirmed major events
-                for company_name, event in ready_events:
-                    # Calculate impact magnitude based on severity
-                    base_impact = event.severity * 15.0  # Scale: 0 to 15%
-
-                    # Determine sentiment for impact
-                    if event.event_type == EventType.SUCCESS:
-                        sentiment = NewsSentiment.POSITIVE
-                        impact_magnitude = base_impact
-                    else:
-                        sentiment = NewsSentiment.NEGATIVE
-                        impact_magnitude = -base_impact
-
-                    # Apply instant impact (40% panic response)
-                    instant_impact_pct = impact_magnitude * 0.40
-                    company = companies[company_name]
-                    company.price *= (1 + instant_impact_pct / 100)
-                    company.price = max(0.01, company.price)
-
-                    # Create pending impact for delayed portion (60% actual market adjustment)
-                    # Note: impact_magnitude is still the TOTAL impact, we'll apply 60% in update_pending_impacts
-                    pending_impact = PendingNewsImpact(
-                        company_name=company_name,
-                        sentiment=sentiment,
-                        impact_magnitude=impact_magnitude,
-                        weeks_until_impact=1,  # Delayed impact occurs 1 week after news
-                        is_real=True,  # Financial Times is always real
-                        news_text=event.description,
-                        news_report=news_report,
-                        instant_impact_applied=True  # 40% instant impact has been applied
-                    )
-
-                    self.pending_impacts.append(pending_impact)
-                    self.news_history.append((week_number, event.description))
-
-                    # Remove the confirmed event
-                    self.company_events[company_name].remove(event)
-
-                # Return first event for display purposes
-                first_company, first_event = ready_events[0]
-                return (first_company, news_report, first_event.event_type)
-
-        # No confirmed Financial Times news
-        # Check if any outlet has something to report
-        if (news_report.market_pulse_source or
-            news_report.insider_source or
-            news_report.rumor_mill_source):
-            # At least one outlet has news/rumors
-            # Return with empty company name (no market impact)
+        # Step 4: Return results
+        if ready_events:
+            # There was a market-moving event
+            first_company, first_event = ready_events[0]
+            # Update the pending impacts with the actual news report
+            for impact in self.pending_impacts:
+                if impact.company_name == first_company and impact.news_text == first_event.description:
+                    impact.news_report = news_report
+                    break
+            return (first_company, news_report, first_event.event_type)
+        elif news_report.financial_times or news_report.market_watch or news_report.bloomberg:
+            # No market impact, but outlets have news/rumors
             return ("", news_report, EventType.SUCCESS)
         else:
-            # No news from any outlet this week
+            # No news at all this week
             return None
 
     def update_pending_impacts(self, companies: Dict[str, 'Company'], use_precompiled_prices: bool = False) -> List[str]:
@@ -3037,80 +2930,62 @@ class HedgeFund(Player):
         """Execute automated trading based on strategy"""
         actions = []
 
-        # React to breaking news from various outlets
+        # React to breaking news from three reputable outlets
+        # All outlets have 70% accuracy, so AI must be cautious and look for consensus
         if breaking_news:
             company_name, news_report, event_type = breaking_news
-            
-            # Always trust Financial Times (100% reliable)
-            if news_report.trustworthy_source and company_name:
+
+            # Parse all three outlets to find consensus
+            # Since each outlet is 70% accurate, consensus across multiple outlets is more reliable
+            if company_name:
                 company = companies.get(company_name)
                 if company:
+                    # Check if there's a market-moving event (this is the actual confirmed event)
                     is_positive = (event_type == EventType.SUCCESS)
-                    
+
+                    # AI reacts to confirmed market events with moderate confidence
+                    # Since outlets are only 70% accurate, AI uses smaller positions
                     if is_positive:
-                        # Buy on good news (Financial Times)
-                        investment = min(self.cash * 0.15, 30000)  # Invest up to 15% cash or $30k
+                        # Buy on good news (but more cautiously than before)
+                        investment = min(self.cash * 0.10, 20000)  # Invest up to 10% cash or $20k
                         if investment > 1000:
                             success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
                             if success:
-                                actions.append(f"📰 {self.name} bought {company.name} based on Financial Times news")
+                                actions.append(f"📰 {self.name} bought {company.name} based on market news")
                     else:
-                        # Sell or short on bad news (Financial Times)
+                        # Sell or short on bad news
                         if company.name in self.portfolio and self.portfolio[company.name] > 0:
-                            shares = int(self.portfolio[company.name] * 0.3)  # Sell 30% of position
+                            shares = int(self.portfolio[company.name] * 0.2)  # Sell 20% of position
                             success, msg = self.sell_stock(company, shares)
                             if success:
-                                actions.append(f"📰 {self.name} sold {company.name} based on Financial Times news")
+                                actions.append(f"📰 {self.name} sold {company.name} based on market news")
                         else:
                             # Consider shorting if we don't own it
-                            if random.random() < 0.3:  # 30% chance to short
-                                short_value = min(self.cash * 0.10, 20000)  # Short up to 10% cash or $20k
+                            if random.random() < 0.2:  # 20% chance to short
+                                short_value = min(self.cash * 0.08, 15000)  # Short up to 8% cash or $15k
                                 if short_value > 1000:
                                     shares_to_short = int(short_value / company.price)
                                     success, msg = self.short_sell(company, shares_to_short, companies, treasury)
                                     if success:
-                                        actions.append(f"📰 {self.name} shorted {company.name} based on Financial Times news")
-            
-            # Market Pulse (20% credibility - 80% is fake clickbait)
-            if news_report.market_pulse_source and random.random() < 0.20:
-                company = companies.get(company_name)
-                if company:
-                    # React more cautiously
-                    investment = min(self.cash * 0.08, 15000)  # Smaller position
-                    if investment > 1000 and event_type == EventType.SUCCESS:
-                        success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
-                        if success:
-                            actions.append(f"📱 {self.name} bought {company.name} based on Market Pulse rumor")
-            
-            # Insider Tip (40% credibility - catches real success events early)
-            if news_report.insider_source and random.random() < 0.40:
-                company = companies.get(company_name)
-                if company:
-                    investment = min(self.cash * 0.12, 25000)  # Moderate position
-                    if investment > 1000:
-                        success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
-                        if success:
-                            actions.append(f"💡 {self.name} bought {company.name} based on Insider Tip")
-            
-            # Rumor Mill (40% credibility - 60% is fake)
-            if news_report.rumor_mill_source and random.random() < 0.40:
-                company = companies.get(company_name)
-                if company:
-                    is_positive = (event_type == EventType.SUCCESS)
-                    
-                    if is_positive:
-                        investment = min(self.cash * 0.08, 15000)  # Small position
-                        if investment > 1000:
-                            success, msg = self.buy_stock(company, investment, companies=companies, treasury=treasury)
-                            if success:
-                                actions.append(f"💬 {self.name} bought {company.name} based on Rumor Mill")
-                    else:
-                        # Sell on bad rumors
-                        if company.name in self.portfolio and self.portfolio[company.name] > 0:
-                            shares = int(self.portfolio[company.name] * 0.15)  # Sell 15% of position
-                            success, msg = self.sell_stock(company, shares)
-                            if success:
-                                actions.append(f"💬 {self.name} sold {company.name} based on Rumor Mill")
+                                        actions.append(f"📰 {self.name} shorted {company.name} based on market news")
+
+            # Also react to rumors from outlets (but with much less conviction)
+            # AI might trade on rumors with small positions
+            all_reports = [news_report.financial_times, news_report.market_watch, news_report.bloomberg]
+            for outlet_report in all_reports:
+                if outlet_report and "RUMOR:" in outlet_report and random.random() < 0.3:
+                    # 30% chance to act on rumors from any outlet
+                    # Try to extract company names from rumors (simple heuristic)
+                    for comp_name in companies.keys():
+                        if comp_name in outlet_report:
+                            target_company = companies[comp_name]
+                            # Small speculative position on rumors
+                            investment = min(self.cash * 0.05, 10000)  # Very small position
+                            if investment > 1000 and random.random() < 0.5:
+                                success, msg = self.buy_stock(target_company, investment, companies=companies, treasury=treasury)
+                                if success:
+                                    actions.append(f"💬 {self.name} speculated on {target_company.name} based on rumor")
+                                    break
 
 
 
@@ -3512,35 +3387,34 @@ class InvestmentGame:
             print("="*60)
             print()
 
-            # Source 1: Financial Times Report (Trustworthy - only reports confirmed major events)
-            print("📊 Financial Times Report")
+            # Source 1: Financial Times (70% accurate - may report rumors or wrong info)
+            print("📊 Financial Times")
             print("-" * 60)
-            if news_report.trustworthy_source:
-                for line in news_report.trustworthy_source.split('\n'):
+            if news_report.financial_times:
+                for line in news_report.financial_times.split('\n'):
                     print(f"  {line}")
             else:
-                print("  [No major developments to report at this time]")
+                print("  [No reports at this time]")
             print()
 
-            # Source 2: Market Pulse Daily (Posts rumors as clickbait FACTS - no "rumor" tag)
-            print("📢 Market Pulse Daily")
+            # Source 2: Market Watch (70% accurate - may report rumors or wrong info)
+            print("📈 Market Watch")
             print("-" * 60)
-            for line in news_report.market_pulse_source.split('\n'):
-                print(f"  {line}")
+            if news_report.market_watch:
+                for line in news_report.market_watch.split('\n'):
+                    print(f"  {line}")
+            else:
+                print("  [No reports at this time]")
             print()
 
-            # Source 3: Wall Street Wire (Insider Source - 52.5% accurate overall)
-            print("🔍 Wall Street Wire (Insider Tip)")
+            # Source 3: Bloomberg (70% accurate - may report rumors or wrong info)
+            print("📉 Bloomberg")
             print("-" * 60)
-            for line in news_report.insider_source.split('\n'):
-                print(f"  {line}")
-            print()
-
-            # Source 4: The Rumor Mill (Explicitly marks rumors with "RUMOR: " prefix)
-            print("📣 The Rumor Mill")
-            print("-" * 60)
-            for line in news_report.rumor_mill_source.split('\n'):
-                print(f"  {line}")
+            if news_report.bloomberg:
+                for line in news_report.bloomberg.split('\n'):
+                    print(f"  {line}")
+            else:
+                print("  [No reports at this time]")
 
             print("="*60)
 
