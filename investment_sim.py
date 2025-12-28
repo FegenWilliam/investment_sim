@@ -1225,106 +1225,6 @@ class QuantumSingularity:
         return f"{self.name} - ${self.price:.2f}/unit (Monthly Return: {self.monthly_return_rate}% - PERMANENT)"
 
 
-class Gold:
-    """Represents physical gold commodity"""
-
-    def __init__(self):
-        self.name = "Gold"
-        self.price = 2000.0  # $2000 per oz
-        self.base_volatility = 2.5  # Low volatility (2.5%)
-        self.price_history: List[float] = []
-        self.description = "Physical gold - safe haven asset"
-
-    def update_price(self):
-        """Update gold price with low volatility (safe haven behavior)"""
-        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
-        self.price *= (1 + change_percent / 100)
-        self.price = max(self.price, 100.0)  # Floor price
-        self.price_history.append(self.price)
-        if len(self.price_history) > 52:  # Keep 52 weeks of history
-            self.price_history.pop(0)
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary"""
-        return {
-            'price': self.price,
-            'base_volatility': self.base_volatility,
-            'price_history': self.price_history
-        }
-
-    @staticmethod
-    def from_dict(data: dict) -> 'Gold':
-        """Deserialize from dictionary"""
-        gold = Gold()
-        gold.price = data['price']
-        gold.base_volatility = data['base_volatility']
-        gold.price_history = data['price_history']
-        return gold
-
-    def __str__(self):
-        trend = ""
-        if len(self.price_history) >= 2:
-            if self.price > self.price_history[-2]:
-                trend = " ↗️"
-            elif self.price < self.price_history[-2]:
-                trend = " ↘️"
-            else:
-                trend = " ➡️"
-        return f"{self.name} - ${self.price:.2f}/oz (Volatility: {self.base_volatility}%){trend}"
-
-
-class HolyWater:
-    """Represents Holy Water - volatile liquid commodity with unpredictable price swings"""
-
-    def __init__(self):
-        self.name = "Holy Water"
-        self.price = 10000.0  # $10,000 per vial
-        self.base_volatility = 10.0  # Exactly 10% jumps
-        self.price_history: List[float] = []
-        self.description = "Mysterious liquid - unpredictable 10% price swings each week"
-
-    def update_price(self):
-        """Update Holy Water price with random 10% jump up or down"""
-        # Randomly go up or down by exactly 10%
-        direction = random.choice([-1, 1])
-        change_percent = direction * 10.0
-
-        self.price *= (1 + change_percent / 100)
-        self.price = max(self.price, 100.0)  # Floor price
-        self.price_history.append(self.price)
-        if len(self.price_history) > 52:  # Keep 52 weeks of history
-            self.price_history.pop(0)
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary"""
-        return {
-            'price': self.price,
-            'base_volatility': self.base_volatility,
-            'price_history': self.price_history
-        }
-
-    @staticmethod
-    def from_dict(data: dict) -> 'HolyWater':
-        """Deserialize from dictionary"""
-        hw = HolyWater()
-        hw.price = data['price']
-        hw.base_volatility = data['base_volatility']
-        hw.price_history = data['price_history']
-        return hw
-
-    def __str__(self):
-        trend = ""
-        if len(self.price_history) >= 2:
-            if self.price > self.price_history[-2]:
-                trend = " ↗️ +10%"
-            elif self.price < self.price_history[-2]:
-                trend = " ↘️ -10%"
-            else:
-                trend = " ➡️"
-
-        return f"{self.name} - ${self.price:.2f}/vial{trend}"
-
-
 class ElfQueenWater:
     """Represents Elf Queen's 'Water' - a coveted meme commodity"""
 
@@ -1371,55 +1271,6 @@ class ElfQueenWater:
     def __str__(self):
         weeks_until_change = 6 - self.weeks_since_change
         return f"{self.name} - ${self.price:.2f}/vial (Next change in {weeks_until_change} weeks)"
-
-
-class GoldCoin:
-    """Represents Gold Coin - common fantasy currency, crypto-like but stable"""
-
-    def __init__(self):
-        self.name = "Gold Coin"
-        self.price = 2.0  # $2 starting price
-        self.base_volatility = 1.5  # Low volatility (1.5%) - more stable than regular crypto
-        self.price_history: List[float] = []
-        self.description = "Common currency in the fantasy world - like crypto but more stable"
-
-    def update_price(self):
-        """Update price with low volatility (stable crypto behavior)"""
-        # Stable behavior with small random walks
-        change_percent = random.uniform(-self.base_volatility, self.base_volatility)
-        self.price *= (1 + change_percent / 100)
-        self.price = max(self.price, 0.10)  # Floor price at 10 cents
-        self.price_history.append(self.price)
-        if len(self.price_history) > 52:  # Keep 52 weeks of history
-            self.price_history.pop(0)
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary"""
-        return {
-            'price': self.price,
-            'base_volatility': self.base_volatility,
-            'price_history': self.price_history
-        }
-
-    @staticmethod
-    def from_dict(data: dict) -> 'GoldCoin':
-        """Deserialize from dictionary"""
-        gc = GoldCoin()
-        gc.price = data['price']
-        gc.base_volatility = data.get('base_volatility', 1.5)
-        gc.price_history = data.get('price_history', [])
-        return gc
-
-    def __str__(self):
-        trend = ""
-        if len(self.price_history) >= 2:
-            if self.price > self.price_history[-2]:
-                trend = " ↗️"
-            elif self.price < self.price_history[-2]:
-                trend = " ↘️"
-            else:
-                trend = " ➡️"
-        return f"{self.name} - ${self.price:.2f}/coin (Volatility: {self.base_volatility}%){trend}"
 
 
 class VoidStocks:
@@ -1606,31 +1457,6 @@ class VoidCatalyst:
                 return f"{self.name} - ${self.price:.2f} [AVAILABLE - 1 unit only]"
 
 
-class MysticalLender:
-    """Represents The Mystical Lender - a trap loan with hidden 5x slippage penalty"""
-
-    def __init__(self):
-        self.name = "The Mystical Lender"
-        self.loan_amount = 250000.0  # $250k
-        self.description = "Sign a blank paper and get $250k!***\n*** : TERMS AND CONDITIONS APPLY"
-
-    def to_dict(self) -> dict:
-        """Serialize to dictionary"""
-        return {
-            'loan_amount': self.loan_amount
-        }
-
-    @staticmethod
-    def from_dict(data: dict) -> 'MysticalLender':
-        """Deserialize from dictionary"""
-        ml = MysticalLender()
-        ml.loan_amount = data.get('loan_amount', 250000.0)
-        return ml
-
-    def __str__(self):
-        return f"{self.name} - Get ${self.loan_amount:.2f}! (Sign a blank paper)"
-
-
 class Player:
     """Represents a player in the game"""
 
@@ -1641,14 +1467,10 @@ class Player:
         self.treasury_bonds = 0
         # New themed investments
         self.quantum_singularity_units = 0  # Permanent investment
-        self.gold_ounces = 0  # Physical gold
-        self.holy_water_vials = 0  # Fantasy blessed commodity
         self.elf_queen_water_vials = 0  # Elf Queen's "Water"
-        self.gold_coins = 0  # Gold Coins (fantasy currency)
         self.void_stocks_shares = 0  # Void Stocks shares
         self.void_stocks_purchases = []  # List of void stock purchase batches: {'purchase_week': int, 'shares': int, 'void_state_count': int}
         self.void_catalyst_owned = False  # Void Catalyst (only 1 exists)
-        self.mystical_lender_debt = 0.0  # Mystical Lender debt (hidden 5x slippage until repaid)
         # Leverage system
         self.borrowed_amount = 0.0
         self.max_leverage_ratio = 5.0  # Can borrow up to 5x equity
@@ -1692,12 +1514,9 @@ class Player:
         # We need to find how many shares we can buy with total_investment considering slippage
         shares = total_investment / company.price  # Initial estimate
 
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
-
         # Iteratively refine to account for slippage
         for _ in range(5):  # A few iterations should converge
-            slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=slippage_multiplier)
+            slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=1.0)
             effective_price = company.price * slippage_factor
             shares = total_investment / effective_price
 
@@ -1758,9 +1577,6 @@ class Player:
         if dollar_amount is not None and shares is not None:
             return False, "Specify either dollar_amount or shares, not both!"
 
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
-
         if dollar_amount is not None:
             # Calculate shares from dollar amount (iterative for slippage)
             shares_to_sell = dollar_amount / company.price  # Initial estimate
@@ -1770,7 +1586,7 @@ class Player:
                 if shares_to_sell > owned_shares:
                     shares_to_sell = owned_shares
                     break
-                slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=slippage_multiplier)
+                slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=1.0)
                 effective_price = company.price * slippage_factor
                 shares_to_sell = dollar_amount / effective_price
 
@@ -1788,7 +1604,7 @@ class Player:
 
         # Calculate effective price with slippage
         old_price = company.price
-        slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=slippage_multiplier)
+        slippage_factor = company.calculate_slippage(shares_to_sell, is_buy=False, slippage_multiplier=1.0)
         effective_price = old_price * slippage_factor
         total_value = effective_price * shares_to_sell
 
@@ -1822,9 +1638,6 @@ class Player:
         if shares <= 0:
             return False, "Invalid number of shares!"
 
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
-
         # Calculate effective price with slippage (selling borrowed shares)
         old_price = company.price
         slippage_factor = company.calculate_slippage(shares, is_buy=False, slippage_multiplier=slippage_multiplier)
@@ -1833,7 +1646,7 @@ class Player:
 
         # Check margin requirement: need equity >= 1.5x the short position value
         # This is the initial margin requirement for short selling
-        equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        equity = self.calculate_equity(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst)
         short_value = old_price * shares
         required_margin = short_value * 1.5
 
@@ -1871,9 +1684,6 @@ class Player:
         """Cover (close) a short position by buying back the shares"""
         if company.name not in self.short_positions or self.short_positions[company.name] < shares:
             return False, "You don't have that many shares shorted!"
-
-        # Check for Mystical Lender penalty (hidden 5x slippage)
-        slippage_multiplier = 5.0 if self.mystical_lender_debt > 0 else 1.0
 
         # Calculate effective price with slippage (buying to cover)
         old_price = company.price
@@ -1941,46 +1751,6 @@ class Player:
         monthly_income = quantum_singularity.calculate_monthly_return(units)
         return True, f"Purchased {units} Quantum Singularity units! You will receive ${monthly_income:.2f}/month passive income. WARNING: This investment is PERMANENT and cannot be sold!"
 
-    def buy_gold(self, gold: Gold, ounces: int) -> Tuple[bool, str]:
-        """Buy physical gold"""
-        total_cost = gold.price * ounces
-        if total_cost > self.cash:
-            return False, "Insufficient funds!"
-
-        self.cash -= total_cost
-        self.gold_ounces += ounces
-        return True, f"Purchase successful! Bought {ounces} oz of gold for ${total_cost:.2f}"
-
-    def sell_gold(self, gold: Gold, ounces: int) -> Tuple[bool, str]:
-        """Sell physical gold"""
-        if self.gold_ounces < ounces:
-            return False, "You don't own that much gold!"
-
-        total_value = gold.price * ounces
-        self.cash += total_value
-        self.gold_ounces -= ounces
-        return True, f"Sale successful! Sold {ounces} oz of gold for ${total_value:.2f}"
-
-    def buy_holy_water(self, holy_water: HolyWater, vials: int) -> Tuple[bool, str]:
-        """Buy Holy Water vials"""
-        total_cost = holy_water.price * vials
-        if total_cost > self.cash:
-            return False, "Insufficient funds!"
-
-        self.cash -= total_cost
-        self.holy_water_vials += vials
-        return True, f"Purchase successful! Bought {vials} vials of Holy Water for ${total_cost:.2f}"
-
-    def sell_holy_water(self, holy_water: HolyWater, vials: int) -> Tuple[bool, str]:
-        """Sell Holy Water vials"""
-        if self.holy_water_vials < vials:
-            return False, "You don't own that many vials!"
-
-        total_value = holy_water.price * vials
-        self.cash += total_value
-        self.holy_water_vials -= vials
-        return True, f"Sale successful! Sold {vials} vials of Holy Water for ${total_value:.2f}"
-
     def buy_elf_queen_water(self, elf_queen_water: ElfQueenWater, vials: int) -> Tuple[bool, str]:
         """Buy Elf Queen's Water vials"""
         total_cost = elf_queen_water.price * vials
@@ -2000,26 +1770,6 @@ class Player:
         self.cash += total_value
         self.elf_queen_water_vials -= vials
         return True, f"Sale successful! Sold {vials} vials of Elf Queen's \"Water\" for ${total_value:.2f}"
-
-    def buy_gold_coin(self, gold_coin: GoldCoin, coins: int) -> Tuple[bool, str]:
-        """Buy Gold Coins"""
-        total_cost = gold_coin.price * coins
-        if total_cost > self.cash:
-            return False, "Insufficient funds!"
-
-        self.cash -= total_cost
-        self.gold_coins += coins
-        return True, f"Purchase successful! Bought {coins} Gold Coins for ${total_cost:.2f}"
-
-    def sell_gold_coin(self, gold_coin: GoldCoin, coins: int) -> Tuple[bool, str]:
-        """Sell Gold Coins"""
-        if self.gold_coins < coins:
-            return False, "You don't own that many Gold Coins!"
-
-        total_value = gold_coin.price * coins
-        self.cash += total_value
-        self.gold_coins -= coins
-        return True, f"Sale successful! Sold {coins} Gold Coins for ${total_value:.2f}"
 
     def buy_void_stocks(self, void_stocks: VoidStocks, shares: int) -> Tuple[bool, str]:
         """Buy Void Stocks"""
@@ -2162,41 +1912,6 @@ class Player:
             return True, msg, sell_price
         return False, "", 0.0
 
-    def accept_mystical_lender(self, mystical_lender: MysticalLender) -> Tuple[bool, str]:
-        """Accept loan from The Mystical Lender (hidden 5x slippage until repaid)"""
-        if self.mystical_lender_debt > 0:
-            return False, "You already have a loan from The Mystical Lender!"
-
-        loan_amount = mystical_lender.loan_amount
-        self.cash += loan_amount
-        self.mystical_lender_debt = loan_amount
-
-        return True, f"Sign a blank paper and get ${loan_amount:.2f}!\n*** : TERMS AND CONDITIONS APPLY"
-
-    def repay_mystical_lender(self, amount: float = None) -> Tuple[bool, str]:
-        """Repay The Mystical Lender debt (partially or fully)"""
-        if self.mystical_lender_debt <= 0:
-            return False, "You have no debt with The Mystical Lender!"
-
-        # If no amount specified, repay all
-        if amount is None:
-            amount = self.mystical_lender_debt
-
-        if amount > self.mystical_lender_debt:
-            amount = self.mystical_lender_debt
-
-        if amount > self.cash:
-            return False, f"Insufficient funds! You need ${amount:.2f} but only have ${self.cash:.2f}"
-
-        self.cash -= amount
-        self.mystical_lender_debt -= amount
-
-        if self.mystical_lender_debt < 0.01:
-            self.mystical_lender_debt = 0.0
-            return True, f"Repaid ${amount:.2f}. The Mystical Lender debt is now FULLY REPAID! The strange terms are lifted..."
-        else:
-            return True, f"Repaid ${amount:.2f}. Remaining debt: ${self.mystical_lender_debt:.2f}"
-
     def apply_quantum_singularity_income(self, quantum_singularity: QuantumSingularity) -> float:
         """Apply monthly passive income from Quantum Singularity (called every 4 weeks)"""
         if self.quantum_singularity_units > 0:
@@ -2205,7 +1920,7 @@ class Player:
             return income
         return 0.0
 
-    def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
+    def calculate_net_worth(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate total net worth (cash + stocks + bonds - short obligations)"""
         net_worth = self.cash
 
@@ -2223,16 +1938,10 @@ class Player:
         net_worth += self.treasury_bonds * treasury.price
 
         # Add themed investments
-        if gold and self.gold_ounces > 0:
-            net_worth += self.gold_ounces * gold.price
-        if holy_water and self.holy_water_vials > 0:
-            net_worth += self.holy_water_vials * holy_water.price
         if quantum_singularity and self.quantum_singularity_units > 0:
             net_worth += self.quantum_singularity_units * quantum_singularity.price
         if elf_queen_water and self.elf_queen_water_vials > 0:
             net_worth += self.elf_queen_water_vials * elf_queen_water.price
-        if gold_coin and self.gold_coins > 0:
-            net_worth += self.gold_coins * gold_coin.price
         if void_stocks and self.void_stocks_shares > 0:
             net_worth += self.void_stocks_shares * void_stocks.price
         if void_catalyst and self.void_catalyst_owned:
@@ -2240,11 +1949,11 @@ class Player:
 
         return net_worth
 
-    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
+    def calculate_equity(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate equity (net worth minus debt)"""
-        return self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst) - self.borrowed_amount - self.slippage_bank_debt - self.mystical_lender_debt
+        return self.calculate_net_worth(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst) - self.borrowed_amount - self.slippage_bank_debt
 
-    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
+    def calculate_total_assets(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> float:
         """Calculate total portfolio value (not including cash, only investments)"""
         assets = 0.0
 
@@ -2257,16 +1966,10 @@ class Player:
         assets += self.treasury_bonds * treasury.price
 
         # Add themed investments
-        if gold and self.gold_ounces > 0:
-            assets += self.gold_ounces * gold.price
-        if holy_water and self.holy_water_vials > 0:
-            assets += self.holy_water_vials * holy_water.price
         if quantum_singularity and self.quantum_singularity_units > 0:
             assets += self.quantum_singularity_units * quantum_singularity.price
         if elf_queen_water and self.elf_queen_water_vials > 0:
             assets += self.elf_queen_water_vials * elf_queen_water.price
-        if gold_coin and self.gold_coins > 0:
-            assets += self.gold_coins * gold_coin.price
         if void_stocks and self.void_stocks_shares > 0:
             assets += self.void_stocks_shares * void_stocks.price
         if void_catalyst and self.void_catalyst_owned:
@@ -2274,12 +1977,12 @@ class Player:
 
         return assets
 
-    def borrow_money(self, amount: float, companies: Dict[str, Company], treasury: Treasury, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None) -> Tuple[bool, str]:
+    def borrow_money(self, amount: float, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None) -> Tuple[bool, str]:
         """Borrow money using leverage"""
         if amount <= 0:
             return False, "Invalid amount!"
 
-        equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        equity = self.calculate_equity(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst)
 
         # No borrowing limit - players can borrow as much as they want (margin call will trigger if they go too far)
         self.borrowed_amount += amount
@@ -2431,7 +2134,7 @@ class Player:
             return False
 
         # Calculate equity including all assets
-        equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        equity = self.calculate_equity(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst)
 
         # Check leverage-based margin call
         if self.borrowed_amount > 0:
@@ -2532,7 +2235,7 @@ class Player:
                 actions.append(f"   Repaid ${repayment:.2f} of loan")
 
         # Final status
-        equity = self.calculate_equity(companies, treasury, gold, holy_water, None, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        equity = self.calculate_equity(companies, treasury, None, elf_queen_water, void_stocks, void_catalyst)
         if self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
             actions.append(f"   ⚠️ WARNING: Still in margin call after full liquidation!")
             actions.append(f"   Final Equity: ${equity:.2f}, Debt: ${self.borrowed_amount:.2f}")
@@ -2554,14 +2257,10 @@ class Player:
             'short_positions': self.short_positions,
             'short_borrow_fee_weekly': self.short_borrow_fee_weekly,
             'quantum_singularity_units': self.quantum_singularity_units,
-            'gold_ounces': self.gold_ounces,
-            'holy_water_vials': self.holy_water_vials,
             'elf_queen_water_vials': self.elf_queen_water_vials,
-            'gold_coins': self.gold_coins,
             'void_stocks_shares': self.void_stocks_shares,
             'void_stocks_purchases': self.void_stocks_purchases,
             'void_catalyst_owned': self.void_catalyst_owned,
-            'mystical_lender_debt': self.mystical_lender_debt,
             'collateral_deposited': self.collateral_deposited,
             'slippage_bank_debt': self.slippage_bank_debt
         }
@@ -2578,14 +2277,10 @@ class Player:
         player.short_positions = data.get('short_positions', {})  # Default to empty dict for backwards compatibility
         player.short_borrow_fee_weekly = data.get('short_borrow_fee_weekly', 0.02)  # Default value
         player.quantum_singularity_units = data.get('quantum_singularity_units', 0)  # Default to 0 for backwards compatibility
-        player.gold_ounces = data.get('gold_ounces', 0)  # Default to 0 for backwards compatibility
-        player.holy_water_vials = data.get('holy_water_vials', 0)  # Default to 0 for backwards compatibility
         player.elf_queen_water_vials = data.get('elf_queen_water_vials', 0)
-        player.gold_coins = data.get('gold_coins', 0)
         player.void_stocks_shares = data.get('void_stocks_shares', 0)
         player.void_stocks_purchases = data.get('void_stocks_purchases', [])  # Default to empty list for backwards compatibility
         player.void_catalyst_owned = data.get('void_catalyst_owned', False)
-        player.mystical_lender_debt = data.get('mystical_lender_debt', 0.0)  # Default to 0.0 for backwards compatibility
         player.collateral_deposited = data.get('collateral_deposited', 0.0)  # Default to 0.0 for backwards compatibility
         player.slippage_bank_debt = data.get('slippage_bank_debt', 0.0)  # Default to 0.0 for backwards compatibility
         return player
@@ -2600,7 +2295,7 @@ class Player:
         # Show leverage info
         if self.borrowed_amount > 0:
             print(f"💳 Borrowed (Leverage): ${self.borrowed_amount:.2f}")
-            equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+            equity = self.calculate_equity(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst)
             print(f"💰 Equity (Net - Debt): ${equity:.2f}")
             current_leverage = self.borrowed_amount / max(0.01, equity)
             print(f"📊 Leverage Ratio: {current_leverage:.2f}x")
@@ -2630,7 +2325,7 @@ class Player:
                     total_short_value += companies[company_name].price * shares
 
             if total_short_value > 0:
-                equity = self.calculate_equity(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+                equity = self.calculate_equity(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst)
                 required_maintenance = total_short_value * 1.25
                 short_equity_ratio = (equity / required_maintenance * 100) if required_maintenance > 0 else 100
                 distance_to_short_call = short_equity_ratio - 100
@@ -2650,10 +2345,6 @@ class Player:
             print(f"🏦 Collateral Deposited: ${self.collateral_deposited:.2f}")
             if self.borrowed_amount == 0:
                 print(f"   (Can be withdrawn - you are debt-free)")
-
-        # Show Mystical Lender debt
-        if self.mystical_lender_debt > 0:
-            print(f"📜 Mystical Lender Debt: ${self.mystical_lender_debt:.2f}")
 
         # Show Slippage Bank debt
         if self.slippage_bank_debt > 0:
@@ -2730,7 +2421,7 @@ class Player:
             print("  None")
 
         print()
-        net_worth = self.calculate_net_worth(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst)
+        net_worth = self.calculate_net_worth(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst)
         print(f"Total Net Worth: ${net_worth:.2f}")
         print(f"{'='*60}")
 
@@ -3691,8 +3382,6 @@ class InvestmentGame:
         self.treasury = Treasury()
         # Themed investments
         self.quantum_singularity = QuantumSingularity()
-        self.gold = Gold()
-        self.holy_water = HolyWater()
         self.players: List[Player] = []
         self.hedge_funds: List[HedgeFund] = []  # NPC hedge funds
         self.current_turn = 0
@@ -3713,10 +3402,8 @@ class InvestmentGame:
 
         # Initialize new themed investments (after companies are initialized for VoidStocks)
         self.elf_queen_water = ElfQueenWater()
-        self.gold_coin = GoldCoin()
         self.void_stocks = VoidStocks(self.companies)
         self.void_catalyst = VoidCatalyst()
-        self.mystical_lender = MysticalLender()
 
         # Slippage Bank - accumulates all trading slippage from all players
         self.slippage_bank = 0.0
@@ -3728,9 +3415,9 @@ class InvestmentGame:
         self._precalculate_future_prices()
 
     def _initialize_companies(self):
-        """Initialize the 10 companies with different industries and liquidity levels"""
+        """Initialize the companies with different industries and liquidity levels"""
         # Format: (name, industry, price, volatility, liquidity, market_cap)
-        # Market caps range from $30B to $400B for realistic deep liquidity
+        # Market caps range from $35B to $400B for realistic deep liquidity
         company_data = [
             ("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 400_000_000_000),  # $400B - Mega cap
             ("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.MEDIUM, 250_000_000_000),  # $250B - Large cap
@@ -3738,10 +3425,7 @@ class InvestmentGame:
             ("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.MEDIUM, 160_000_000_000),  # $160B - Large cap
             ("ElectroMax", "Electronics", 85.0, 6.5, LiquidityLevel.MEDIUM, 150_000_000_000),  # $150B - Large cap
             ("Blue Energy Industries", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 120_000_000_000),  # $120B - Large cap
-            ("Rock Friends Inc.", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 60_000_000_000),  # $60B - Mid cap
-            ("Grimoire Creators Ltd", "Magical Publishing", 300.0, 10.0, LiquidityLevel.LOW, 50_000_000_000),  # $50B - Mid cap
             ("Out of This World Enterprises", "Rare Fantasy Goods", 666.0, 13.0, LiquidityLevel.LOW, 35_000_000_000),  # $35B - Mid cap, ultra-rare goods
-            ("Blessings of All Enterprises", "Divine Services", 90.0, 12.0, LiquidityLevel.LOW, 30_000_000_000),  # $30B - Mid cap
         ]
 
         for name, industry, price, volatility, liquidity, market_cap in company_data:
@@ -3803,10 +3487,7 @@ class InvestmentGame:
         print()
         print("Themed Investments:")
         print(f"  {self.quantum_singularity}")
-        print(f"  {self.gold}")
-        print(f"  {self.holy_water}")
         print(f"  {self.elf_queen_water}")
-        print(f"  {self.gold_coin}")
         print(f"  {self.void_stocks}")
         print(f"  {self.void_catalyst}")
         print()
@@ -3953,10 +3634,7 @@ class InvestmentGame:
             input("\nPress Enter to continue...")
 
         # Update themed investment prices
-        self.gold.update_price()
-        self.holy_water.update_price()
         self.elf_queen_water.update_price()
-        self.gold_coin.update_price()
         self.void_stocks.update_price()
         self.void_catalyst.update_price()
 
@@ -4459,7 +4137,7 @@ class InvestmentGame:
             print("="*60)
             print("Your equity has fallen below 30% of your total position!")
             print("You must either deposit cash or sell assets to reduce leverage.")
-            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
             print(f"Current Equity: ${equity:.2f}")
             print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
             print(f"Required Action: Increase equity or repay loan immediately!")
@@ -4558,7 +4236,7 @@ class InvestmentGame:
                     print("If you end your turn now, you will be subject to FORCED LIQUIDATION!")
                     print("Your equity has fallen below the required maintenance margin.")
                     print()
-                    equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, None, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                    equity = player.calculate_equity(self.companies, self.treasury, None, self.elf_queen_water, self.void_stocks, self.void_catalyst)
                     print(f"Current Equity: ${equity:.2f}")
                     print(f"Borrowed Amount: ${player.borrowed_amount:.2f}")
                     if player.borrowed_amount > 0:
@@ -4623,7 +4301,7 @@ class InvestmentGame:
         print("BUY STOCKS")
         print("="*60)
         print(f"Available Cash: ${player.cash:.2f}")
-        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+        equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
         print(f"Current Equity: ${equity:.2f}")
         print()
 
@@ -4756,7 +4434,7 @@ class InvestmentGame:
         print("SHORT SELL STOCKS")
         print("="*60)
         print(f"Available Cash: ${player.cash:.2f}")
-        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+        equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
         print(f"Current Equity: ${equity:.2f}")
         print()
         print("⚠️  WARNING: Short selling is risky! Losses can be unlimited if prices rise.")
@@ -4923,13 +4601,9 @@ class InvestmentGame:
         print(f"Available Cash: ${player.cash:.2f}")
         print()
         print("1. " + str(self.quantum_singularity))
-        print("2. " + str(self.gold))
-        print("3. " + str(self.holy_water))
-        print("4. " + str(self.elf_queen_water))
-        print("5. " + str(self.gold_coin))
-        print("6. " + str(self.void_stocks))
-        print("7. " + str(self.void_catalyst))
-        print("8. " + str(self.mystical_lender))
+        print("2. " + str(self.elf_queen_water))
+        print("3. " + str(self.void_stocks))
+        print("4. " + str(self.void_catalyst))
         print("0. Cancel")
         print()
 
@@ -4947,22 +4621,6 @@ class InvestmentGame:
                 success, msg = player.buy_quantum_singularity(self.quantum_singularity, units)
                 print(msg)
             elif choice == 2:
-                # Gold
-                ounces = int(input("How many ounces to purchase? "))
-                if ounces <= 0:
-                    print("Invalid number of ounces!")
-                    return
-                success, msg = player.buy_gold(self.gold, ounces)
-                print(msg)
-            elif choice == 3:
-                # Holy Water
-                vials = int(input("How many vials to purchase? "))
-                if vials <= 0:
-                    print("Invalid number of vials!")
-                    return
-                success, msg = player.buy_holy_water(self.holy_water, vials)
-                print(msg)
-            elif choice == 4:
                 # Elf Queen's Water
                 vials = int(input("How many vials to purchase? "))
                 if vials <= 0:
@@ -4970,15 +4628,7 @@ class InvestmentGame:
                     return
                 success, msg = player.buy_elf_queen_water(self.elf_queen_water, vials)
                 print(msg)
-            elif choice == 5:
-                # Gold Coin
-                coins = int(input("How many coins to purchase? "))
-                if coins <= 0:
-                    print("Invalid number of coins!")
-                    return
-                success, msg = player.buy_gold_coin(self.gold_coin, coins)
-                print(msg)
-            elif choice == 6:
+            elif choice == 3:
                 # Void Stocks
                 shares = int(input("How many shares to purchase? "))
                 if shares <= 0:
@@ -4986,21 +4636,13 @@ class InvestmentGame:
                     return
                 success, msg = player.buy_void_stocks(self.void_stocks, shares)
                 print(msg)
-            elif choice == 7:
+            elif choice == 4:
                 # Void Catalyst
                 confirm = input(f"Buy Void Catalyst for ${self.void_catalyst.price:.2f}? (y/n): ")
                 if confirm.lower() == 'y':
                     # Get list of all human player names (excluding NPCs)
                     human_players = [p.name for p in self.players if not getattr(p, 'is_npc', False)]
                     success, msg = player.buy_void_catalyst(self.void_catalyst, human_players)
-                    print(msg)
-            elif choice == 8:
-                # Mystical Lender
-                print("\n" + str(self.mystical_lender))
-                print(f"\n{self.mystical_lender.description}")
-                confirm = input(f"\nAccept the loan? (y/n): ")
-                if confirm.lower() == 'y':
-                    success, msg = player.accept_mystical_lender(self.mystical_lender)
                     print(msg)
             else:
                 print("Invalid choice!")
@@ -5016,21 +4658,11 @@ class InvestmentGame:
         print(f"Note: Quantum Singularity & Void Catalyst cannot be sold manually")
         print()
         print(f"Your Holdings:")
-        print(f"  Gold: {player.gold_ounces} oz @ ${self.gold.price:.2f}")
-        print(f"  Holy Water: {player.holy_water_vials} vials @ ${self.holy_water.price:.2f}")
         print(f"  Elf Queen's Water: {player.elf_queen_water_vials} vials @ ${self.elf_queen_water.price:.2f}")
-        print(f"  Gold Coin: {player.gold_coins} coins @ ${self.gold_coin.price:.2f}")
         print(f"  Void Stocks: {player.void_stocks_shares} shares @ ${self.void_stocks.price:.2f}")
-        if player.mystical_lender_debt > 0:
-            print(f"  Mystical Lender Debt: ${player.mystical_lender_debt:.2f}")
         print()
-        print("1. Sell Gold")
-        print("2. Sell Holy Water")
-        print("3. Sell Elf Queen's Water")
-        print("4. Sell Gold Coin")
-        print("5. Sell Void Stocks")
-        if player.mystical_lender_debt > 0:
-            print("6. Repay Mystical Lender")
+        print("1. Sell Elf Queen's Water")
+        print("2. Sell Void Stocks")
         print("0. Cancel")
         print()
 
@@ -5040,28 +4672,6 @@ class InvestmentGame:
             if choice == 0:
                 return
             elif choice == 1:
-                # Gold
-                if player.gold_ounces == 0:
-                    print("You don't own any gold!")
-                    return
-                ounces = int(input(f"How many ounces to sell (you have {player.gold_ounces})? "))
-                if ounces <= 0:
-                    print("Invalid number of ounces!")
-                    return
-                success, msg = player.sell_gold(self.gold, ounces)
-                print(msg)
-            elif choice == 2:
-                # Holy Water
-                if player.holy_water_vials == 0:
-                    print("You don't own any Holy Water!")
-                    return
-                vials = int(input(f"How many vials to sell (you have {player.holy_water_vials})? "))
-                if vials <= 0:
-                    print("Invalid number of vials!")
-                    return
-                success, msg = player.sell_holy_water(self.holy_water, vials)
-                print(msg)
-            elif choice == 3:
                 # Elf Queen's Water
                 if player.elf_queen_water_vials == 0:
                     print("You don't own any Elf Queen's Water!")
@@ -5072,18 +4682,7 @@ class InvestmentGame:
                     return
                 success, msg = player.sell_elf_queen_water(self.elf_queen_water, vials)
                 print(msg)
-            elif choice == 4:
-                # Gold Coin
-                if player.gold_coins == 0:
-                    print("You don't own any Gold Coins!")
-                    return
-                coins = int(input(f"How many coins to sell (you have {player.gold_coins})? "))
-                if coins <= 0:
-                    print("Invalid number of coins!")
-                    return
-                success, msg = player.sell_gold_coin(self.gold_coin, coins)
-                print(msg)
-            elif choice == 5:
+            elif choice == 2:
                 # Void Stocks
                 if player.void_stocks_shares == 0:
                     print("You don't own any Void Stocks!")
@@ -5094,23 +4693,6 @@ class InvestmentGame:
                     return
                 success, msg = player.sell_void_stocks(self.void_stocks, shares)
                 print(msg)
-            elif choice == 6:
-                # Repay Mystical Lender
-                if player.mystical_lender_debt <= 0:
-                    print("You have no debt with The Mystical Lender!")
-                    return
-                print(f"\nMystical Lender Debt: ${player.mystical_lender_debt:.2f}")
-                print(f"Your Cash: ${player.cash:.2f}")
-                amount_input = input(f"How much to repay? (Enter amount or 'all' for full repayment): ")
-                try:
-                    if amount_input.lower() == 'all':
-                        success, msg = player.repay_mystical_lender()
-                    else:
-                        amount = float(amount_input)
-                        success, msg = player.repay_mystical_lender(amount)
-                    print(msg)
-                except ValueError:
-                    print("Invalid amount!")
             else:
                 print("Invalid choice!")
 
@@ -5123,7 +4705,7 @@ class InvestmentGame:
         print("BORROW MONEY (LEVERAGE)")
         print("="*60)
 
-        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+        equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
 
         print(f"Your Equity: ${equity:.2f}")
         print(f"Already Borrowed: ${player.borrowed_amount:.2f}")
@@ -5147,7 +4729,7 @@ class InvestmentGame:
                 print("Invalid amount!")
                 return
 
-            success, message = player.borrow_money(amount, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            success, message = player.borrow_money(amount, self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
             print(f"\n{message}")
 
         except ValueError:
@@ -5257,7 +4839,7 @@ class InvestmentGame:
         print("DEPOSIT COLLATERAL")
         print("="*60)
 
-        equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+        equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
 
         print(f"Available Cash: ${player.cash:.2f}")
         print(f"Current Equity: ${equity:.2f}")
@@ -5290,7 +4872,7 @@ class InvestmentGame:
 
             if success:
                 # Show new threshold
-                new_equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                new_equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
                 new_threshold = player.get_margin_call_threshold(new_equity) * 100
                 print(f"New Margin Call Threshold: {new_threshold:.1f}%")
 
@@ -5352,13 +4934,9 @@ class InvestmentGame:
                 'future_fundamental_prices': self.future_fundamental_prices,
                 'random_state': list(random.getstate()),  # Save random state for deterministic futures
                 'quantum_singularity': self.quantum_singularity.to_dict(),
-                'gold': self.gold.to_dict(),
-                'holy_water': self.holy_water.to_dict(),
                 'elf_queen_water': self.elf_queen_water.to_dict(),
-                'gold_coin': self.gold_coin.to_dict(),
                 'void_stocks': self.void_stocks.to_dict(),
                 'void_catalyst': self.void_catalyst.to_dict(),
-                'mystical_lender': self.mystical_lender.to_dict(),
                 'slippage_bank': self.slippage_bank
             }
 
@@ -5450,25 +5028,10 @@ class InvestmentGame:
             else:
                 game.quantum_singularity = QuantumSingularity()
 
-            if 'gold' in game_state:
-                game.gold = Gold.from_dict(game_state['gold'])
-            else:
-                game.gold = Gold()
-
-            if 'holy_water' in game_state:
-                game.holy_water = HolyWater.from_dict(game_state['holy_water'])
-            else:
-                game.holy_water = HolyWater()
-
             if 'elf_queen_water' in game_state:
                 game.elf_queen_water = ElfQueenWater.from_dict(game_state['elf_queen_water'])
             else:
                 game.elf_queen_water = ElfQueenWater()
-
-            if 'gold_coin' in game_state:
-                game.gold_coin = GoldCoin.from_dict(game_state['gold_coin'])
-            else:
-                game.gold_coin = GoldCoin()
 
             if 'void_stocks' in game_state:
                 game.void_stocks = VoidStocks.from_dict(game_state['void_stocks'], game.companies)
@@ -5479,11 +5042,6 @@ class InvestmentGame:
                 game.void_catalyst = VoidCatalyst.from_dict(game_state['void_catalyst'])
             else:
                 game.void_catalyst = VoidCatalyst()
-
-            if 'mystical_lender' in game_state:
-                game.mystical_lender = MysticalLender.from_dict(game_state['mystical_lender'])
-            else:
-                game.mystical_lender = MysticalLender()
 
             # Restore slippage bank (default to 0.0 for backwards compatibility)
             game.slippage_bank = game_state.get('slippage_bank', 0.0)
@@ -5507,13 +5065,13 @@ class InvestmentGame:
         # Calculate net worth for all players and hedge funds
         standings = []
         for player in self.players:
-            net_worth = player.calculate_net_worth(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
-            equity = player.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            net_worth = player.calculate_net_worth(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
+            equity = player.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
             standings.append((player.name, net_worth, equity, player, False))
 
         for hedge_fund in self.hedge_funds:
-            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
-            equity = hedge_fund.calculate_equity(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+            net_worth = hedge_fund.calculate_net_worth(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
+            equity = hedge_fund.calculate_equity(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
             standings.append((hedge_fund.name, net_worth, equity, hedge_fund, True))
 
         # Sort by net worth descending

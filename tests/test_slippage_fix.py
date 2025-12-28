@@ -92,7 +92,7 @@ print("="*80)
 scenarios = [
     ("TechCorp ($50B HIGH)", 25000, 50_000_000_000, "HIGH", 150),
     ("ElectroMax ($10B MED)", 25000, 10_000_000_000, "MEDIUM", 85),
-    ("Rock Friends ($2B LOW)", 25000, 2_000_000_000, "LOW", 78),
+    ("AutoDrive ($2B LOW)", 25000, 2_000_000_000, "LOW", 95),
 ]
 
 for name, trade, mcap, liq, p in scenarios:

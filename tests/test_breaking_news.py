@@ -11,7 +11,7 @@ companies = {
     "TechCorp": Company("TechCorp", "Technology", 150.0, 8.0, LiquidityLevel.HIGH, 50_000_000_000),
     "PharmaCare": Company("PharmaCare", "Pharmaceuticals", 220.0, 5.0, LiquidityLevel.LOW, 8_000_000_000),
     "Blue Energy": Company("Blue Energy", "Mana Extraction", 125.0, 9.5, LiquidityLevel.MEDIUM, 3_000_000_000),
-    "Rock Friends": Company("Rock Friends", "Golem Manufacturing", 78.0, 11.0, LiquidityLevel.LOW, 2_000_000_000),
+    "AutoDrive": Company("AutoDrive", "Automotive", 95.0, 7.0, LiquidityLevel.LOW, 2_000_000_000),
 }
 
 # Create breaking news system
