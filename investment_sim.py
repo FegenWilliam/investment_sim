@@ -32,6 +32,13 @@ class ScandalSeverity(Enum):
     HIGH = "high"      # Major disasters, -12% to -20% impact
 
 
+class SuccessSeverity(Enum):
+    """Severity levels for successes"""
+    LOW = "low"        # Minor wins, +3% to +7% impact
+    MEDIUM = "medium"  # Solid achievements, +7% to +12% impact
+    HIGH = "high"      # Major breakthroughs, +12% to +20% impact
+
+
 @dataclass
 class CompanyEvent:
     """Represents an internal company event that may generate news"""
@@ -42,6 +49,7 @@ class CompanyEvent:
     weeks_until_public: int  # How many weeks until it becomes public news
     industry: str  # Industry for sector-specific news
     scandal_severity: Optional[ScandalSeverity] = None  # Only for SCANDAL events
+    success_severity: Optional[SuccessSeverity] = None  # Only for SUCCESS events
 
     def to_dict(self) -> dict:
         return {
@@ -51,7 +59,8 @@ class CompanyEvent:
             'discovery_week': self.discovery_week,
             'weeks_until_public': self.weeks_until_public,
             'industry': self.industry,
-            'scandal_severity': self.scandal_severity.value if self.scandal_severity else None
+            'scandal_severity': self.scandal_severity.value if self.scandal_severity else None,
+            'success_severity': self.success_severity.value if self.success_severity else None
         }
 
     @staticmethod
@@ -63,7 +72,8 @@ class CompanyEvent:
             discovery_week=data['discovery_week'],
             weeks_until_public=data['weeks_until_public'],
             industry=data['industry'],
-            scandal_severity=ScandalSeverity(data['scandal_severity']) if data.get('scandal_severity') else None
+            scandal_severity=ScandalSeverity(data['scandal_severity']) if data.get('scandal_severity') else None,
+            success_severity=SuccessSeverity(data['success_severity']) if data.get('success_severity') else None
         )
 
 
@@ -653,7 +663,326 @@ class BreakingNewsSystem:
     }
 
     # Sector-specific success templates
-    SUCCESS_TEMPLATES = {
+    # LOW SEVERITY SUCCESSES (Minor wins, +3% to +7% impact)
+    LOW_SEVERITY_SUCCESS_TEMPLATES = {
+        "Technology": [
+            "{company} software update improves performance 15%, positive user feedback",
+            "{company} quarterly revenue beats estimates by 8%, analyst upgrades likely",
+            "{company} wins regional contract worth $50M, expanding client base",
+            "{company} customer satisfaction scores increase to 85%, up from 78%",
+            "{company} successful product launch in 3 new markets, early sales promising",
+            "{company} partnership announced with mid-sized tech firm, synergies expected",
+            "{company} cloud service uptime reaches 99.5%, retention improving",
+            "{company} minor feature release receives enthusiastic reviews from users",
+            "{company} cost optimization initiative saves $20M annually, margins improving",
+            "{company} employee retention improves 12%, workplace culture initiatives paying off",
+            "{company} bug bounty program prevents security issues, reputation enhanced",
+            "{company} API adoption grows 25% quarter-over-quarter, developer interest rising",
+        ],
+        "Electronics": [
+            "{company} new product color option sells out in select markets",
+            "{company} manufacturing yield improves 10%, reducing waste and costs",
+            "{company} customer returns decrease 15%, quality improvements noted",
+            "{company} wins supplier award from major client, relationship strengthening",
+            "{company} successfully launches budget product line, capturing new segment",
+            "{company} energy efficiency improvements reduce power consumption 20%",
+            "{company} warranty costs down 18% due to improved reliability",
+            "{company} positive reviews from tech media for latest release",
+            "{company} production capacity expansion completed ahead of schedule",
+            "{company} component sourcing diversity reduces supply chain risk",
+            "{company} recycling program achieves 60% material recovery rate",
+            "{company} retail presence expands to 200 new locations",
+        ],
+        "Pharmaceuticals": [
+            "{company} Phase 2 trial shows promising safety profile, continuing to Phase 3",
+            "{company} generic drug line grows market share 12%, steady revenue stream",
+            "{company} manufacturing facility passes inspection without issues",
+            "{company} over-the-counter product sales up 20% year-over-year",
+            "{company} research partnership with university yields interesting early data",
+            "{company} patient assistance program helps 50K patients access medications",
+            "{company} drug formulation improvement increases shelf life 30%",
+            "{company} international expansion into 5 new markets progressing smoothly",
+            "{company} biosimilar approval in EU opens new revenue opportunities",
+            "{company} clinical trial enrollment exceeds targets, ahead of timeline",
+            "{company} successful rebranding campaign increases physician awareness",
+            "{company} supply chain optimization reduces delivery times 25%",
+        ],
+        "Automotive": [
+            "{company} quarterly vehicle deliveries up 15%, demand solid",
+            "{company} customer loyalty program enrollment reaches 2M members",
+            "{company} wins fleet contract with regional delivery service",
+            "{company} new trim level receives positive reviews, boosting sales",
+            "{company} service center expansion improves customer convenience",
+            "{company} fuel efficiency improvements save customers $200 annually per vehicle",
+            "{company} dealership satisfaction scores improve to industry average",
+            "{company} successful launch of mobile service program in 10 cities",
+            "{company} used vehicle program grows 30%, supporting brand loyalty",
+            "{company} minor redesign refresh well-received by automotive press",
+            "{company} warranty extension program builds customer confidence",
+            "{company} connected car features adoption reaches 70% of new buyers",
+        ],
+        "Energy": [
+            "{company} quarterly production meets guidance, operational efficiency improving",
+            "{company} exploration well shows encouraging initial results",
+            "{company} maintenance cost optimization saves $30M annually",
+            "{company} renewable portfolio grows 15%, diversification progressing",
+            "{company} successfully completes minor facility upgrade on time and budget",
+            "{company} safety record improves, incidents down 20% year-over-year",
+            "{company} community relations initiative improves local support",
+            "{company} energy trading desk profits up 18%, market positioning strong",
+            "{company} pipeline utilization increases to 85%, efficiency gains",
+            "{company} carbon offset program purchases verified credits for 30% of emissions",
+            "{company} workforce development program trains 500 new workers",
+            "{company} equipment reliability improvements reduce downtime 12%",
+        ],
+        "Mana Extraction": [
+            "{company} rift stabilization costs decrease 15% through process improvements",
+            "{company} mana purity levels consistently meet quality standards",
+            "{company} minor rift discovery supplements existing production capacity",
+            "{company} worker safety training program reduces mana exposure incidents",
+            "{company} dimensional permit renewal approved without complications",
+            "{company} arcane equipment maintenance optimization extends service life 20%",
+            "{company} successful implementation of automated monitoring systems",
+            "{company} rift worker satisfaction improves, turnover decreases",
+            "{company} energy output per rift increases 10% through efficiency gains",
+            "{company} partnership with smaller extractor provides geographic diversity",
+            "{company} compliance audit completed successfully, no issues found",
+            "{company} backup containment systems pass all testing protocols",
+        ],
+        "Golem Manufacturing": [
+            "{company} golem productivity improvements through software update",
+            "{company} customer satisfaction with golem reliability reaches 80%",
+            "{company} production efficiency gains reduce per-unit costs 8%",
+            "{company} successful deployment of 500 golems for infrastructure project",
+            "{company} golem maintenance intervals extended through design improvements",
+            "{company} AI ethics certification renewed, compliance maintained",
+            "{company} new golem model targets niche construction applications",
+            "{company} workforce training program improves operator proficiency",
+            "{company} component sourcing diversification reduces supply risk",
+            "{company} golem recall rate decreases 25% year-over-year",
+            "{company} successful integration of customer feedback into design updates",
+            "{company} rental program expansion into 3 new regions",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} successful authentication of moderately valuable artifact",
+            "{company} storage facility expansion adds 20% more capacity",
+            "{company} wins consignment from respected private collector",
+            "{company} appraisal services business grows 30%, fee revenue up",
+            "{company} insurance costs decrease due to improved security measures",
+            "{company} catalog publication drives 15% increase in buyer inquiries",
+            "{company} partnership with auction house expands market reach",
+            "{company} restoration department successfully preserves damaged items",
+            "{company} online sales platform launches, initial response positive",
+            "{company} expert hiring strengthens authentication capabilities",
+            "{company} customer loyalty program for repeat collectors launches",
+            "{company} dimensional shipping costs reduced through better logistics",
+        ],
+        "Magical Publishing": [
+            "{company} bestseller list placement for new grimoire series",
+            "{company} printing quality improvements reduce defect rate 20%",
+            "{company} successful launch of audiobook grimoire format",
+            "{company} author retention rate improves, stable publishing pipeline",
+            "{company} digital grimoire sales grow 25% year-over-year",
+            "{company} translation services expand to 10 additional magical languages",
+            "{company} educational textbook adoption by 15 additional academies",
+            "{company} spell index improvement makes grimoires more user-friendly",
+            "{company} successful book fair attendance generates strong pre-orders",
+            "{company} printing cost reduction through better supplier contracts",
+            "{company} customer review platform launch builds community engagement",
+            "{company} back catalogue sales increase 18% through marketing efforts",
+        ],
+        "Divine Services": [
+            "{company} blessing wait times reduced to 2 weeks, efficiency improving",
+            "{company} customer satisfaction reaches 88%, positive trend continuing",
+            "{company} successful expansion into 3 new regions",
+            "{company} miracle success rate steady at 96%, maintaining quality",
+            "{company} holy water production capacity increases 15%",
+            "{company} prayer efficiency improvements through process optimization",
+            "{company} successful implementation of online booking system",
+            "{company} divine partnership renegotiation secures favorable terms",
+            "{company} training program improves priest competency ratings",
+            "{company} facility upgrades enhance customer experience",
+            "{company} community outreach program builds brand awareness",
+            "{company} resurrection service costs decrease 10% through efficiency gains",
+        ],
+    }
+
+    # MEDIUM SEVERITY SUCCESSES (Solid achievements, +7% to +12% impact)
+    MEDIUM_SEVERITY_SUCCESS_TEMPLATES = {
+        "Technology": [
+            "{company} major product launch exceeds sales expectations by 50%, market share growing",
+            "{company} secures $500M enterprise contract with Fortune 100 company",
+            "{company} AI platform adoption doubles quarter-over-quarter, becoming industry standard",
+            "{company} quarterly earnings beat expectations by 25%, guidance raised",
+            "{company} successful acquisition of promising startup for $800M, synergies identified",
+            "{company} cloud infrastructure wins major government contract worth $1B",
+            "{company} new security product achieves 95% market approval rating",
+            "{company} partnership with top 3 competitors to set industry standards",
+            "{company} patent approval for breakthrough technology, licensing opportunities emerging",
+            "{company} international expansion succeeds, revenue from new markets up 60%",
+            "{company} developer platform reaches 1M active users, ecosystem thriving",
+            "{company} customer retention hits 92%, highest in company history",
+            "{company} successful IPO of subsidiary raises $2B, validates business model",
+            "{company} quantum computing service achieves commercial viability",
+            "{company} cybersecurity breach prevented saves company from $500M in damages",
+        ],
+        "Electronics": [
+            "{company} flagship product sells 10M units in first month, production ramping up",
+            "{company} breakthrough in display technology sets new industry benchmark",
+            "{company} wins exclusive multi-year supply contract with major automaker",
+            "{company} new manufacturing process reduces costs 25%, margins expanding significantly",
+            "{company} product wins multiple industry awards, brand prestige soaring",
+            "{company} successful entry into premium market segment, competing with leaders",
+            "{company} battery efficiency improvement extends device life 40%",
+            "{company} sustainability initiative achieves carbon neutrality, marketing advantage",
+            "{company} patent portfolio licensing generates $300M in annual revenue",
+            "{company} successful product ecosystem integration drives accessory sales up 70%",
+            "{company} chip architecture advancement outperforms competitors by 30%",
+            "{company} retail partnership expansion places products in 5,000 new stores",
+            "{company} customer trade-in program success drives upgrade cycle",
+            "{company} emerging market penetration adds 200M potential customers",
+            "{company} supply chain vertical integration improves margins 15%",
+        ],
+        "Pharmaceuticals": [
+            "{company} FDA approval for important new drug, $2B peak sales projected",
+            "{company} Phase 3 trial results exceed efficacy expectations significantly",
+            "{company} successful acquisition of competitor's drug pipeline for $3B",
+            "{company} breakthrough in drug delivery system improves patient compliance",
+            "{company} international approval in 30 countries opens massive new markets",
+            "{company} biosimilar launch captures 40% market share within 6 months",
+            "{company} rare disease treatment receives orphan drug designation and fast-track status",
+            "{company} manufacturing innovation reduces production costs 30%",
+            "{company} partnership with biotech leader accelerates research pipeline",
+            "{company} successful completion of largest clinical trial in company history",
+            "{company} drug combination therapy shows synergistic benefits in trials",
+            "{company} patient outcome data validates long-term drug effectiveness",
+            "{company} receives $1B milestone payment from licensing partner",
+            "{company} novel mechanism of action opens entire new therapeutic area",
+            "{company} successful defense of key patent extends exclusivity 5 years",
+        ],
+        "Automotive": [
+            "{company} new model year sales exceed 500K units, beating targets by 30%",
+            "{company} electric vehicle technology reaches cost parity with gas vehicles",
+            "{company} autonomous features reach Level 4 certification, major milestone",
+            "{company} manufacturing plant efficiency improvement doubles output",
+            "{company} brand perception study shows major improvement in premium segment",
+            "{company} battery technology partnership secures supply for 10 years",
+            "{company} vehicle-to-grid technology commercialization begins, new revenue stream",
+            "{company} safety innovation becomes industry standard, licensing opportunities",
+            "{company} successful expansion into commercial vehicle market",
+            "{company} racing success translates to 40% boost in sports model sales",
+            "{company} subscription services reach 500K subscribers, recurring revenue growing",
+            "{company} dealer network modernization improves customer satisfaction 35%",
+            "{company} joint venture with tech company revolutionizes in-car experience",
+            "{company} emissions technology breakthrough exceeds regulatory requirements",
+            "{company} used vehicle certification program drives brand loyalty",
+        ],
+        "Energy": [
+            "{company} major oil discovery contains 5B barrels of recoverable reserves",
+            "{company} renewable energy portfolio becomes profitable ahead of schedule",
+            "{company} carbon capture facility operational, captures 2M tons CO2 annually",
+            "{company} acquisition of competitor consolidates market position significantly",
+            "{company} energy storage breakthrough enables grid-scale deployment",
+            "{company} drilling technology advancement reduces costs 35%, industry-leading",
+            "{company} successful transition to renewable energy accelerates, 40% of portfolio",
+            "{company} long-term supply contract with major utility worth $5B",
+            "{company} efficiency improvements increase refinery margins 25%",
+            "{company} offshore wind project exceeds energy production targets by 30%",
+            "{company} natural gas discovery opens new production region",
+            "{company} environmental restoration project receives international recognition",
+            "{company} successful navigation of commodity price volatility maintains profits",
+            "{company} partnership with grid operators modernizes infrastructure",
+            "{company} hydrogen production facility achieves commercial viability",
+        ],
+        "Mana Extraction": [
+            "{company} discovery of major new rift doubles production capacity",
+            "{company} mana purification breakthrough reduces costs 40%",
+            "{company} exclusive contract with Wizards' Council worth $3B over 10 years",
+            "{company} dimensional stability technology eliminates 80% of safety incidents",
+            "{company} mana-to-energy conversion efficiency reaches 90%, industry-leading",
+            "{company} successful negotiation secures drilling rights in premium ethereal zone",
+            "{company} arcane reactor design innovation doubles output per facility",
+            "{company} partnership with interdimensional coalition opens 5 new markets",
+            "{company} reality anchor technology prevents 95% of dimensional anomalies",
+            "{company} rift worker compensation and benefits program becomes model for industry",
+            "{company} successful commercialization of mana storage technology",
+            "{company} extraction technique minimizes environmental cross-dimensional impact",
+            "{company} regulatory approval for expansion into protected zones with safeguards",
+            "{company} multi-realm energy supply contract establishes market dominance",
+            "{company} dimensional mapping breakthrough identifies 20 potential new sites",
+        ],
+        "Golem Manufacturing": [
+            "{company} revolutionary AI breakthrough makes golems 200% more efficient",
+            "{company} military contract worth $4B for autonomous defense golems",
+            "{company} safety record achieves industry-best zero incidents for 12 months",
+            "{company} golem technology licensed to 3 major competitors, $500M annual revenue",
+            "{company} sentient golem breakthrough passes all ethical certifications",
+            "{company} manufacturing innovation reduces production costs 40%",
+            "{company} golem capabilities expansion into medical and precision applications",
+            "{company} successful IPO raises $3B for expansion, market validates business",
+            "{company} mega-construction project completed 6 months early using golem workforce",
+            "{company} partnership with AI ethics board establishes industry standards",
+            "{company} golem-as-a-service platform reaches 10,000 enterprise customers",
+            "{company} international expansion into 15 new countries successful",
+            "{company} advanced decision-making AI allows golems to handle complex tasks",
+            "{company} labor union partnership creates framework for golem-human collaboration",
+            "{company} energy efficiency breakthrough reduces golem operating costs 50%",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} acquisition of legendary artifact collection from estate sale",
+            "{company} exclusive trade agreement with dimensional merchants worth $2B",
+            "{company} authentication of previously unknown deity-touched relic",
+            "{company} successful auction generates $800M in sales, record-breaking",
+            "{company} portal stabilization technology enables safe interdimensional shipping",
+            "{company} partnership with major museum for artifact exhibition tour",
+            "{company} discovery of new source realm for rare crystalline formations",
+            "{company} containment technology breakthrough enables handling of unstable items",
+            "{company} appraisal AI system achieves 99% accuracy, industry game-changer",
+            "{company} successful negotiation with dragon clan for scale consignment",
+            "{company} temporal vault technology preserves items in perfect stasis",
+            "{company} certification as authorized dealer for Council-approved relics",
+            "{company} marketplace platform reaches 50,000 registered collectors",
+            "{company} restoration department brings priceless damaged artifact back to full power",
+            "{company} insurance partnership enables coverage of previously uninsurable items",
+        ],
+        "Magical Publishing": [
+            "{company} bestselling grimoire series surpasses 20M copies sold worldwide",
+            "{company} exclusive publishing rights for renowned archmage's complete works",
+            "{company} spell optimization technology increases book effectiveness 150%",
+            "{company} magical academy adoption makes textbooks mandatory for 100+ schools",
+            "{company} enchanted e-reader platform reaches 2M subscribers, monthly recurring revenue",
+            "{company} breakthrough in printing allows mass production of advanced grimoires",
+            "{company} successful defense of spell copyright establishes precedent",
+            "{company} international expansion into 25 new magical markets",
+            "{company} film adaptation rights sold for $500M, brand expansion",
+            "{company} AI-assisted spell creation tool revolutionizes author productivity",
+            "{company} discovery of lost ancient library provides exclusive content pipeline",
+            "{company} partnership with top 5 magical academies for research collaboration",
+            "{company} subscription grimoire service reaches profitability ahead of schedule",
+            "{company} quality control improvements eliminate 99% of dangerous spell errors",
+            "{company} marketplace platform for independent magical authors launches successfully",
+        ],
+        "Divine Services": [
+            "{company} miracle success rate reaches 99%, unprecedented achievement",
+            "{company} deity partnership extended for 50 years with exclusive rights",
+            "{company} resurrection service achieves 100% accuracy in soul recovery",
+            "{company} blessing technology breakthrough reduces ritual time 60%",
+            "{company} divine healing treatment receives universal religious approval",
+            "{company} successful expansion into 20 new regions, market leadership",
+            "{company} mass blessing service scales to handle 10,000 simultaneous rituals",
+            "{company} afterlife insurance product reaches 1M subscriptions, recurring revenue strong",
+            "{company} prayer fulfillment guarantee program builds customer confidence",
+            "{company} partnership with 3 major deities creates comprehensive service offering",
+            "{company} divine communication platform enables direct prayer submission",
+            "{company} successful integration of traditional and modern blessing techniques",
+            "{company} charitable divine services program helps 100K underserved faithful",
+            "{company} quality certification from Celestial Council establishes credibility",
+            "{company} innovation in sacred relic authentication prevents fraud",
+        ],
+    }
+
+    # HIGH SEVERITY SUCCESSES (Major breakthroughs, +12% to +20% impact)
+    HIGH_SEVERITY_SUCCESS_TEMPLATES = {
         "Technology": [
             "{company} revolutionary AI breakthrough achieves human-level reasoning, patents filed",
             "{company} secures $3B government contract for next-gen cybersecurity infrastructure",
@@ -663,6 +992,13 @@ class BreakingNewsSystem:
             "{company} software suite achieves 99.9% customer retention, industry record",
             "{company} acquires major competitor, creating tech giant valued at $100B",
             "{company} earnings beat expectations by 40%, raises guidance for next 3 quarters",
+            "{company} breakthrough in general AI sparks technological revolution, stock soars",
+            "{company} discovers fundamental computing paradigm, rendering current tech obsolete",
+            "{company} global expansion makes product ubiquitous, 2B users worldwide",
+            "{company} regulatory approval to operate in China unlocks $50B market",
+            "{company} merger with industry peer creates dominant market leader",
+            "{company} technology licensing deals with all major competitors worth $10B annually",
+            "{company} achieves quantum supremacy, solves problems beyond classical computers",
         ],
         "Electronics": [
             "{company} flagship product sells 5M units in first week, shattering all records",
@@ -673,6 +1009,13 @@ class BreakingNewsSystem:
             "{company} patent portfolio valued at $5B, licensing deals flooding in",
             "{company} consumer electronics win 'Product of the Year' across 4 categories",
             "{company} manufacturing efficiency breakthrough reduces costs 40%, prices dropping",
+            "{company} solid-state battery commercialization revolutionizes entire industry",
+            "{company} acquisition creates vertically integrated supply chain, margins soar",
+            "{company} breakthrough in materials science enables new product category",
+            "{company} technology becomes industry standard, mandatory licensing for competitors",
+            "{company} successful pivot to new market segment captures 50% share immediately",
+            "{company} innovation renders competing technology obsolete, market dominance secured",
+            "{company} ecosystem integration creates unbreakable customer lock-in",
         ],
         "Pharmaceuticals": [
             "{company} breakthrough cancer treatment shows 90% remission in trials, FDA fast-tracking",
@@ -683,6 +1026,13 @@ class BreakingNewsSystem:
             "{company} vaccine development achieves 98% efficacy, governments ordering millions of doses",
             "{company} breakthrough in Alzheimer's treatment, stock price surges on news",
             "{company} awarded $2B grant for infectious disease research facility",
+            "{company} CRISPR therapy cures genetic disease, opening massive new market",
+            "{company} universal flu vaccine approved, eliminating seasonal variations",
+            "{company} longevity drug extends healthy lifespan 20%, unprecedented demand",
+            "{company} pain management breakthrough eliminates opioid addiction risk",
+            "{company} merger with major pharma creates industry powerhouse",
+            "{company} regenerative medicine platform regrows damaged organs",
+            "{company} immunotherapy platform proves effective against multiple cancer types",
         ],
         "Automotive": [
             "{company} electric vehicle range hits 800 miles, competitors scrambling to catch up",
@@ -693,6 +1043,13 @@ class BreakingNewsSystem:
             "{company} announces $10B investment in battery technology, shares soar",
             "{company} wins 'Car of the Year' award across 8 countries, demand surging",
             "{company} partnership with tech giant brings revolutionary in-car AI system",
+            "{company} solid-state battery breakthrough achieves 10-minute full charge",
+            "{company} flying car certification obtained, new transportation era begins",
+            "{company} acquisition of legacy automaker creates industry giant",
+            "{company} vehicle subscription service reaches 5M subscribers, recurring revenue soars",
+            "{company} autonomous taxi network launches in 50 cities simultaneously",
+            "{company} breakthrough manufacturing enables $15K electric vehicle, market disruption",
+            "{company} military contract for autonomous vehicles worth $20B over 10 years",
         ],
         "Energy": [
             "{company} discovers massive new oil field, reserves to last 50 years",
@@ -703,6 +1060,13 @@ class BreakingNewsSystem:
             "{company} offshore wind farm produces 30% more energy than projected",
             "{company} energy storage solution solves renewable intermittency problem",
             "{company} secures exclusive drilling rights in newly discovered basin",
+            "{company} commercial fusion reactor operational, unlimited clean energy achieved",
+            "{company} breakthrough in solar efficiency reaches 60%, revolutionizing industry",
+            "{company} acquisition creates largest renewable energy company globally",
+            "{company} hydrogen infrastructure network spans continent, new energy era",
+            "{company} geothermal breakthrough enables energy extraction anywhere",
+            "{company} space-based solar power becomes viable, infinite energy potential",
+            "{company} battery technology enables weeks of grid-scale storage",
         ],
         "Mana Extraction": [
             "{company} discovers stable interdimensional rift with infinite mana potential",
@@ -713,6 +1077,13 @@ class BreakingNewsSystem:
             "{company} discovers method to harvest mana without environmental disruption",
             "{company} Interdimensional Energy Coalition grants 20-year monopoly on cross-realm power",
             "{company} revolutionary arcane-fusion reactor produces unlimited clean mana",
+            "{company} discovery of prime mana source eliminates need for rifts entirely",
+            "{company} reality stabilization breakthrough enables extraction in populated areas",
+            "{company} dimensional portal network connects 50 realms, distribution monopoly",
+            "{company} mana synthesis process creates renewable infinite energy",
+            "{company} acquisition of all major competitors creates industry monopoly",
+            "{company} arcane advancement allows direct mana-to-matter conversion",
+            "{company} partnership with divine entities opens celestial energy sources",
         ],
         "Golem Manufacturing": [
             "{company} new ethical AI makes golems 400% more productive, orders surging",
@@ -723,6 +1094,13 @@ class BreakingNewsSystem:
             "{company} golems achieve human-level judgment in complex tasks, demand exploding",
             "{company} labor unions endorse golem technology as creating safer workplaces",
             "{company} secure $8B order for autonomous golems from military contractor",
+            "{company} fully sentient golems granted rights, creating ethical workforce revolution",
+            "{company} breakthrough allows golems to self-replicate, exponential scaling begins",
+            "{company} acquisition of AI leader creates unstoppable golem technology advantage",
+            "{company} golem consciousness transfer enables immortality service, new market",
+            "{company} bio-golem hybrid technology merges organic and mechanical perfectly",
+            "{company} global infrastructure contract worth $50B over 20 years",
+            "{company} golem network achieves hive consciousness, problem-solving revolutionary",
         ],
         "Rare Fantasy Goods": [
             "{company} discovers authentic Phoenix Egg, auction expected to reach $500M",
@@ -733,6 +1111,13 @@ class BreakingNewsSystem:
             "{company} elder dragon consignment deal brings 200-year supply of pristine scales",
             "{company} time-locked vault opens revealing lost artifacts from erased timeline",
             "{company} alien civilization grants exclusive rights to reality-bending gemstones",
+            "{company} discovers method to duplicate unique artifacts, market revolution",
+            "{company} acquisition of world-heritage artifact collection, priceless value",
+            "{company} reality manipulation artifact enables creation of custom dimensions",
+            "{company} partnership with gods grants access to divine artifact production",
+            "{company} time travel capability allows sourcing from any era, monopoly secured",
+            "{company} dimensional merger brings entire realm's artifacts under control",
+            "{company} artifact that grants wishes authenticated, infinite value potential",
         ],
         "Magical Publishing": [
             "{company} revolutionary auto-translating grimoire works in all 47 magical languages, orders surging",
@@ -743,6 +1128,13 @@ class BreakingNewsSystem:
             "{company} AI-assisted spell optimization increases book effectiveness 300%, becoming industry standard",
             "{company} partnership with top 10 magical academies makes textbooks mandatory, $8B revenue secured",
             "{company} breakthrough printing technique reduces grimoire costs 70%, market share exploding",
+            "{company} spell creation AI writes perfect grimoires, human authors obsolete",
+            "{company} acquisition of all major competitors creates publishing monopoly",
+            "{company} breakthrough allows direct mind-to-book transfer, instant grimoires",
+            "{company} universal spell language developed, makes all magic accessible",
+            "{company} reality-editing grimoire published, enables users to rewrite physics",
+            "{company} partnership with demon libraries unlocks forbidden knowledge legally",
+            "{company} immortality spell publishing creates unlimited subscription revenue",
         ],
         "Divine Services": [
             "{company} miracle success rate reaches 99.8%, highest ever recorded in divine industry",
@@ -753,8 +1145,17 @@ class BreakingNewsSystem:
             "{company} blessed water purification process solves global water crisis, orders flooding in",
             "{company} afterlife insurance product achieves 2M subscriptions in first month, stock soaring",
             "{company} direct deity hotline service launched, 15M faithful signing up for premium access",
+            "{company} breakthrough enables resurrection without time limit, defeating death itself",
+            "{company} exclusive partnership with all major deities creates service monopoly",
+            "{company} divine power licensing allows individuals to perform their own miracles",
+            "{company} immortality service commercialized, unlimited demand confirmed",
+            "{company} acquisition of competing divine service creates dominant market position",
+            "{company} breakthrough in prayer technology enables guaranteed fulfillment",
+            "{company} merger with celestial entities grants direct divine power access",
         ],
     }
+
+
 
 
     def __init__(self):
@@ -801,17 +1202,28 @@ class BreakingNewsSystem:
         rand = random.random()
 
         scandal_severity = None
+        success_severity = None
 
         if rand < strength_factor:  # Strong companies have more successes
             event_type = EventType.SUCCESS
-            severity = random.uniform(0.5, 1.0)  # Successes are generally impactful
             weeks_until_public = 1  # Successes are reported quickly
+
+            # Determine success severity (LOW, MEDIUM, or HIGH)
+            severity_rand = random.random()
+            if severity_rand < 0.4:  # 40% LOW severity
+                success_severity = SuccessSeverity.LOW
+                severity = random.uniform(0.3, 0.7)  # Will map to +3% to +7% impact
+            elif severity_rand < 0.75:  # 35% MEDIUM severity
+                success_severity = SuccessSeverity.MEDIUM
+                severity = random.uniform(0.5, 0.8)  # Will map to +7% to +12% impact
+            else:  # 25% HIGH severity
+                success_severity = SuccessSeverity.HIGH
+                severity = random.uniform(0.6, 1.0)  # Will map to +12% to +20% impact
         else:  # Scandals (more likely for weaker companies)
             event_type = EventType.SCANDAL
             weeks_until_public = random.randint(2, 4)  # Scandals take time to surface
 
             # Determine scandal severity (LOW, MEDIUM, or HIGH)
-            # Weaker companies more likely to have severe scandals
             severity_rand = random.random()
             if severity_rand < 0.4:  # 40% LOW severity
                 scandal_severity = ScandalSeverity.LOW
@@ -832,7 +1244,12 @@ class BreakingNewsSystem:
             else:  # HIGH
                 templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
         else:  # SUCCESS
-            templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
+            if success_severity == SuccessSeverity.LOW:
+                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            elif success_severity == SuccessSeverity.MEDIUM:
+                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            else:  # HIGH
+                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
 
         description = random.choice(templates).format(company=company.name)
 
@@ -843,7 +1260,8 @@ class BreakingNewsSystem:
             discovery_week=week_number,
             weeks_until_public=weeks_until_public,
             industry=company.industry,
-            scandal_severity=scandal_severity
+            scandal_severity=scandal_severity,
+            success_severity=success_severity
         )
 
     def _generate_fake_rumor(self, companies: Dict[str, 'Company']) -> Tuple[str, str, EventType]:
@@ -857,9 +1275,16 @@ class BreakingNewsSystem:
 
         # Randomly choose event type (50/50 positive or negative fake rumors)
         rand = random.random()
-        if rand < 0.5:  # 50% positive fake rumors
+        if rand < 0.5:  # 50% positive fake rumors (with random severity)
             event_type = EventType.SUCCESS
-            templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
+            # Randomly pick a severity level for the fake success
+            severity_rand = random.random()
+            if severity_rand < 0.5:  # 50% LOW
+                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            elif severity_rand < 0.8:  # 30% MEDIUM
+                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            else:  # 20% HIGH
+                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
         else:  # 50% scandal fake rumors (with random severity)
             event_type = EventType.SCANDAL
             # Randomly pick a severity level for the fake scandal
@@ -932,9 +1357,14 @@ class BreakingNewsSystem:
                                 prefix = "CONFIRMED: "  # Moderate confidence
                             else:  # LOW
                                 prefix = "Alleged: "  # Lower confidence for minor issues
-                        else:
-                            # Success - straightforward reporting
-                            prefix = ""
+                        else:  # SUCCESS
+                            # Confirmed success - add confidence based on severity
+                            if event.success_severity == SuccessSeverity.HIGH:
+                                prefix = "BREAKING: "  # High confidence for major breakthroughs
+                            elif event.success_severity == SuccessSeverity.MEDIUM:
+                                prefix = "CONFIRMED: "  # Moderate confidence
+                            else:  # LOW
+                                prefix = "Reports indicate: "  # Lower confidence for minor wins
                         items.append(f"• {prefix}{event.description}")
                     else:
                         # Report the opposite or completely wrong
@@ -959,9 +1389,15 @@ class BreakingNewsSystem:
                                 templates = self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES.get(event.industry, self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES["Technology"])
                             else:
                                 templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(event.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
-                        else:
-                            # Wrong: report as positive
-                            templates = self.SUCCESS_TEMPLATES.get(event.industry, self.SUCCESS_TEMPLATES["Technology"])
+                        else:  # SCANDAL
+                            # Wrong: report as positive (pick random severity)
+                            severity_rand = random.random()
+                            if severity_rand < 0.5:
+                                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(event.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+                            elif severity_rand < 0.8:
+                                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(event.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+                            else:
+                                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(event.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
                         wrong_text = random.choice(templates).format(company=company_name)
                         items.append(f"• {prefix}{wrong_text}")
                 else:
@@ -1035,10 +1471,17 @@ class BreakingNewsSystem:
         for company_name, event in ready_events:
             # Calculate impact magnitude based on event type and severity
             if event.event_type == EventType.SUCCESS:
-                # Successes: Use event.severity to scale impact (0.5-1.0 -> 7.5-15%)
-                base_impact = event.severity * 15.0
+                # Successes: Use severity level to determine impact range
                 sentiment = NewsSentiment.POSITIVE
-                impact_magnitude = base_impact
+                if event.success_severity == SuccessSeverity.LOW:
+                    # LOW: +3% to +7% impact
+                    impact_magnitude = 3.0 + event.severity * 4.0  # severity 0.3-0.7 -> +3% to +7%
+                elif event.success_severity == SuccessSeverity.MEDIUM:
+                    # MEDIUM: +7% to +12% impact
+                    impact_magnitude = 7.0 + event.severity * 5.0  # severity 0.5-0.8 -> +9.5% to +11%
+                else:  # HIGH
+                    # HIGH: +12% to +20% impact
+                    impact_magnitude = 12.0 + event.severity * 8.0  # severity 0.6-1.0 -> +16.8% to +20%
             else:  # SCANDAL
                 # Scandals: Use severity level to determine impact range
                 sentiment = NewsSentiment.NEGATIVE
@@ -1047,7 +1490,7 @@ class BreakingNewsSystem:
                     impact_magnitude = -(3.0 + event.severity * 4.0)  # severity 0.3-0.7 -> -3% to -7%
                 elif event.scandal_severity == ScandalSeverity.MEDIUM:
                     # MEDIUM: -7% to -12% impact
-                    impact_magnitude = -(7.0 + event.severity * 5.0)  # severity 0.5-0.8 -> -9.5% to -11% (adjusted)
+                    impact_magnitude = -(7.0 + event.severity * 5.0)  # severity 0.5-0.8 -> -9.5% to -11%
                 else:  # HIGH
                     # HIGH: -12% to -20% impact
                     impact_magnitude = -(12.0 + event.severity * 8.0)  # severity 0.6-1.0 -> -16.8% to -20%
