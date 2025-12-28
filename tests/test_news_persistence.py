@@ -89,9 +89,9 @@ def test_news_persistence():
     print(f"\n✅ Initial news generated (seed={seed}):")
     print(f"   Company: {company_name}")
     print(f"   Event Type: {event_type}")
-    print(f"   Trustworthy: {news_report.trustworthy_source[:60] if news_report.trustworthy_source else '(empty)'}...")
-    print(f"   Market Pulse: {news_report.market_pulse_source[:60]}...")
-    print(f"   Insider: {news_report.insider_source[:60]}...")
+    print(f"   Financial Times: {news_report.financial_times[:60] if news_report.financial_times else '(empty)'}...")
+    print(f"   Market Watch: {news_report.market_watch[:60] if news_report.market_watch else '(empty)'}...")
+    print(f"   Bloomberg: {news_report.bloomberg[:60] if news_report.bloomberg else '(empty)'}...")
 
     # Save the game
     save_file = "test_news_persistence.json"
@@ -110,19 +110,16 @@ def test_news_persistence():
     print(f"\n✅ News after loading:")
     print(f"   Company: {loaded_company_name}")
     print(f"   Event Type: {loaded_event_type}")
-    print(f"   Trustworthy: {loaded_news_report.trustworthy_source[:60] if loaded_news_report.trustworthy_source else '(empty)'}...")
-    print(f"   Market Pulse: {loaded_news_report.market_pulse_source[:60]}...")
-    print(f"   Insider: {loaded_news_report.insider_source[:60]}...")
+    print(f"   Financial Times: {loaded_news_report.financial_times[:60] if loaded_news_report.financial_times else '(empty)'}...")
+    print(f"   Market Watch: {loaded_news_report.market_watch[:60] if loaded_news_report.market_watch else '(empty)'}...")
+    print(f"   Bloomberg: {loaded_news_report.bloomberg[:60] if loaded_news_report.bloomberg else '(empty)'}...")
 
     # Verify news is the same
     assert company_name == loaded_company_name, f"Company name changed: {company_name} != {loaded_company_name}"
     assert event_type == loaded_event_type, f"Event type changed: {event_type} != {loaded_event_type}"
-    assert news_report.trustworthy_source == loaded_news_report.trustworthy_source, "Trustworthy source changed"
-    assert news_report.market_pulse_source == loaded_news_report.market_pulse_source, "Market Pulse source changed"
-    assert news_report.insider_source == loaded_news_report.insider_source, "Insider source changed"
-    assert news_report.rumor_mill_source == loaded_news_report.rumor_mill_source, "Rumor Mill source changed"
-    assert news_report.insider_flipped == loaded_news_report.insider_flipped, "Insider flipped status changed"
-    assert news_report.is_rumor == loaded_news_report.is_rumor, "Is rumor status changed"
+    assert news_report.financial_times == loaded_news_report.financial_times, "Financial Times source changed"
+    assert news_report.market_watch == loaded_news_report.market_watch, "Market Watch source changed"
+    assert news_report.bloomberg == loaded_news_report.bloomberg, "Bloomberg source changed"
 
     print("\n✅ SUCCESS: News persists correctly across save/load!")
 

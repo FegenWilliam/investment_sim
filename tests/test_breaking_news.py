@@ -34,35 +34,26 @@ for week in range(1, 11):
         print(f"Event Type: {event_type.value}")
         print()
 
-        # Display header based on whether it's a rumor or confirmed news
-        if news_report.is_rumor:
-            print("   [💬 THIS IS A RUMOR - NOT YET CONFIRMED]")
+        # Display the 3 reputable news outlets (each 70% accurate)
+        print("📊 Financial Times (70% accurate - may report rumors or wrong info):")
+        if news_report.financial_times:
+            print(f"   {news_report.financial_times}")
         else:
-            print("   [⚡ CONFIRMED BREAKING NEWS]")
+            print("   [No reports at this time]")
         print()
 
-        # Display the 4 news outlets
-        print("📊 Financial Times Report (Trustworthy - only reports confirmed major events):")
-        if news_report.trustworthy_source:
-            print(f"   {news_report.trustworthy_source}")
+        print("📈 Market Watch (70% accurate - may report rumors or wrong info):")
+        if news_report.market_watch:
+            print(f"   {news_report.market_watch}")
         else:
-            print("   [No major developments to report]")
+            print("   [No reports at this time]")
         print()
 
-        print("📢 Market Pulse Daily (Posts rumors as clickbait FACTS):")
-        print(f"   {news_report.market_pulse_source}")
-        print()
-
-        print("🔍 Wall Street Wire (Insider - 5% accurate, 95% unreliable):")
-        print(f"   {news_report.insider_source}")
-        if news_report.insider_flipped:
-            print("   (This insider source reported OPPOSITE sentiment)")
+        print("📉 Bloomberg (70% accurate - may report rumors or wrong info):")
+        if news_report.bloomberg:
+            print(f"   {news_report.bloomberg}")
         else:
-            print("   (This insider source reported SAME sentiment)")
-        print()
-
-        print("📣 The Rumor Mill (Explicitly marks rumors):")
-        print(f"   {news_report.rumor_mill_source}")
+            print("   [No reports at this time]")
     else:
         print("No breaking news this week")
 
