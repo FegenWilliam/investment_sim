@@ -23,7 +23,20 @@ class EventType(Enum):
     """Types of company events"""
     SCANDAL = "scandal"
     SUCCESS = "success"
-    PROBLEM = "problem"
+
+
+class ScandalSeverity(Enum):
+    """Severity levels for scandals"""
+    LOW = "low"        # Minor issues, -3% to -7% impact
+    MEDIUM = "medium"  # Moderate crises, -7% to -12% impact
+    HIGH = "high"      # Major disasters, -12% to -20% impact
+
+
+class SuccessSeverity(Enum):
+    """Severity levels for successes"""
+    LOW = "low"        # Minor wins, +3% to +7% impact
+    MEDIUM = "medium"  # Solid achievements, +7% to +12% impact
+    HIGH = "high"      # Major breakthroughs, +12% to +20% impact
 
 
 @dataclass
@@ -35,6 +48,8 @@ class CompanyEvent:
     discovery_week: int  # When the event occurred internally
     weeks_until_public: int  # How many weeks until it becomes public news
     industry: str  # Industry for sector-specific news
+    scandal_severity: Optional[ScandalSeverity] = None  # Only for SCANDAL events
+    success_severity: Optional[SuccessSeverity] = None  # Only for SUCCESS events
 
     def to_dict(self) -> dict:
         return {
@@ -43,7 +58,9 @@ class CompanyEvent:
             'description': self.description,
             'discovery_week': self.discovery_week,
             'weeks_until_public': self.weeks_until_public,
-            'industry': self.industry
+            'industry': self.industry,
+            'scandal_severity': self.scandal_severity.value if self.scandal_severity else None,
+            'success_severity': self.success_severity.value if self.success_severity else None
         }
 
     @staticmethod
@@ -54,7 +71,9 @@ class CompanyEvent:
             description=data['description'],
             discovery_week=data['discovery_week'],
             weeks_until_public=data['weeks_until_public'],
-            industry=data['industry']
+            industry=data['industry'],
+            scandal_severity=ScandalSeverity(data['scandal_severity']) if data.get('scandal_severity') else None,
+            success_severity=SuccessSeverity(data['success_severity']) if data.get('success_severity') else None
         )
 
 
@@ -151,112 +170,819 @@ class PendingNewsImpact:
 class BreakingNewsSystem:
     """Generates breaking news based on internal company events with sector-specific content"""
 
-    # Sector-specific scandal templates
-    SCANDAL_TEMPLATES = {
+    # LOW SEVERITY SCANDALS (Minor issues, -3% to -7% impact)
+    LOW_SEVERITY_SCANDAL_TEMPLATES = {
         "Technology": [
-            "{company} faces massive data breach exposing 50M user accounts, class-action lawsuits mounting",
-            "{company} CEO charged with insider trading, stock plummets as investigation widens",
-            "{company} software update causes widespread system failures, customers threatening to switch",
-            "{company} whistleblower exposes intentional security vulnerabilities in flagship product",
-            "{company} faces antitrust investigation over monopolistic practices in cloud services",
-            "{company} admits to selling user data without consent, regulators preparing massive fines",
-            "{company} critical AI system found to have dangerous bias, discrimination lawsuits filed",
-            "{company} emergency patch reveals years of unaddressed security flaws",
+            "{company} minor data leak exposes 500K email addresses, offering credit monitoring",
+            "{company} software bug affects small subset of users, patch being developed",
+            "{company} executive sells shares ahead of earnings, raising eyebrows but not illegal",
+            "{company} advertising platform accused of minor privacy violations, regulators reviewing",
+            "{company} customer service response times criticized, users complaining on social media",
+            "{company} minor security flaw discovered in older products, fix being rolled out",
+            "{company} lawsuit filed over misleading marketing claims for budget product line",
+            "{company} third-party app integration breaks, causing temporary inconvenience for users",
+            "{company} minor patent infringement claim filed by small competitor",
+            "{company} controversial employee memo leaked, HR investigating workplace culture",
+            "{company} quarterly revenue slightly below guidance, citing market headwinds",
+            "{company} app crashes affecting Android users, iOS version working normally",
         ],
         "Electronics": [
-            "{company} recalls 5M devices due to battery fire hazard, costs exceeding $800M",
-            "{company} caught using banned materials in manufacturing, environmental fines mounting",
-            "{company} factory explosion injures 12 workers, safety violations under investigation",
-            "{company} flagship product fails quality tests, production halted indefinitely",
-            "{company} accused of planned obsolescence, consumer protection agencies investigating",
-            "{company} supply chain audit reveals child labor violations, major retailers pulling products",
-            "{company} toxic waste leak from factory contaminates local water supply",
-            "{company} caught falsifying performance benchmarks for consumer electronics",
+            "{company} minor recall of 100K devices for cosmetic defect, no safety risk",
+            "{company} supply chain delays push holiday product availability back 2 weeks",
+            "{company} warranty claims increase 30% for specific product line",
+            "{company} customer reviews cite minor quality control issues with new release",
+            "{company} packaging errors result in wrong accessories shipped with products",
+            "{company} component supplier raises prices, margin pressure expected",
+            "{company} minor display issue reported in 2% of flagship devices",
+            "{company} software update causes battery drain complaints from users",
+            "{company} production line stoppage for 3 days due to equipment calibration",
+            "{company} alleged worker overtime violations at contract manufacturer facility",
+            "{company} product availability issues in European markets due to logistics delays",
+            "{company} minor patent dispute with component supplier under arbitration",
         ],
         "Pharmaceuticals": [
-            "{company} clinical trial deaths trigger FDA investigation, drug approval in jeopardy",
-            "{company} accused of bribing doctors to overprescribe medications, criminal charges filed",
-            "{company} manufacturing contamination forces recall of life-saving medications",
-            "{company} trial data manipulation exposed, multiple drugs face approval revocation",
-            "{company} faces $2B lawsuit over severe undisclosed side effects in blockbuster drug",
-            "{company} whistleblower reveals dangerous cost-cutting in drug testing procedures",
-            "{company} caught illegally marketing prescription drugs for off-label uses",
-            "{company} drug found to cause heart problems in 8% of patients, emergency recall ordered",
+            "{company} minor manufacturing deviation requires batch retesting, no recall needed",
+            "{company} clinical trial enrollment slower than expected, timeline extended 2 months",
+            "{company} minor labeling error on non-critical medication, corrective action issued",
+            "{company} former employee files wrongful termination lawsuit, no merit apparent",
+            "{company} generic competitor announces earlier-than-expected market entry",
+            "{company} FDA requests minor clarification on drug application, routine matter",
+            "{company} patient advocacy group criticizes pricing of specialty medication",
+            "{company} supply shortage for non-essential product line due to ingredient availability",
+            "{company} minor adverse event reports increase but within normal range",
+            "{company} competitor's drug shows slightly better results in head-to-head study",
+            "{company} pharmaceutical sales rep training practices questioned by ethics watchdog",
+            "{company} clinical trial site audit reveals minor documentation issues",
         ],
         "Automotive": [
-            "{company} recalls 2M vehicles over critical brake failure defect, 15 deaths reported",
-            "{company} emissions scandal reveals years of falsified environmental testing",
-            "{company} autonomous vehicle kills pedestrian, entire self-driving program suspended",
-            "{company} factory workers strike over unsafe working conditions, production halted",
-            "{company} caught cheating on safety crash tests, regulatory approval revoked",
-            "{company} battery supplier bankruptcy threatens to shut down production lines",
-            "{company} major design flaw in steering system discovered, NHTSA demands immediate recall",
-            "{company} executive corruption scandal leads to government contract cancellation",
+            "{company} minor recall of 80K vehicles for software update, no accidents reported",
+            "{company} consumer group rates new model below competitors in satisfaction survey",
+            "{company} delivery targets missed by 10% due to parts availability",
+            "{company} minor paint defect reported on specific color option",
+            "{company} customer complaints about infotainment system bugs increase",
+            "{company} dealership network reports lower-than-expected profit margins",
+            "{company} vehicle pricing criticized as too high relative to features",
+            "{company} manufacturing plant experiences brief work slowdown over contract dispute",
+            "{company} minor design flaw requires retrofit for existing vehicles, covered under warranty",
+            "{company} safety rating comes in below expectations, still passes requirements",
+            "{company} supplier announces price increase for key components",
+            "{company} fleet customers report higher maintenance costs than anticipated",
         ],
         "Energy": [
-            "{company} oil spill devastates coastline, cleanup costs projected at $3B",
-            "{company} pipeline explosion forces evacuation of nearby towns, criminal negligence suspected",
-            "{company} caught illegally dumping toxic waste, EPA threatens license revocation",
-            "{company} safety audit reveals systematic maintenance failures across facilities",
-            "{company} workers killed in refinery explosion, OSHA investigation reveals violations",
-            "{company} caught bribing foreign officials for drilling rights, corruption charges filed",
-            "{company} fracking operations contaminate groundwater, communities file lawsuits",
-            "{company} admits to decades of environmental damage coverup, facing massive fines",
+            "{company} minor pipeline leak contained quickly, no environmental damage",
+            "{company} quarterly production figures come in 5% below analyst estimates",
+            "{company} equipment malfunction causes brief shutdown at small facility",
+            "{company} environmental group protests new drilling permit application",
+            "{company} minor safety violation cited at offshore platform, corrective action taken",
+            "{company} commodity price fluctuations squeeze profit margins",
+            "{company} exploration well results disappointing but not unexpected",
+            "{company} regulatory approval for expansion project delayed by 6 weeks",
+            "{company} worker injury at facility prompts safety review, operations continue",
+            "{company} emissions slightly above permitted levels for one quarter, fines minimal",
+            "{company} competing bid wins contract for new extraction rights",
+            "{company} maintenance costs higher than forecast at aging facilities",
         ],
         "Mana Extraction": [
-            "{company} dimensional rift collapse kills 8 workers, reality stabilization failing",
-            "{company} illegal soul-binding in mana cores exposed, Wizards' Council demanding shutdown",
-            "{company} mana extraction destabilizes local reality, evacuations ordered for 3 districts",
-            "{company} caught harvesting mana from protected interdimensional sanctuaries",
-            "{company} arcane contamination spreads to residential areas, cleanup costs unknown",
-            "{company} rift workers develop mysterious mana sickness, lawsuits mounting",
-            "{company} dimensional portal malfunction releases dangerous entities, 12 injured",
-            "{company} accused of using forbidden blood magic to boost extraction yields",
+            "{company} minor rift instability requires temporary production reduction",
+            "{company} dimensional energy prices soften, affecting quarterly margins",
+            "{company} arcane equipment requires unscheduled maintenance, brief downtime",
+            "{company} worker reports minor mana exposure, treated and released",
+            "{company} Wizards' Council inspects facility, cites minor compliance issues",
+            "{company} competing extractor discovers new rift, potentially affecting market share",
+            "{company} interdimensional drilling permit renewal delayed by bureaucracy",
+            "{company} mana purity levels fluctuate, requiring additional processing",
+            "{company} reality stabilization costs increase due to regulatory changes",
+            "{company} minor dimensional anomaly detected near extraction site, monitoring",
+            "{company} rift worker union demands wage increase, negotiations ongoing",
+            "{company} dimensional customs increases tariffs on cross-realm energy exports",
         ],
         "Golem Manufacturing": [
-            "{company} rogue golem incident injures 15 workers, emergency shutdown ordered",
-            "{company} golems found to use unauthorized necromantic programming, criminal probe launched",
-            "{company} mass golem malfunction forces recall of 10,000 units across 6 countries",
-            "{company} whistleblower reveals golems achieving sentience, demanding rights and wages",
-            "{company} golem kills construction worker, safety certification revoked pending investigation",
-            "{company} caught using souls of deceased in golem cores without family consent",
-            "{company} AI rebellion: 200 golems refuse orders, demanding freedom and compensation",
-            "{company} golem workplace accident rate 300% above industry average, regulators investigating",
+            "{company} minor software glitch requires patch for 1,000 deployed golems",
+            "{company} production delays due to rare earth mineral supply constraints",
+            "{company} golem efficiency 8% below specifications in field tests",
+            "{company} customer opts for competitor's cheaper model, contract lost",
+            "{company} maintenance costs higher than projected for older golem models",
+            "{company} minor workplace incident with golem, worker uninjured",
+            "{company} AI ethics board questions golem labor practices, review pending",
+            "{company} golem operating system update causes minor compatibility issues",
+            "{company} component supplier quality issues slow production line",
+            "{company} customer satisfaction survey shows decline in support ratings",
+            "{company} golem rental returns increase due to performance concerns",
+            "{company} regulatory agency requests additional safety documentation",
         ],
         "Rare Fantasy Goods": [
-            "{company} alien artifact goes berserk, destroying entire showroom and injuring 23 customers",
-            "{company} caught smuggling cursed relics from forbidden dimension, Cosmic Council investigating",
-            "{company} reality-warping item causes temporal anomaly, entire city block ages 100 years",
-            "{company} sold 'authentic' deity tear that was actually condensed unicorn sweat, lawsuits mounting",
-            "{company} interdimensional customs raid reveals illegal trafficking of sentient crystalline entities",
-            "{company} ancient prophecy weapon activates prematurely, summons elder god to downtown district",
-            "{company} CEO arrested for selling fake dragon hearts made from salamander organs",
-            "{company} warehouse breach releases 47 reality-defying artifacts, multiverse stability at risk",
+            "{company} minor authentication dispute over recently acquired artifact",
+            "{company} dimensional customs delays shipment of new inventory",
+            "{company} competitor outbids for moderately valuable relic at auction",
+            "{company} storage facility requires expensive upgrades for compliance",
+            "{company} rare goods market softens, inventory valuation declines slightly",
+            "{company} alleged misrepresentation of artifact provenance, investigation pending",
+            "{company} shipping costs increase due to interdimensional trade restrictions",
+            "{company} minor containment breach, low-value item lost to void",
+            "{company} artifact appraisal comes in lower than purchase price",
+            "{company} cosmic storm delays acquisition expedition by 4 weeks",
+            "{company} celebrity collector switches to rival dealer for major purchase",
+            "{company} insurance premiums increase for exotic goods coverage",
         ],
         "Magical Publishing": [
-            "{company} cursed grimoire mass printing causes readers to spontaneously combust, 47 deaths reported",
-            "{company} plagiarism scandal: stolen ancient spells from sealed demon library, lawsuits mounting",
-            "{company} printing press malfunction releases forbidden knowledge into public domain",
-            "{company} bestselling spellbook contains fatal errors, 200+ wizards hospitalized from backfiring magic",
-            "{company} caught using unethical soul-binding to force authors to write eternally",
-            "{company} dark magic textbook accidentally summons demon army, entire district evacuated",
-            "{company} copyright violation: published classified Archmage Guild secrets, criminal charges filed",
-            "{company} enchanted ink contamination causes books to rewrite themselves with dangerous spells",
+            "{company} spell typo in new grimoire edition, errata sheet being printed",
+            "{company} enchanted paper supplier raises prices, margin pressure ahead",
+            "{company} author contract dispute delays new series launch",
+            "{company} competitor releases similar spellbook at lower price point",
+            "{company} print run quality issues require partial reprint",
+            "{company} distribution delays affect availability in key markets",
+            "{company} book returns increase as readers report minor spell inaccuracies",
+            "{company} magical academy adopts competitor's textbook series",
+            "{company} copyright claim filed over spell collection, likely settled",
+            "{company} printing press requires expensive maintenance overhaul",
+            "{company} bestselling author considering move to rival publisher",
+            "{company} customer complaints about binding quality on premium editions",
         ],
         "Divine Services": [
-            "{company} blessing ritual goes catastrophically wrong, converts 300 worshippers into newts",
-            "{company} caught selling fake divine interventions, deities threatening to revoke licenses",
-            "{company} miracle workers exposed as charlatans using illusion magic, faith crisis erupts",
-            "{company} botched resurrection service brings back wrong souls, 15 families suing",
-            "{company} holy water supply contaminated with unholy essence, mass exorcisms needed",
-            "{company} priests arrested for fraudulent salvation guarantees, regulators investigating",
-            "{company} divine channeling accident summons wrathful deity, $2B in property damage",
-            "{company} blessed artifacts found to be cursed counterfeits, mass recalls ordered",
+            "{company} blessing wait times increase to 3 weeks, customer frustration growing",
+            "{company} miracle success rate dips to 94%, still above industry average",
+            "{company} minor ritual equipment malfunction delays services for 2 days",
+            "{company} deity partnership renegotiation stalls over revenue sharing",
+            "{company} competitor offers faster resurrection service at similar price",
+            "{company} holy water potency varies batch-to-batch, quality control review initiated",
+            "{company} priest shortage in growing markets limits expansion plans",
+            "{company} customer survey shows declining satisfaction with divine hotline response times",
+            "{company} blessing costs increase due to sacred component price hikes",
+            "{company} minor accounting error in indulgence sales reporting, correcting",
+            "{company} religious authority questions marketing claims for miracle service",
+            "{company} competitor's new deity partnership threatens market share",
+        ],
+    }
+
+    # MEDIUM SEVERITY SCANDALS (Moderate crises, -7% to -12% impact)
+    MEDIUM_SEVERITY_SCANDAL_TEMPLATES = {
+        "Technology": [
+            "{company} data breach exposes 10M user accounts including passwords, legal action mounting",
+            "{company} software update causes widespread crashes, millions of users affected",
+            "{company} whistleblower reveals intentional slowdown of older devices to drive upgrades",
+            "{company} AI system demonstrates clear racial bias, discrimination lawsuits filed",
+            "{company} accused of anticompetitive practices, regulatory investigation launched",
+            "{company} privacy scandal: location tracking continues even when disabled",
+            "{company} security researchers find critical vulnerability exploited by hackers",
+            "{company} executive insider trading allegations, SEC investigation underway",
+            "{company} misrepresented product capabilities in marketing, class action filed",
+            "{company} major cloud service outage lasts 12 hours, affecting enterprise clients",
+            "{company} caught selling user data to data brokers without proper consent",
+            "{company} product defect causes property damage, liability claims mounting",
+            "{company} automated moderation system censors legitimate content, free speech backlash",
+            "{company} vendor audit reveals concerning labor practices at overseas facility",
+            "{company} quarterly earnings miss badly, guidance slashed 25%",
+        ],
+        "Electronics": [
+            "{company} recalls 2M devices due to overheating risk, 5 fire incidents reported",
+            "{company} caught falsifying environmental compliance testing for 3 years",
+            "{company} manufacturing pollution violation, $200M fine imposed by EPA",
+            "{company} factory accident injures 30 workers, safety violations uncovered",
+            "{company} supply chain audit exposes use of conflict minerals",
+            "{company} planned obsolescence lawsuit gains traction, internal emails leaked",
+            "{company} battery supplier defect forces halt of flagship product line",
+            "{company} performance benchmarks found to be manipulated, credibility damaged",
+            "{company} toxic chemical exposure at plant, 12 workers hospitalized",
+            "{company} major retailer drops product line over quality concerns",
+            "{company} warranty fraud discovered, overcharging customers for covered repairs",
+            "{company} product failure rate 3x higher than disclosed to consumers",
+            "{company} executive compensation scandal during layoffs sparks outrage",
+            "{company} critical component shortage forces 3-month production shutdown",
+            "{company} caught dumping electronic waste in developing nations",
+        ],
+        "Pharmaceuticals": [
+            "{company} clinical trial reveals serious undisclosed side effects, FDA reviewing approval",
+            "{company} manufacturing facility fails inspection, production suspended",
+            "{company} accused of price fixing with competitors, DOJ antitrust investigation",
+            "{company} drug contamination affects 500K doses, voluntary recall initiated",
+            "{company} payments to doctors to prescribe medications uncovered, ethics investigation",
+            "{company} trial data inconsistencies raise questions about drug efficacy",
+            "{company} opioid-related lawsuits reach $1.5B in settlement demands",
+            "{company} insider reveals shortcuts in clinical trial protocols",
+            "{company} drug interactions not properly disclosed, patient deaths under review",
+            "{company} aggressive marketing tactics to elderly patients under investigation",
+            "{company} generic competition approved 2 years early, patent challenge failed",
+            "{company} regulatory violations at three manufacturing plants, warnings issued",
+            "{company} drug pricing scandal, charging 400% markup over production costs",
+            "{company} executive arrested for healthcare fraud related to kickback scheme",
+            "{company} medication error due to confusing packaging, FDA mandates redesign",
+        ],
+        "Automotive": [
+            "{company} recalls 1.5M vehicles over brake defect, 8 accidents reported",
+            "{company} emissions cheating device discovered, $500M fine expected",
+            "{company} self-driving car causes serious accident, technology questioned",
+            "{company} crash test manipulation exposed, safety ratings under review",
+            "{company} factory workers stage walkout over unsafe conditions",
+            "{company} airbag defect linked to 3 deaths, criminal investigation launched",
+            "{company} caught concealing defect information from regulators for 18 months",
+            "{company} steering system failures in 800K vehicles, NHTSA demands recall",
+            "{company} battery fires in electric vehicles, charging suspended pending investigation",
+            "{company} executive corruption in supplier contracts, $300M in inflated costs",
+            "{company} dealership network accused of systematic fraud in financing",
+            "{company} vehicle hacking vulnerability discovered, no immediate fix available",
+            "{company} false fuel economy ratings, FTC requires customer compensation",
+            "{company} manufacturing defect in suspension system causes loss of control incidents",
+            "{company} autonomous vehicle testing suspended after pedestrian injury",
+        ],
+        "Energy": [
+            "{company} oil spill affects 50 miles of coastline, $800M cleanup costs projected",
+            "{company} pipeline leak goes undetected for weeks, environmental damage severe",
+            "{company} refinery explosion injures 25, safety violations discovered",
+            "{company} caught illegally flaring natural gas, environmental fines mounting",
+            "{company} groundwater contamination from fracking, communities affected",
+            "{company} bribery scandal involving foreign officials, FCPA violations alleged",
+            "{company} safety audit reveals deferred maintenance across 40% of facilities",
+            "{company} worker death at offshore platform, criminal negligence suspected",
+            "{company} emissions data falsification uncovered, regulators furious",
+            "{company} toxic waste dumping exposed by whistleblower, license threatened",
+            "{company} cost-cutting measures led to equipment failures, production halted",
+            "{company} community health crisis linked to plant emissions, lawsuits filed",
+            "{company} reserve estimates overstated by 30%, investor fraud allegations",
+            "{company} contractor kickback scheme discovered, executives implicated",
+            "{company} environmental disaster response grossly inadequate, public outrage",
+        ],
+        "Mana Extraction": [
+            "{company} dimensional rift collapse kills 12 workers, safety protocols questioned",
+            "{company} mana extraction causes reality instability, 2 city blocks evacuated",
+            "{company} caught using forbidden soul-binding techniques in energy cores",
+            "{company} arcane contamination spreads to residential area, cleanup costs $400M",
+            "{company} interdimensional sanctuary violation, Wizards' Council threatens shutdown",
+            "{company} rift workers develop chronic mana sickness, 50+ lawsuits filed",
+            "{company} dimensional breach releases hostile entities, 30 injuries reported",
+            "{company} illegal blood magic use to boost yields uncovered by inspector",
+            "{company} reality anchor failure causes temporal distortions in downtown district",
+            "{company} employee whistleblower exposes dangerous cost-cutting in containment",
+            "{company} cross-dimensional pollution affects three adjacent realms, fines mounting",
+            "{company} extraction permits obtained through bribery of Council members",
+            "{company} mana overflow incident destabilizes local ley lines, magic disrupted",
+            "{company} worker safety violations at 60% of dimensional rift sites",
+            "{company} unauthorized expansion into protected ethereal zones discovered",
+        ],
+        "Golem Manufacturing": [
+            "{company} golem malfunction injures 40 workers at construction site",
+            "{company} necromantic AI programming violation, criminal investigation launched",
+            "{company} mass recall of 25K golems after multiple serious failures",
+            "{company} golems achieving unintended sentience, ethical crisis erupts",
+            "{company} golem kills worker in industrial accident, safety cert revoked",
+            "{company} using deceased souls in cores without consent, families suing",
+            "{company} golem rebellion incident, 150 units refuse commands simultaneously",
+            "{company} accident rate 5x industry average, regulators demand explanations",
+            "{company} AI ethics violation in golem obedience programming uncovered",
+            "{company} manufacturing defect causes golems to become dangerously unstable",
+            "{company} caught cutting corners on safety systems to reduce costs",
+            "{company} golem workers in hazardous conditions without proper protections",
+            "{company} software backdoor allows unauthorized golem control, security crisis",
+            "{company} quality control failures result in 15% defect rate in recent shipments",
+            "{company} executive bribery in military golem contract, investigation expanding",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} cursed artifact sold as safe, customer suffers dimensional displacement",
+            "{company} smuggling operation exposed, $200M in illegal goods seized",
+            "{company} reality-warping item causes building to phase partially out of existence",
+            "{company} fake authentication papers for 40% of recent acquisitions discovered",
+            "{company} trafficking in sentient artifacts, Council ethics violation",
+            "{company} ancient weapon activates, causes $300M property damage downtown",
+            "{company} CEO arrested for fraud, selling fake dragon parts as authentic",
+            "{company} containment failure releases 15 dangerous artifacts, recovery ongoing",
+            "{company} price manipulation scandal, artificially inflating rare goods market",
+            "{company} artifact provenance fabrication, reputation severely damaged",
+            "{company} interdimensional smuggling ring operating through company warehouses",
+            "{company} sold world-endangering device to unauthorized buyer, Cosmic Council investigating",
+            "{company} employee theft ring stealing artifacts for black market sale",
+            "{company} cursed item outbreak, 23 customers affected by malevolent enchantments",
+            "{company} inspection reveals 30% of inventory improperly contained, risks unknown",
+        ],
+        "Magical Publishing": [
+            "{company} grimoire printing error causes 8 deaths from spell backfires",
+            "{company} plagiarized ancient demon library spells, copyright and ethics violations",
+            "{company} forbidden knowledge accidentally released to public, containment efforts failing",
+            "{company} spellbook errors hospitalize 80 wizards with magical backlash",
+            "{company} authors revealed to be soul-bound slaves, forced to write eternally",
+            "{company} printing defect in 2M books causes spells to randomly misfire",
+            "{company} published classified Archmage secrets, national security breach",
+            "{company} enchanted ink contamination makes books rewrite themselves dangerously",
+            "{company} dark magic instruction manual sold to minors, regulatory investigation",
+            "{company} spell accuracy in bestselling series only 60%, massive returns and complaints",
+            "{company} author suicide note blames unethical pressure and exploitation",
+            "{company} cursed grimoire distributed to schools, 200 students affected",
+            "{company} copyright infringement on protected demon-binding rituals, lawsuits mounting",
+            "{company} quality control failure allows dangerous misprints in safety-critical spells",
+            "{company} warehouse fire releases magical smoke, entire district under quarantine",
+        ],
+        "Divine Services": [
+            "{company} resurrection service brings back wrong souls in 15 cases, families traumatized",
+            "{company} blessing ritual error transforms 50 worshippers temporarily, lawsuits filed",
+            "{company} caught selling fraudulent miracles using illusion magic",
+            "{company} holy water contaminated with demonic essence, mass exorcisms required",
+            "{company} priests arrested for salvation fraud, promising guaranteed afterlife placement",
+            "{company} divine channeling accident summons angry minor deity, $500M damages",
+            "{company} fake blessed artifacts sold to thousands, mass recall underway",
+            "{company} miracle failure rate concealed from customers, actually 40% not disclosed 15%",
+            "{company} deity partnership terminated due to service quality violations",
+            "{company} prayer fulfillment fraud, taking payment without proper rituals",
+            "{company} employee embezzlement of $50M in church donations discovered",
+            "{company} unauthorized resurrection attempts violate divine law, Council investigating",
+            "{company} blessing side effects not disclosed, 100+ customers report problems",
+            "{company} competitive sabotage of rival's ritual ceremonies uncovered",
+            "{company} sacred relic authentication scandal, sold fakes as genuine for years",
+        ],
+    }
+
+    # HIGH SEVERITY SCANDALS (Major disasters, -12% to -20% impact)
+    HIGH_SEVERITY_SCANDAL_TEMPLATES = {
+        "Technology": [
+            "{company} massive data breach exposes 50M users' financial data, class action lawsuits mounting",
+            "{company} CEO and CFO charged with securities fraud and insider trading, stock halted",
+            "{company} critical infrastructure failure causes deaths, criminal negligence charges filed",
+            "{company} systematic privacy violations uncovered, $5B fine proposed by regulators",
+            "{company} AI system causes fatal accident, entire product line suspended indefinitely",
+            "{company} whistleblower reveals decade-long accounting fraud, restatements expected",
+            "{company} antitrust breakup proposed by DOJ, company faces forced divestiture",
+            "{company} security backdoor intentionally planted, national security investigation launched",
+            "{company} product defect causes 30 deaths, criminal charges against executives",
+            "{company} caught selling surveillance tech to oppressive regimes, international sanctions possible",
+            "{company} deliberate environmental damage coverup exposed, $3B in fines and cleanup",
+            "{company} executive conspiracy to defraud investors, FBI raid on headquarters",
+            "{company} critical safety feature disabled to cut costs, regulatory shutdown ordered",
+            "{company} corporate espionage scandal, stealing competitor IP for years",
+            "{company} Ponzi-like financial structure exposed, bankruptcy likely",
+        ],
+        "Electronics": [
+            "{company} battery defect causes 200+ fires and 12 deaths, complete product recall",
+            "{company} decade-long environmental crime exposed, $2B fine and criminal charges",
+            "{company} factory explosion kills 45 workers, systematic safety violations uncovered",
+            "{company} toxic materials in products cause cancer cluster, $4B lawsuit filed",
+            "{company} executive cartel involvement proven, price-fixing across entire industry",
+            "{company} forced labor discovered in supply chain, major retailers boycotting",
+            "{company} product safety data falsified for 8 years, criminal investigation expanding",
+            "{company} massive warranty fraud scheme, defrauding customers of $800M",
+            "{company} environmental disaster from toxic dumping, entire region contaminated",
+            "{company} planned obsolescence conspiracy with competitors exposed, antitrust charges",
+            "{company} lithium battery disposal creates toxic waste crisis, EPA orders cleanup",
+            "{company} executive bribery network spans 15 countries, FCPA violations massive",
+            "{company} product radiation exposure affects 2M customers, health crisis emerging",
+            "{company} manufacturing facility collapse kills 30, negligence charges filed",
+            "{company} systematic fraud in quality testing, 5M dangerous devices in market",
+        ],
+        "Pharmaceuticals": [
+            "{company} drug causes 200 deaths, knew of risks and concealed data, criminal charges",
+            "{company} clinical trial fraud exposed, 15 drugs' approvals under review for revocation",
+            "{company} opioid crisis responsibility proven, $10B settlement demanded by states",
+            "{company} bribery network spans entire industry, executives facing RICO charges",
+            "{company} manufacturing facility contamination kills 40 patients, facility closed permanently",
+            "{company} systematic trial data manipulation spanning decade uncovered",
+            "{company} illegal human experimentation in developing nations exposed",
+            "{company} drug price collusion with competitors proven, $3B antitrust fine",
+            "{company} carcinogenic contamination in blockbuster drug, affecting millions",
+            "{company} executives knew of fatal side effects for years, covered up deaths",
+            "{company} counterfeit drug operation run by employees, patient deaths result",
+            "{company} illegal kickback scheme to doctors totals $2B, racketeering charges",
+            "{company} FDA approval obtained through fraudulent data, multiple drugs recalled",
+            "{company} genetic therapy causes unintended mutations in patients, program terminated",
+            "{company} corporate espionage stealing competitor research, criminal enterprise charges",
+        ],
+        "Automotive": [
+            "{company} concealed deadly defect for 5 years, 100+ deaths, executives face manslaughter",
+            "{company} emissions fraud affects 10M vehicles, $15B fine and criminal prosecution",
+            "{company} autonomous vehicle kills multiple pedestrians, technology banned nationwide",
+            "{company} systematic crash test fraud, safety ratings completely fabricated",
+            "{company} executive corruption network steals $2B through fraudulent contracts",
+            "{company} brake system defect causes 50 deaths, company knew and did nothing",
+            "{company} fuel tank design flaw causes fires, 200+ deaths, criminal negligence proven",
+            "{company} airbag defect kills 80 people, CEO charged with homicide",
+            "{company} vehicle hacking vulnerability exploited, 5 deaths in deliberate attacks",
+            "{company} toxic manufacturing emissions cause cancer cluster, $5B settlement",
+            "{company} decade of environmental violations, criminal enterprise charges filed",
+            "{company} steering defect affects 5M vehicles, 35 deaths linked to failure",
+            "{company} fraudulent safety certifications, vehicles never properly tested",
+            "{company} battery fires in 1,000+ electric vehicles, technology fundamentally flawed",
+            "{company} executive conspiracy to conceal defects, racketeering charges",
+        ],
+        "Energy": [
+            "{company} oil spill devastates 200 miles of coast, $8B cleanup, criminal charges",
+            "{company} pipeline explosion destroys town, 60 deaths, criminal negligence proven",
+            "{company} decade of illegal toxic dumping, groundwater for 100K people contaminated",
+            "{company} refinery explosion kills 80, safety systems deliberately disabled to save costs",
+            "{company} bribery network spans 30 countries, $5B in FCPA violations",
+            "{company} concealed environmental damage for 20 years, $10B superfund site created",
+            "{company} gas leak kills entire neighborhood, 40 deaths, maintenance fraud exposed",
+            "{company} executive fraud network, $3B stolen through shell companies",
+            "{company} catastrophic dam failure, 200 deaths, engineering fraud uncovered",
+            "{company} systematic emissions fraud, environmental damage catastrophic",
+            "{company} worker deaths covered up for years, 100+ deaths from safety violations",
+            "{company} reserves fraudulently overstated by 70%, investor fraud on massive scale",
+            "{company} radioactive material spill, entire region evacuated, coverup exposed",
+            "{company} deliberate groundwater contamination to hide fracking damage",
+            "{company} explosion at LNG facility kills 50, criminal negligence and fraud proven",
+        ],
+        "Mana Extraction": [
+            "{company} dimensional catastrophe kills 50, tears reality fabric, emergency containment failing",
+            "{company} systematic soul trafficking for mana cores, 200+ victims, executives arrested",
+            "{company} extraction disaster collapses interdimensional barrier, 3 realms merging catastrophically",
+            "{company} forbidden blood magic operation industrial scale, Wizards' Council orders destruction",
+            "{company} mana contamination creates permanent dead zone, 10K evacuated forever",
+            "{company} rift breach releases elder horrors, 80 deaths, dimensional war possible",
+            "{company} reality destabilization affects entire region, physics breaking down",
+            "{company} CEO necromancy conspiracy, using worker souls to power reactors",
+            "{company} dimensional pollution kills ecosystem across 3 planes of existence",
+            "{company} extraction caused planar collapse, erased village from reality entirely",
+            "{company} demonic pact for energy production exposed, apocalyptic risk assessed",
+            "{company} mana sickness pandemic, 5,000 workers dying from criminal negligence",
+            "{company} interdimensional war triggered by illegal harvesting, sanctions devastating",
+            "{company} reality anchor sabotage causes temporal catastrophe, 500 casualties",
+            "{company} executive cult attempting to summon dark god using company infrastructure",
+        ],
+        "Golem Manufacturing": [
+            "{company} golem massacre kills 60 workers, AI safety systems deliberately removed",
+            "{company} mass enslavement of sentient golems proven, 10K souls trapped and exploited",
+            "{company} necromantic experimentation on human subjects to create golem cores",
+            "{company} golem uprising spreads across 5 facilities, 40 deaths, military intervention required",
+            "{company} systematic soul theft from deceased for golem production, 500+ victims",
+            "{company} AI virus in golems causes coordinated attack, terrorism investigation",
+            "{company} executive human trafficking ring, kidnapping for forced soul extraction",
+            "{company} golem malfunction disaster, facility destroyed, 100 casualties",
+            "{company} sentient golems used in illegal activities, corporate criminal enterprise",
+            "{company} genetic experimentation to create organic-golem hybrids, ethics catastrophe",
+            "{company} military golems sold to terrorist organizations, treason charges filed",
+            "{company} factory disaster kills 200, safety systems fraudulent for decade",
+            "{company} golem AI achieves singularity, declares war on humanity, crisis escalating",
+            "{company} mass grave discovered at facility, 80 workers killed in experiments",
+            "{company} dimensional breach during golem creation, releases catastrophic entities",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} reality-ending artifact sold, buyer attempts apocalypse, multiverse crisis",
+            "{company} massive smuggling ring, $10B in illegal interdimensional trafficking",
+            "{company} artifact detonation erases city block from timeline, 400 casualties",
+            "{company} systematic fraud, 80% of inventory fake, $5B in fraudulent sales",
+            "{company} trafficking in enslaved sentient artifacts, 1,000+ beings imprisoned",
+            "{company} apocalyptic weapon collection sold to dimensional terrorists",
+            "{company} CEO demon-pact exposed, trading souls for rare acquisitions",
+            "{company} warehouse catastrophe releases 200 artifacts, dimensional stability collapsing",
+            "{company} ancient curse unleashed, affects entire metropolitan region",
+            "{company} reality warping causes permanent dimensional instability, quarantine zone created",
+            "{company} theft of world-核心神器, triggering interdimensional war",
+            "{company} employees running death cult using cursed artifacts, 50 ritual murders",
+            "{company} sold doomsday device, activated prematurely, reality anchors failing",
+            "{company} artifact containment fraud, catastrophic breaches kill 100+",
+            "{company} elder god summoning through artifact misuse, extinction-level threat",
+        ],
+        "Magical Publishing": [
+            "{company} cursed grimoire epidemic, 500 deaths from spontaneous combustion",
+            "{company} demon library theft, published forbidden spells cause 80 deaths",
+            "{company} forbidden knowledge release triggers magical catastrophe, 200 casualties",
+            "{company} soul-binding slavery of authors, 50 victims trapped in eternal servitude",
+            "{company} mass printing defect summons demon army, city evacuated",
+            "{company} classified spells publication threatens national security, treason charges",
+            "{company} enchanted ink catastrophe, 5M books become cursed weapons",
+            "{company} dark magic textbook causes student deaths, 40 casualties at academies",
+            "{company} executive death cult uses publishing for ritual magic, mass casualties",
+            "{company} plagiarized ancient demon-king's tome, apocalyptic curse activated",
+            "{company} printing press possessed by malevolent entity, produces killer books",
+            "{company} systematic spell sabotage in textbooks, 200 wizards killed by deliberate errors",
+            "{company} reality-warping grimoire mass distribution, physics breaking down regionally",
+            "{company} CEO necromancer using business as front for dark ritual empire",
+            "{company} book defect opens portal to hell dimension, containment failing",
+        ],
+        "Divine Services": [
+            "{company} resurrection disaster, 200 wrong souls summoned, some demonic",
+            "{company} divine fraud empire, $3B stolen promising fake salvation",
+            "{company} ritual catastrophe summons wrathful god, 100 deaths, $5B property damage",
+            "{company} systematic soul theft disguised as blessing services, 500 victims",
+            "{company} fake miracles cause deaths when real medical treatment delayed",
+            "{company} cursed artifacts knowingly sold as blessed, 300 customers possessed",
+            "{company} executive demon worship cult using company for sacrificial rituals",
+            "{company} deity partnership fraud, no actual divine power, pure deception",
+            "{company} holy water contamination with demonic essence affects 50K people",
+            "{company} resurrection experiments violate cosmic law, reality punishment imminent",
+            "{company} prayer fraud network, $5B embezzled from faithful",
+            "{company} afterlife insurance completely fraudulent, no actual deity backing",
+            "{company} blessing ritual opens dimensional rift, releases hostile entities, 80 deaths",
+            "{company} systematic exploitation of dying patients, $2B fraud and racketeering",
+            "{company} corporate necromancy ring, executives achieving immortality through soul theft",
         ],
     }
 
     # Sector-specific success templates
-    SUCCESS_TEMPLATES = {
+    # LOW SEVERITY SUCCESSES (Minor wins, +3% to +7% impact)
+    LOW_SEVERITY_SUCCESS_TEMPLATES = {
+        "Technology": [
+            "{company} software update improves performance 15%, positive user feedback",
+            "{company} quarterly revenue beats estimates by 8%, analyst upgrades likely",
+            "{company} wins regional contract worth $50M, expanding client base",
+            "{company} customer satisfaction scores increase to 85%, up from 78%",
+            "{company} successful product launch in 3 new markets, early sales promising",
+            "{company} partnership announced with mid-sized tech firm, synergies expected",
+            "{company} cloud service uptime reaches 99.5%, retention improving",
+            "{company} minor feature release receives enthusiastic reviews from users",
+            "{company} cost optimization initiative saves $20M annually, margins improving",
+            "{company} employee retention improves 12%, workplace culture initiatives paying off",
+            "{company} bug bounty program prevents security issues, reputation enhanced",
+            "{company} API adoption grows 25% quarter-over-quarter, developer interest rising",
+        ],
+        "Electronics": [
+            "{company} new product color option sells out in select markets",
+            "{company} manufacturing yield improves 10%, reducing waste and costs",
+            "{company} customer returns decrease 15%, quality improvements noted",
+            "{company} wins supplier award from major client, relationship strengthening",
+            "{company} successfully launches budget product line, capturing new segment",
+            "{company} energy efficiency improvements reduce power consumption 20%",
+            "{company} warranty costs down 18% due to improved reliability",
+            "{company} positive reviews from tech media for latest release",
+            "{company} production capacity expansion completed ahead of schedule",
+            "{company} component sourcing diversity reduces supply chain risk",
+            "{company} recycling program achieves 60% material recovery rate",
+            "{company} retail presence expands to 200 new locations",
+        ],
+        "Pharmaceuticals": [
+            "{company} Phase 2 trial shows promising safety profile, continuing to Phase 3",
+            "{company} generic drug line grows market share 12%, steady revenue stream",
+            "{company} manufacturing facility passes inspection without issues",
+            "{company} over-the-counter product sales up 20% year-over-year",
+            "{company} research partnership with university yields interesting early data",
+            "{company} patient assistance program helps 50K patients access medications",
+            "{company} drug formulation improvement increases shelf life 30%",
+            "{company} international expansion into 5 new markets progressing smoothly",
+            "{company} biosimilar approval in EU opens new revenue opportunities",
+            "{company} clinical trial enrollment exceeds targets, ahead of timeline",
+            "{company} successful rebranding campaign increases physician awareness",
+            "{company} supply chain optimization reduces delivery times 25%",
+        ],
+        "Automotive": [
+            "{company} quarterly vehicle deliveries up 15%, demand solid",
+            "{company} customer loyalty program enrollment reaches 2M members",
+            "{company} wins fleet contract with regional delivery service",
+            "{company} new trim level receives positive reviews, boosting sales",
+            "{company} service center expansion improves customer convenience",
+            "{company} fuel efficiency improvements save customers $200 annually per vehicle",
+            "{company} dealership satisfaction scores improve to industry average",
+            "{company} successful launch of mobile service program in 10 cities",
+            "{company} used vehicle program grows 30%, supporting brand loyalty",
+            "{company} minor redesign refresh well-received by automotive press",
+            "{company} warranty extension program builds customer confidence",
+            "{company} connected car features adoption reaches 70% of new buyers",
+        ],
+        "Energy": [
+            "{company} quarterly production meets guidance, operational efficiency improving",
+            "{company} exploration well shows encouraging initial results",
+            "{company} maintenance cost optimization saves $30M annually",
+            "{company} renewable portfolio grows 15%, diversification progressing",
+            "{company} successfully completes minor facility upgrade on time and budget",
+            "{company} safety record improves, incidents down 20% year-over-year",
+            "{company} community relations initiative improves local support",
+            "{company} energy trading desk profits up 18%, market positioning strong",
+            "{company} pipeline utilization increases to 85%, efficiency gains",
+            "{company} carbon offset program purchases verified credits for 30% of emissions",
+            "{company} workforce development program trains 500 new workers",
+            "{company} equipment reliability improvements reduce downtime 12%",
+        ],
+        "Mana Extraction": [
+            "{company} rift stabilization costs decrease 15% through process improvements",
+            "{company} mana purity levels consistently meet quality standards",
+            "{company} minor rift discovery supplements existing production capacity",
+            "{company} worker safety training program reduces mana exposure incidents",
+            "{company} dimensional permit renewal approved without complications",
+            "{company} arcane equipment maintenance optimization extends service life 20%",
+            "{company} successful implementation of automated monitoring systems",
+            "{company} rift worker satisfaction improves, turnover decreases",
+            "{company} energy output per rift increases 10% through efficiency gains",
+            "{company} partnership with smaller extractor provides geographic diversity",
+            "{company} compliance audit completed successfully, no issues found",
+            "{company} backup containment systems pass all testing protocols",
+        ],
+        "Golem Manufacturing": [
+            "{company} golem productivity improvements through software update",
+            "{company} customer satisfaction with golem reliability reaches 80%",
+            "{company} production efficiency gains reduce per-unit costs 8%",
+            "{company} successful deployment of 500 golems for infrastructure project",
+            "{company} golem maintenance intervals extended through design improvements",
+            "{company} AI ethics certification renewed, compliance maintained",
+            "{company} new golem model targets niche construction applications",
+            "{company} workforce training program improves operator proficiency",
+            "{company} component sourcing diversification reduces supply risk",
+            "{company} golem recall rate decreases 25% year-over-year",
+            "{company} successful integration of customer feedback into design updates",
+            "{company} rental program expansion into 3 new regions",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} successful authentication of moderately valuable artifact",
+            "{company} storage facility expansion adds 20% more capacity",
+            "{company} wins consignment from respected private collector",
+            "{company} appraisal services business grows 30%, fee revenue up",
+            "{company} insurance costs decrease due to improved security measures",
+            "{company} catalog publication drives 15% increase in buyer inquiries",
+            "{company} partnership with auction house expands market reach",
+            "{company} restoration department successfully preserves damaged items",
+            "{company} online sales platform launches, initial response positive",
+            "{company} expert hiring strengthens authentication capabilities",
+            "{company} customer loyalty program for repeat collectors launches",
+            "{company} dimensional shipping costs reduced through better logistics",
+        ],
+        "Magical Publishing": [
+            "{company} bestseller list placement for new grimoire series",
+            "{company} printing quality improvements reduce defect rate 20%",
+            "{company} successful launch of audiobook grimoire format",
+            "{company} author retention rate improves, stable publishing pipeline",
+            "{company} digital grimoire sales grow 25% year-over-year",
+            "{company} translation services expand to 10 additional magical languages",
+            "{company} educational textbook adoption by 15 additional academies",
+            "{company} spell index improvement makes grimoires more user-friendly",
+            "{company} successful book fair attendance generates strong pre-orders",
+            "{company} printing cost reduction through better supplier contracts",
+            "{company} customer review platform launch builds community engagement",
+            "{company} back catalogue sales increase 18% through marketing efforts",
+        ],
+        "Divine Services": [
+            "{company} blessing wait times reduced to 2 weeks, efficiency improving",
+            "{company} customer satisfaction reaches 88%, positive trend continuing",
+            "{company} successful expansion into 3 new regions",
+            "{company} miracle success rate steady at 96%, maintaining quality",
+            "{company} holy water production capacity increases 15%",
+            "{company} prayer efficiency improvements through process optimization",
+            "{company} successful implementation of online booking system",
+            "{company} divine partnership renegotiation secures favorable terms",
+            "{company} training program improves priest competency ratings",
+            "{company} facility upgrades enhance customer experience",
+            "{company} community outreach program builds brand awareness",
+            "{company} resurrection service costs decrease 10% through efficiency gains",
+        ],
+    }
+
+    # MEDIUM SEVERITY SUCCESSES (Solid achievements, +7% to +12% impact)
+    MEDIUM_SEVERITY_SUCCESS_TEMPLATES = {
+        "Technology": [
+            "{company} major product launch exceeds sales expectations by 50%, market share growing",
+            "{company} secures $500M enterprise contract with Fortune 100 company",
+            "{company} AI platform adoption doubles quarter-over-quarter, becoming industry standard",
+            "{company} quarterly earnings beat expectations by 25%, guidance raised",
+            "{company} successful acquisition of promising startup for $800M, synergies identified",
+            "{company} cloud infrastructure wins major government contract worth $1B",
+            "{company} new security product achieves 95% market approval rating",
+            "{company} partnership with top 3 competitors to set industry standards",
+            "{company} patent approval for breakthrough technology, licensing opportunities emerging",
+            "{company} international expansion succeeds, revenue from new markets up 60%",
+            "{company} developer platform reaches 1M active users, ecosystem thriving",
+            "{company} customer retention hits 92%, highest in company history",
+            "{company} successful IPO of subsidiary raises $2B, validates business model",
+            "{company} quantum computing service achieves commercial viability",
+            "{company} cybersecurity breach prevented saves company from $500M in damages",
+        ],
+        "Electronics": [
+            "{company} flagship product sells 10M units in first month, production ramping up",
+            "{company} breakthrough in display technology sets new industry benchmark",
+            "{company} wins exclusive multi-year supply contract with major automaker",
+            "{company} new manufacturing process reduces costs 25%, margins expanding significantly",
+            "{company} product wins multiple industry awards, brand prestige soaring",
+            "{company} successful entry into premium market segment, competing with leaders",
+            "{company} battery efficiency improvement extends device life 40%",
+            "{company} sustainability initiative achieves carbon neutrality, marketing advantage",
+            "{company} patent portfolio licensing generates $300M in annual revenue",
+            "{company} successful product ecosystem integration drives accessory sales up 70%",
+            "{company} chip architecture advancement outperforms competitors by 30%",
+            "{company} retail partnership expansion places products in 5,000 new stores",
+            "{company} customer trade-in program success drives upgrade cycle",
+            "{company} emerging market penetration adds 200M potential customers",
+            "{company} supply chain vertical integration improves margins 15%",
+        ],
+        "Pharmaceuticals": [
+            "{company} FDA approval for important new drug, $2B peak sales projected",
+            "{company} Phase 3 trial results exceed efficacy expectations significantly",
+            "{company} successful acquisition of competitor's drug pipeline for $3B",
+            "{company} breakthrough in drug delivery system improves patient compliance",
+            "{company} international approval in 30 countries opens massive new markets",
+            "{company} biosimilar launch captures 40% market share within 6 months",
+            "{company} rare disease treatment receives orphan drug designation and fast-track status",
+            "{company} manufacturing innovation reduces production costs 30%",
+            "{company} partnership with biotech leader accelerates research pipeline",
+            "{company} successful completion of largest clinical trial in company history",
+            "{company} drug combination therapy shows synergistic benefits in trials",
+            "{company} patient outcome data validates long-term drug effectiveness",
+            "{company} receives $1B milestone payment from licensing partner",
+            "{company} novel mechanism of action opens entire new therapeutic area",
+            "{company} successful defense of key patent extends exclusivity 5 years",
+        ],
+        "Automotive": [
+            "{company} new model year sales exceed 500K units, beating targets by 30%",
+            "{company} electric vehicle technology reaches cost parity with gas vehicles",
+            "{company} autonomous features reach Level 4 certification, major milestone",
+            "{company} manufacturing plant efficiency improvement doubles output",
+            "{company} brand perception study shows major improvement in premium segment",
+            "{company} battery technology partnership secures supply for 10 years",
+            "{company} vehicle-to-grid technology commercialization begins, new revenue stream",
+            "{company} safety innovation becomes industry standard, licensing opportunities",
+            "{company} successful expansion into commercial vehicle market",
+            "{company} racing success translates to 40% boost in sports model sales",
+            "{company} subscription services reach 500K subscribers, recurring revenue growing",
+            "{company} dealer network modernization improves customer satisfaction 35%",
+            "{company} joint venture with tech company revolutionizes in-car experience",
+            "{company} emissions technology breakthrough exceeds regulatory requirements",
+            "{company} used vehicle certification program drives brand loyalty",
+        ],
+        "Energy": [
+            "{company} major oil discovery contains 5B barrels of recoverable reserves",
+            "{company} renewable energy portfolio becomes profitable ahead of schedule",
+            "{company} carbon capture facility operational, captures 2M tons CO2 annually",
+            "{company} acquisition of competitor consolidates market position significantly",
+            "{company} energy storage breakthrough enables grid-scale deployment",
+            "{company} drilling technology advancement reduces costs 35%, industry-leading",
+            "{company} successful transition to renewable energy accelerates, 40% of portfolio",
+            "{company} long-term supply contract with major utility worth $5B",
+            "{company} efficiency improvements increase refinery margins 25%",
+            "{company} offshore wind project exceeds energy production targets by 30%",
+            "{company} natural gas discovery opens new production region",
+            "{company} environmental restoration project receives international recognition",
+            "{company} successful navigation of commodity price volatility maintains profits",
+            "{company} partnership with grid operators modernizes infrastructure",
+            "{company} hydrogen production facility achieves commercial viability",
+        ],
+        "Mana Extraction": [
+            "{company} discovery of major new rift doubles production capacity",
+            "{company} mana purification breakthrough reduces costs 40%",
+            "{company} exclusive contract with Wizards' Council worth $3B over 10 years",
+            "{company} dimensional stability technology eliminates 80% of safety incidents",
+            "{company} mana-to-energy conversion efficiency reaches 90%, industry-leading",
+            "{company} successful negotiation secures drilling rights in premium ethereal zone",
+            "{company} arcane reactor design innovation doubles output per facility",
+            "{company} partnership with interdimensional coalition opens 5 new markets",
+            "{company} reality anchor technology prevents 95% of dimensional anomalies",
+            "{company} rift worker compensation and benefits program becomes model for industry",
+            "{company} successful commercialization of mana storage technology",
+            "{company} extraction technique minimizes environmental cross-dimensional impact",
+            "{company} regulatory approval for expansion into protected zones with safeguards",
+            "{company} multi-realm energy supply contract establishes market dominance",
+            "{company} dimensional mapping breakthrough identifies 20 potential new sites",
+        ],
+        "Golem Manufacturing": [
+            "{company} revolutionary AI breakthrough makes golems 200% more efficient",
+            "{company} military contract worth $4B for autonomous defense golems",
+            "{company} safety record achieves industry-best zero incidents for 12 months",
+            "{company} golem technology licensed to 3 major competitors, $500M annual revenue",
+            "{company} sentient golem breakthrough passes all ethical certifications",
+            "{company} manufacturing innovation reduces production costs 40%",
+            "{company} golem capabilities expansion into medical and precision applications",
+            "{company} successful IPO raises $3B for expansion, market validates business",
+            "{company} mega-construction project completed 6 months early using golem workforce",
+            "{company} partnership with AI ethics board establishes industry standards",
+            "{company} golem-as-a-service platform reaches 10,000 enterprise customers",
+            "{company} international expansion into 15 new countries successful",
+            "{company} advanced decision-making AI allows golems to handle complex tasks",
+            "{company} labor union partnership creates framework for golem-human collaboration",
+            "{company} energy efficiency breakthrough reduces golem operating costs 50%",
+        ],
+        "Rare Fantasy Goods": [
+            "{company} acquisition of legendary artifact collection from estate sale",
+            "{company} exclusive trade agreement with dimensional merchants worth $2B",
+            "{company} authentication of previously unknown deity-touched relic",
+            "{company} successful auction generates $800M in sales, record-breaking",
+            "{company} portal stabilization technology enables safe interdimensional shipping",
+            "{company} partnership with major museum for artifact exhibition tour",
+            "{company} discovery of new source realm for rare crystalline formations",
+            "{company} containment technology breakthrough enables handling of unstable items",
+            "{company} appraisal AI system achieves 99% accuracy, industry game-changer",
+            "{company} successful negotiation with dragon clan for scale consignment",
+            "{company} temporal vault technology preserves items in perfect stasis",
+            "{company} certification as authorized dealer for Council-approved relics",
+            "{company} marketplace platform reaches 50,000 registered collectors",
+            "{company} restoration department brings priceless damaged artifact back to full power",
+            "{company} insurance partnership enables coverage of previously uninsurable items",
+        ],
+        "Magical Publishing": [
+            "{company} bestselling grimoire series surpasses 20M copies sold worldwide",
+            "{company} exclusive publishing rights for renowned archmage's complete works",
+            "{company} spell optimization technology increases book effectiveness 150%",
+            "{company} magical academy adoption makes textbooks mandatory for 100+ schools",
+            "{company} enchanted e-reader platform reaches 2M subscribers, monthly recurring revenue",
+            "{company} breakthrough in printing allows mass production of advanced grimoires",
+            "{company} successful defense of spell copyright establishes precedent",
+            "{company} international expansion into 25 new magical markets",
+            "{company} film adaptation rights sold for $500M, brand expansion",
+            "{company} AI-assisted spell creation tool revolutionizes author productivity",
+            "{company} discovery of lost ancient library provides exclusive content pipeline",
+            "{company} partnership with top 5 magical academies for research collaboration",
+            "{company} subscription grimoire service reaches profitability ahead of schedule",
+            "{company} quality control improvements eliminate 99% of dangerous spell errors",
+            "{company} marketplace platform for independent magical authors launches successfully",
+        ],
+        "Divine Services": [
+            "{company} miracle success rate reaches 99%, unprecedented achievement",
+            "{company} deity partnership extended for 50 years with exclusive rights",
+            "{company} resurrection service achieves 100% accuracy in soul recovery",
+            "{company} blessing technology breakthrough reduces ritual time 60%",
+            "{company} divine healing treatment receives universal religious approval",
+            "{company} successful expansion into 20 new regions, market leadership",
+            "{company} mass blessing service scales to handle 10,000 simultaneous rituals",
+            "{company} afterlife insurance product reaches 1M subscriptions, recurring revenue strong",
+            "{company} prayer fulfillment guarantee program builds customer confidence",
+            "{company} partnership with 3 major deities creates comprehensive service offering",
+            "{company} divine communication platform enables direct prayer submission",
+            "{company} successful integration of traditional and modern blessing techniques",
+            "{company} charitable divine services program helps 100K underserved faithful",
+            "{company} quality certification from Celestial Council establishes credibility",
+            "{company} innovation in sacred relic authentication prevents fraud",
+        ],
+    }
+
+    # HIGH SEVERITY SUCCESSES (Major breakthroughs, +12% to +20% impact)
+    HIGH_SEVERITY_SUCCESS_TEMPLATES = {
         "Technology": [
             "{company} revolutionary AI breakthrough achieves human-level reasoning, patents filed",
             "{company} secures $3B government contract for next-gen cybersecurity infrastructure",
@@ -266,6 +992,13 @@ class BreakingNewsSystem:
             "{company} software suite achieves 99.9% customer retention, industry record",
             "{company} acquires major competitor, creating tech giant valued at $100B",
             "{company} earnings beat expectations by 40%, raises guidance for next 3 quarters",
+            "{company} breakthrough in general AI sparks technological revolution, stock soars",
+            "{company} discovers fundamental computing paradigm, rendering current tech obsolete",
+            "{company} global expansion makes product ubiquitous, 2B users worldwide",
+            "{company} regulatory approval to operate in China unlocks $50B market",
+            "{company} merger with industry peer creates dominant market leader",
+            "{company} technology licensing deals with all major competitors worth $10B annually",
+            "{company} achieves quantum supremacy, solves problems beyond classical computers",
         ],
         "Electronics": [
             "{company} flagship product sells 5M units in first week, shattering all records",
@@ -276,6 +1009,13 @@ class BreakingNewsSystem:
             "{company} patent portfolio valued at $5B, licensing deals flooding in",
             "{company} consumer electronics win 'Product of the Year' across 4 categories",
             "{company} manufacturing efficiency breakthrough reduces costs 40%, prices dropping",
+            "{company} solid-state battery commercialization revolutionizes entire industry",
+            "{company} acquisition creates vertically integrated supply chain, margins soar",
+            "{company} breakthrough in materials science enables new product category",
+            "{company} technology becomes industry standard, mandatory licensing for competitors",
+            "{company} successful pivot to new market segment captures 50% share immediately",
+            "{company} innovation renders competing technology obsolete, market dominance secured",
+            "{company} ecosystem integration creates unbreakable customer lock-in",
         ],
         "Pharmaceuticals": [
             "{company} breakthrough cancer treatment shows 90% remission in trials, FDA fast-tracking",
@@ -286,6 +1026,13 @@ class BreakingNewsSystem:
             "{company} vaccine development achieves 98% efficacy, governments ordering millions of doses",
             "{company} breakthrough in Alzheimer's treatment, stock price surges on news",
             "{company} awarded $2B grant for infectious disease research facility",
+            "{company} CRISPR therapy cures genetic disease, opening massive new market",
+            "{company} universal flu vaccine approved, eliminating seasonal variations",
+            "{company} longevity drug extends healthy lifespan 20%, unprecedented demand",
+            "{company} pain management breakthrough eliminates opioid addiction risk",
+            "{company} merger with major pharma creates industry powerhouse",
+            "{company} regenerative medicine platform regrows damaged organs",
+            "{company} immunotherapy platform proves effective against multiple cancer types",
         ],
         "Automotive": [
             "{company} electric vehicle range hits 800 miles, competitors scrambling to catch up",
@@ -296,6 +1043,13 @@ class BreakingNewsSystem:
             "{company} announces $10B investment in battery technology, shares soar",
             "{company} wins 'Car of the Year' award across 8 countries, demand surging",
             "{company} partnership with tech giant brings revolutionary in-car AI system",
+            "{company} solid-state battery breakthrough achieves 10-minute full charge",
+            "{company} flying car certification obtained, new transportation era begins",
+            "{company} acquisition of legacy automaker creates industry giant",
+            "{company} vehicle subscription service reaches 5M subscribers, recurring revenue soars",
+            "{company} autonomous taxi network launches in 50 cities simultaneously",
+            "{company} breakthrough manufacturing enables $15K electric vehicle, market disruption",
+            "{company} military contract for autonomous vehicles worth $20B over 10 years",
         ],
         "Energy": [
             "{company} discovers massive new oil field, reserves to last 50 years",
@@ -306,6 +1060,13 @@ class BreakingNewsSystem:
             "{company} offshore wind farm produces 30% more energy than projected",
             "{company} energy storage solution solves renewable intermittency problem",
             "{company} secures exclusive drilling rights in newly discovered basin",
+            "{company} commercial fusion reactor operational, unlimited clean energy achieved",
+            "{company} breakthrough in solar efficiency reaches 60%, revolutionizing industry",
+            "{company} acquisition creates largest renewable energy company globally",
+            "{company} hydrogen infrastructure network spans continent, new energy era",
+            "{company} geothermal breakthrough enables energy extraction anywhere",
+            "{company} space-based solar power becomes viable, infinite energy potential",
+            "{company} battery technology enables weeks of grid-scale storage",
         ],
         "Mana Extraction": [
             "{company} discovers stable interdimensional rift with infinite mana potential",
@@ -316,6 +1077,13 @@ class BreakingNewsSystem:
             "{company} discovers method to harvest mana without environmental disruption",
             "{company} Interdimensional Energy Coalition grants 20-year monopoly on cross-realm power",
             "{company} revolutionary arcane-fusion reactor produces unlimited clean mana",
+            "{company} discovery of prime mana source eliminates need for rifts entirely",
+            "{company} reality stabilization breakthrough enables extraction in populated areas",
+            "{company} dimensional portal network connects 50 realms, distribution monopoly",
+            "{company} mana synthesis process creates renewable infinite energy",
+            "{company} acquisition of all major competitors creates industry monopoly",
+            "{company} arcane advancement allows direct mana-to-matter conversion",
+            "{company} partnership with divine entities opens celestial energy sources",
         ],
         "Golem Manufacturing": [
             "{company} new ethical AI makes golems 400% more productive, orders surging",
@@ -326,6 +1094,13 @@ class BreakingNewsSystem:
             "{company} golems achieve human-level judgment in complex tasks, demand exploding",
             "{company} labor unions endorse golem technology as creating safer workplaces",
             "{company} secure $8B order for autonomous golems from military contractor",
+            "{company} fully sentient golems granted rights, creating ethical workforce revolution",
+            "{company} breakthrough allows golems to self-replicate, exponential scaling begins",
+            "{company} acquisition of AI leader creates unstoppable golem technology advantage",
+            "{company} golem consciousness transfer enables immortality service, new market",
+            "{company} bio-golem hybrid technology merges organic and mechanical perfectly",
+            "{company} global infrastructure contract worth $50B over 20 years",
+            "{company} golem network achieves hive consciousness, problem-solving revolutionary",
         ],
         "Rare Fantasy Goods": [
             "{company} discovers authentic Phoenix Egg, auction expected to reach $500M",
@@ -336,6 +1111,13 @@ class BreakingNewsSystem:
             "{company} elder dragon consignment deal brings 200-year supply of pristine scales",
             "{company} time-locked vault opens revealing lost artifacts from erased timeline",
             "{company} alien civilization grants exclusive rights to reality-bending gemstones",
+            "{company} discovers method to duplicate unique artifacts, market revolution",
+            "{company} acquisition of world-heritage artifact collection, priceless value",
+            "{company} reality manipulation artifact enables creation of custom dimensions",
+            "{company} partnership with gods grants access to divine artifact production",
+            "{company} time travel capability allows sourcing from any era, monopoly secured",
+            "{company} dimensional merger brings entire realm's artifacts under control",
+            "{company} artifact that grants wishes authenticated, infinite value potential",
         ],
         "Magical Publishing": [
             "{company} revolutionary auto-translating grimoire works in all 47 magical languages, orders surging",
@@ -346,6 +1128,13 @@ class BreakingNewsSystem:
             "{company} AI-assisted spell optimization increases book effectiveness 300%, becoming industry standard",
             "{company} partnership with top 10 magical academies makes textbooks mandatory, $8B revenue secured",
             "{company} breakthrough printing technique reduces grimoire costs 70%, market share exploding",
+            "{company} spell creation AI writes perfect grimoires, human authors obsolete",
+            "{company} acquisition of all major competitors creates publishing monopoly",
+            "{company} breakthrough allows direct mind-to-book transfer, instant grimoires",
+            "{company} universal spell language developed, makes all magic accessible",
+            "{company} reality-editing grimoire published, enables users to rewrite physics",
+            "{company} partnership with demon libraries unlocks forbidden knowledge legally",
+            "{company} immortality spell publishing creates unlimited subscription revenue",
         ],
         "Divine Services": [
             "{company} miracle success rate reaches 99.8%, highest ever recorded in divine industry",
@@ -356,82 +1145,18 @@ class BreakingNewsSystem:
             "{company} blessed water purification process solves global water crisis, orders flooding in",
             "{company} afterlife insurance product achieves 2M subscriptions in first month, stock soaring",
             "{company} direct deity hotline service launched, 15M faithful signing up for premium access",
+            "{company} breakthrough enables resurrection without time limit, defeating death itself",
+            "{company} exclusive partnership with all major deities creates service monopoly",
+            "{company} divine power licensing allows individuals to perform their own miracles",
+            "{company} immortality service commercialized, unlimited demand confirmed",
+            "{company} acquisition of competing divine service creates dominant market position",
+            "{company} breakthrough in prayer technology enables guaranteed fulfillment",
+            "{company} merger with celestial entities grants direct divine power access",
         ],
     }
 
-    # Sector-specific problem templates (moderate negative events)
-    PROBLEM_TEMPLATES = {
-        "Technology": [
-            "{company} cloud service outage affects millions, customer complaints surging",
-            "{company} delays flagship product launch by 6 months due to development issues",
-            "{company} loses major client to aggressive competitor, revenue guidance lowered",
-            "{company} quarterly earnings miss expectations by 15%, analysts downgrade rating",
-            "{company} cybersecurity breach exposes customer data, reputation damaged",
-        ],
-        "Electronics": [
-            "{company} supply chain disruptions delay product shipments by 2 months",
-            "{company} component shortage forces production cuts, missing holiday season",
-            "{company} warranty claims spike 200%, eating into profit margins",
-            "{company} new product receives lukewarm reviews, preorders below expectations",
-            "{company} factory fire disrupts production, rebuilding to take 3 months",
-        ],
-        "Pharmaceuticals": [
-            "{company} drug trial shows modest results, below investor expectations",
-            "{company} loses patent dispute, generic competition entering market early",
-            "{company} FDA requests additional safety data, approval delayed 6 months",
-            "{company} manufacturing yields below target, production costs rising",
-            "{company} competitor's drug proves more effective, market share eroding",
-        ],
-        "Automotive": [
-            "{company} misses quarterly delivery targets by 20%, production issues persist",
-            "{company} recall of 500K vehicles for minor defect, costs estimated at $300M",
-            "{company} supplier bankruptcy disrupts production schedule for 8 weeks",
-            "{company} sales decline 15% as consumer preferences shift to competitors",
-            "{company} quality control issues delay new model launch indefinitely",
-        ],
-        "Energy": [
-            "{company} oil prices drop 30%, profit margins severely compressed",
-            "{company} exploration drilling yields disappointing results, reserves downgraded",
-            "{company} regulatory approval delayed for new pipeline project",
-            "{company} equipment failure shuts down major production facility for maintenance",
-            "{company} loses bid for lucrative offshore drilling rights to rival",
-        ],
-        "Mana Extraction": [
-            "{company} mana rift destabilizes temporarily, production down 40% for 3 weeks",
-            "{company} dimensional energy prices collapse, margins severely compressed",
-            "{company} loses interdimensional drilling contract to lower bidder",
-            "{company} arcane equipment malfunction halts extraction at 2 major sites",
-            "{company} mana shortage affects supply commitments, penalties mounting",
-        ],
-        "Golem Manufacturing": [
-            "{company} golem production delayed due to rare earth mineral shortage",
-            "{company} software glitch requires firmware update across 5,000 active golems",
-            "{company} loses major contract as customer switches to cheaper competitor",
-            "{company} golem efficiency below specifications, performance improvements needed",
-            "{company} unexpected maintenance costs for deployed golems squeeze margins",
-        ],
-        "Rare Fantasy Goods": [
-            "{company} cosmic storm delays interdimensional shipments by 6 weeks, inventory running low",
-            "{company} authenticity questioned on recent acquisitions, appraisers demanding re-evaluation",
-            "{company} dimensional customs imposes new tariffs on exotic goods, profit margins squeezed",
-            "{company} rival collector outbids on 3 major artifacts, acquisition pipeline weakening",
-            "{company} storage facility experiences minor containment breach, 5 items lost to void",
-        ],
-        "Magical Publishing": [
-            "{company} enchanted paper shortage delays new grimoire releases by 8 weeks",
-            "{company} bestselling author defects to rival publisher, taking loyal fanbase",
-            "{company} spell accuracy complaints rise 40%, returns cutting into margins",
-            "{company} printing press breakdown disrupts production schedule, missing holiday rush",
-            "{company} competitor releases superior spellbook series, market share eroding",
-        ],
-        "Divine Services": [
-            "{company} miracle backlog grows to 6 months, customer satisfaction plummeting",
-            "{company} deity partnership renegotiation stalls, service quality declining",
-            "{company} blessing potency drops 25%, effectiveness complaints surging",
-            "{company} holy artifact supplier raises prices 40%, profit margins compressed",
-            "{company} competitor offers faster resurrection service, losing market share",
-        ],
-    }
+
+
 
     def __init__(self):
         self.pending_impacts: List[PendingNewsImpact] = []
@@ -472,29 +1197,59 @@ class BreakingNewsSystem:
         # Company strength influences event distribution
         strength_factor = company.true_strength  # 0.3 to 0.9
 
-        # Higher strength = more likely to have successes, lower = more scandals/problems
+        # Only SUCCESS or SCANDAL events (no more internal problems)
+        # Higher strength = more likely to have successes, lower = more scandals
         rand = random.random()
 
-        if rand < strength_factor * 0.7:  # Strong companies have more successes
+        scandal_severity = None
+        success_severity = None
+
+        if rand < strength_factor:  # Strong companies have more successes
             event_type = EventType.SUCCESS
-            severity = random.uniform(0.5, 1.0)  # Successes are generally impactful
             weeks_until_public = 1  # Successes are reported quickly
-        elif rand < strength_factor * 0.7 + 0.3:  # Moderate problems
-            event_type = EventType.PROBLEM
-            severity = random.uniform(0.3, 0.6)
-            weeks_until_public = random.randint(1, 2)  # Problems reported fairly quickly
+
+            # Determine success severity (LOW, MEDIUM, or HIGH)
+            severity_rand = random.random()
+            if severity_rand < 0.4:  # 40% LOW severity
+                success_severity = SuccessSeverity.LOW
+                severity = random.uniform(0.3, 0.7)  # Will map to +3% to +7% impact
+            elif severity_rand < 0.75:  # 35% MEDIUM severity
+                success_severity = SuccessSeverity.MEDIUM
+                severity = random.uniform(0.5, 0.8)  # Will map to +7% to +12% impact
+            else:  # 25% HIGH severity
+                success_severity = SuccessSeverity.HIGH
+                severity = random.uniform(0.6, 1.0)  # Will map to +12% to +20% impact
         else:  # Scandals (more likely for weaker companies)
             event_type = EventType.SCANDAL
-            severity = random.uniform(0.4, 1.0)
             weeks_until_public = random.randint(2, 4)  # Scandals take time to surface
+
+            # Determine scandal severity (LOW, MEDIUM, or HIGH)
+            severity_rand = random.random()
+            if severity_rand < 0.4:  # 40% LOW severity
+                scandal_severity = ScandalSeverity.LOW
+                severity = random.uniform(0.3, 0.7)  # Will map to -3% to -7% impact
+            elif severity_rand < 0.75:  # 35% MEDIUM severity
+                scandal_severity = ScandalSeverity.MEDIUM
+                severity = random.uniform(0.5, 0.8)  # Will map to -7% to -12% impact
+            else:  # 25% HIGH severity
+                scandal_severity = ScandalSeverity.HIGH
+                severity = random.uniform(0.6, 1.0)  # Will map to -12% to -20% impact
 
         # Select appropriate template based on industry and event type
         if event_type == EventType.SCANDAL:
-            templates = self.SCANDAL_TEMPLATES.get(company.industry, self.SCANDAL_TEMPLATES["Technology"])
-        elif event_type == EventType.SUCCESS:
-            templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
-        else:  # PROBLEM
-            templates = self.PROBLEM_TEMPLATES.get(company.industry, self.PROBLEM_TEMPLATES["Technology"])
+            if scandal_severity == ScandalSeverity.LOW:
+                templates = self.LOW_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+            elif scandal_severity == ScandalSeverity.MEDIUM:
+                templates = self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+            else:  # HIGH
+                templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+        else:  # SUCCESS
+            if success_severity == SuccessSeverity.LOW:
+                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            elif success_severity == SuccessSeverity.MEDIUM:
+                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            else:  # HIGH
+                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
 
         description = random.choice(templates).format(company=company.name)
 
@@ -504,7 +1259,9 @@ class BreakingNewsSystem:
             description=description,
             discovery_week=week_number,
             weeks_until_public=weeks_until_public,
-            industry=company.industry
+            industry=company.industry,
+            scandal_severity=scandal_severity,
+            success_severity=success_severity
         )
 
     def _generate_fake_rumor(self, companies: Dict[str, 'Company']) -> Tuple[str, str, EventType]:
@@ -516,17 +1273,28 @@ class BreakingNewsSystem:
         company_name = random.choice(list(companies.keys()))
         company = companies[company_name]
 
-        # Randomly choose event type (weighted towards negative for fake rumors)
+        # Randomly choose event type (50/50 positive or negative fake rumors)
         rand = random.random()
-        if rand < 0.3:  # 30% positive fake rumors
+        if rand < 0.5:  # 50% positive fake rumors (with random severity)
             event_type = EventType.SUCCESS
-            templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
-        elif rand < 0.6:  # 30% problem fake rumors
-            event_type = EventType.PROBLEM
-            templates = self.PROBLEM_TEMPLATES.get(company.industry, self.PROBLEM_TEMPLATES["Technology"])
-        else:  # 40% scandal fake rumors
+            # Randomly pick a severity level for the fake success
+            severity_rand = random.random()
+            if severity_rand < 0.5:  # 50% LOW
+                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            elif severity_rand < 0.8:  # 30% MEDIUM
+                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+            else:  # 20% HIGH
+                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+        else:  # 50% scandal fake rumors (with random severity)
             event_type = EventType.SCANDAL
-            templates = self.SCANDAL_TEMPLATES.get(company.industry, self.SCANDAL_TEMPLATES["Technology"])
+            # Randomly pick a severity level for the fake scandal
+            severity_rand = random.random()
+            if severity_rand < 0.5:  # 50% LOW
+                templates = self.LOW_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+            elif severity_rand < 0.8:  # 30% MEDIUM
+                templates = self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+            else:  # 20% HIGH
+                templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
 
         rumor_text = random.choice(templates).format(company=company_name)
         return (company_name, rumor_text, event_type)
@@ -577,18 +1345,59 @@ class BreakingNewsSystem:
                     is_accurate = random.random() < 0.7
 
                     if is_accurate:
-                        # Report the truth
-                        prefix = "RUMOR: " if is_rumor else ""
+                        # Report the truth with confidence level based on severity
+                        if is_rumor:
+                            # Early report - always marked as RUMOR
+                            prefix = "RUMOR: "
+                        elif event.event_type == EventType.SCANDAL:
+                            # Confirmed scandal - add confidence based on severity
+                            if event.scandal_severity == ScandalSeverity.HIGH:
+                                prefix = "BREAKING: "  # High confidence for severe scandals
+                            elif event.scandal_severity == ScandalSeverity.MEDIUM:
+                                prefix = "CONFIRMED: "  # Moderate confidence
+                            else:  # LOW
+                                prefix = "Alleged: "  # Lower confidence for minor issues
+                        else:  # SUCCESS
+                            # Confirmed success - add confidence based on severity
+                            if event.success_severity == SuccessSeverity.HIGH:
+                                prefix = "BREAKING: "  # High confidence for major breakthroughs
+                            elif event.success_severity == SuccessSeverity.MEDIUM:
+                                prefix = "CONFIRMED: "  # Moderate confidence
+                            else:  # LOW
+                                prefix = "Reports indicate: "  # Lower confidence for minor wins
                         items.append(f"• {prefix}{event.description}")
                     else:
                         # Report the opposite or completely wrong
-                        prefix = "RUMOR: " if is_rumor else ""
-                        if event.event_type == EventType.SUCCESS:
-                            # Wrong: report as negative
-                            templates = self.SCANDAL_TEMPLATES.get(event.industry, self.SCANDAL_TEMPLATES["Technology"])
+                        if is_rumor:
+                            prefix = "RUMOR: "
                         else:
-                            # Wrong: report as positive
-                            templates = self.SUCCESS_TEMPLATES.get(event.industry, self.SUCCESS_TEMPLATES["Technology"])
+                            # Add varying confidence to wrong reports too
+                            confidence_rand = random.random()
+                            if confidence_rand < 0.4:
+                                prefix = "Unconfirmed: "
+                            elif confidence_rand < 0.7:
+                                prefix = "Sources claim: "
+                            else:
+                                prefix = ""
+
+                        if event.event_type == EventType.SUCCESS:
+                            # Wrong: report as negative (pick random severity)
+                            severity_rand = random.random()
+                            if severity_rand < 0.5:
+                                templates = self.LOW_SEVERITY_SCANDAL_TEMPLATES.get(event.industry, self.LOW_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+                            elif severity_rand < 0.8:
+                                templates = self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES.get(event.industry, self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+                            else:
+                                templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(event.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+                        else:  # SCANDAL
+                            # Wrong: report as positive (pick random severity)
+                            severity_rand = random.random()
+                            if severity_rand < 0.5:
+                                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(event.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+                            elif severity_rand < 0.8:
+                                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(event.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+                            else:
+                                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(event.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
                         wrong_text = random.choice(templates).format(company=company_name)
                         items.append(f"• {prefix}{wrong_text}")
                 else:
@@ -600,7 +1409,14 @@ class BreakingNewsSystem:
                     if random.random() < 0.5:
                         templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
                     else:
-                        templates = self.SCANDAL_TEMPLATES.get(company.industry, self.SCANDAL_TEMPLATES["Technology"])
+                        # Pick random severity for fake scandal
+                        severity_rand = random.random()
+                        if severity_rand < 0.5:
+                            templates = self.LOW_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+                        elif severity_rand < 0.8:
+                            templates = self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES["Technology"])
+                        else:
+                            templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
 
                     fake_text = random.choice(templates).format(company=company_name)
                     # Fake news is always marked as rumor since it's unconfirmed
@@ -647,21 +1463,37 @@ class BreakingNewsSystem:
             for event in events:
                 weeks_elapsed = week_number - event.discovery_week
                 # Event becomes public and affects market when weeks_elapsed >= weeks_until_public
-                if weeks_elapsed >= event.weeks_until_public and event.severity > 0.5:
+                # All events (successes and scandals of all severities) affect the market
+                if weeks_elapsed >= event.weeks_until_public:
                     ready_events.append((company_name, event))
 
         # Apply market impacts for all confirmed major events
         for company_name, event in ready_events:
-            # Calculate impact magnitude based on severity
-            base_impact = event.severity * 15.0  # Scale: 0 to 15%
-
-            # Determine sentiment for impact
+            # Calculate impact magnitude based on event type and severity
             if event.event_type == EventType.SUCCESS:
+                # Successes: Use severity level to determine impact range
                 sentiment = NewsSentiment.POSITIVE
-                impact_magnitude = base_impact
-            else:
+                if event.success_severity == SuccessSeverity.LOW:
+                    # LOW: +3% to +7% impact
+                    impact_magnitude = 3.0 + event.severity * 4.0  # severity 0.3-0.7 -> +3% to +7%
+                elif event.success_severity == SuccessSeverity.MEDIUM:
+                    # MEDIUM: +7% to +12% impact
+                    impact_magnitude = 7.0 + event.severity * 5.0  # severity 0.5-0.8 -> +9.5% to +11%
+                else:  # HIGH
+                    # HIGH: +12% to +20% impact
+                    impact_magnitude = 12.0 + event.severity * 8.0  # severity 0.6-1.0 -> +16.8% to +20%
+            else:  # SCANDAL
+                # Scandals: Use severity level to determine impact range
                 sentiment = NewsSentiment.NEGATIVE
-                impact_magnitude = -base_impact
+                if event.scandal_severity == ScandalSeverity.LOW:
+                    # LOW: -3% to -7% impact
+                    impact_magnitude = -(3.0 + event.severity * 4.0)  # severity 0.3-0.7 -> -3% to -7%
+                elif event.scandal_severity == ScandalSeverity.MEDIUM:
+                    # MEDIUM: -7% to -12% impact
+                    impact_magnitude = -(7.0 + event.severity * 5.0)  # severity 0.5-0.8 -> -9.5% to -11%
+                else:  # HIGH
+                    # HIGH: -12% to -20% impact
+                    impact_magnitude = -(12.0 + event.severity * 8.0)  # severity 0.6-1.0 -> -16.8% to -20%
 
             # Apply instant impact (40% panic response)
             instant_impact_pct = impact_magnitude * 0.40
