@@ -1,0 +1,4 @@
+# Python 3.6+ compatibility
+# For Python 3.6, the dataclasses backport is required
+# For Python 3.7+, this package is ignored as dataclasses is built-in
+dataclasses; python_version < '3.7'

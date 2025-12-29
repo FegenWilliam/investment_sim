@@ -2,9 +2,10 @@
 """
 Competitive Investment Simulation Game
 A turn-based stock market simulation for 1-4 players
-"""
 
-from __future__ import annotations
+Requires Python 3.6+
+For Python 3.6, install: pip install dataclasses
+"""
 
 import random
 import json
