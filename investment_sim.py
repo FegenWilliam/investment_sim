@@ -1495,13 +1495,8 @@ class BreakingNewsSystem:
                     # HIGH: -12% to -20% impact
                     impact_magnitude = -(12.0 + event.severity * 8.0)  # severity 0.6-1.0 -> -16.8% to -20%
 
-            # Apply instant impact (40% panic response)
-            instant_impact_pct = impact_magnitude * 0.40
-            company = companies[company_name]
-            company.price *= (1 + instant_impact_pct / 100)
-            company.price = max(0.01, company.price)
-
-            # Create pending impact for delayed portion (60% actual market adjustment)
+            # Don't apply instant impact to current price - it will be in precompiled future prices
+            # Create two pending impacts: instant (40%) and delayed (60%)
             # Generate news report placeholder for this event
             placeholder_report = NewsReport(
                 financial_times="",
@@ -1509,18 +1504,34 @@ class BreakingNewsSystem:
                 bloomberg=""
             )
 
-            pending_impact = PendingNewsImpact(
+            # Instant impact (40%) - applied at week+1 via precompiled prices
+            instant_impact_magnitude = impact_magnitude * 0.40
+            instant_impact = PendingNewsImpact(
                 company_name=company_name,
                 sentiment=sentiment,
-                impact_magnitude=impact_magnitude,
-                weeks_until_impact=1,  # Delayed impact occurs 1 week after news
+                impact_magnitude=instant_impact_magnitude,
+                weeks_until_impact=1,  # Instant impact appears next week
                 is_real=True,
                 news_text=event.description,
                 news_report=placeholder_report,
-                instant_impact_applied=True  # 40% instant impact has been applied
+                instant_impact_applied=False  # This IS the instant impact, not applied yet
             )
 
-            self.pending_impacts.append(pending_impact)
+            # Delayed impact (60%) - applied at week+2 via precompiled prices
+            delayed_impact_magnitude = impact_magnitude * 0.60
+            delayed_impact = PendingNewsImpact(
+                company_name=company_name,
+                sentiment=sentiment,
+                impact_magnitude=delayed_impact_magnitude,
+                weeks_until_impact=2,  # Delayed impact occurs 2 weeks after news breaks
+                is_real=True,
+                news_text=event.description,
+                news_report=placeholder_report,
+                instant_impact_applied=False  # This is the delayed portion
+            )
+
+            self.pending_impacts.append(instant_impact)
+            self.pending_impacts.append(delayed_impact)
             self.news_history.append((week_number, event.description))
 
             # Remove the confirmed event
@@ -1534,11 +1545,10 @@ class BreakingNewsSystem:
         if ready_events:
             # There was a market-moving event
             first_company, first_event = ready_events[0]
-            # Update the pending impacts with the actual news report
+            # Update the pending impacts with the actual news report (both instant and delayed)
             for impact in self.pending_impacts:
                 if impact.company_name == first_company and impact.news_text == first_event.description:
                     impact.news_report = news_report
-                    break
             return (first_company, news_report, first_event.event_type)
         elif news_report.financial_times or news_report.market_watch or news_report.bloomberg:
             # No market impact, but outlets have news/rumors
@@ -1561,23 +1571,22 @@ class BreakingNewsSystem:
             impact.weeks_until_impact -= 1
 
             if impact.weeks_until_impact <= 0:
-                # Time to apply the delayed impact (60% of total)
+                # Time to apply the impact
                 company = companies[impact.company_name]
 
-                # Calculate the delayed impact (60% of total impact)
-                # If instant_impact_applied is True, this is the new two-stage system
-                # If False, it's an old save file and we apply 100% for backwards compatibility
-                delayed_impact_pct = impact.impact_magnitude * 0.60 if impact.instant_impact_applied else impact.impact_magnitude
+                # The impact magnitude is already the actual percentage to apply
+                # (either instant 40% or delayed 60%, calculated when impact was created)
+                impact_pct = impact.impact_magnitude
 
                 # If using precompiled prices, the impact is already baked in
                 # Just display the message without modifying price
                 if not use_precompiled_prices:
-                    # Apply the delayed impact (only when NOT using precompiled prices)
-                    company.price *= (1 + delayed_impact_pct / 100)
+                    # Apply the impact (only when NOT using precompiled prices)
+                    company.price *= (1 + impact_pct / 100)
                     company.price = max(0.01, company.price)
 
                 # Show the appropriate message based on the impact amount
-                display_magnitude = abs(delayed_impact_pct)
+                display_magnitude = abs(impact_pct)
                 if impact.sentiment == NewsSentiment.POSITIVE:
                     impact_messages.append(
                         f"📈 MARKET IMPACT: {impact.company_name} surges {display_magnitude:.1f}% "
