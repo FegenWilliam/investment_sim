@@ -1264,41 +1264,6 @@ class BreakingNewsSystem:
             success_severity=success_severity
         )
 
-    def _generate_fake_rumor(self, companies: Dict[str, 'Company']) -> Tuple[str, str, EventType]:
-        """Generate a completely fabricated rumor about a random company
-
-        Returns:
-            (company_name, rumor_text, event_type)
-        """
-        company_name = random.choice(list(companies.keys()))
-        company = companies[company_name]
-
-        # Randomly choose event type (50/50 positive or negative fake rumors)
-        rand = random.random()
-        if rand < 0.5:  # 50% positive fake rumors (with random severity)
-            event_type = EventType.SUCCESS
-            # Randomly pick a severity level for the fake success
-            severity_rand = random.random()
-            if severity_rand < 0.5:  # 50% LOW
-                templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
-            elif severity_rand < 0.8:  # 30% MEDIUM
-                templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
-            else:  # 20% HIGH
-                templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
-        else:  # 50% scandal fake rumors (with random severity)
-            event_type = EventType.SCANDAL
-            # Randomly pick a severity level for the fake scandal
-            severity_rand = random.random()
-            if severity_rand < 0.5:  # 50% LOW
-                templates = self.LOW_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SCANDAL_TEMPLATES["Technology"])
-            elif severity_rand < 0.8:  # 30% MEDIUM
-                templates = self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SCANDAL_TEMPLATES["Technology"])
-            else:  # 20% HIGH
-                templates = self.HIGH_SEVERITY_SCANDAL_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SCANDAL_TEMPLATES["Technology"])
-
-        rumor_text = random.choice(templates).format(company=company_name)
-        return (company_name, rumor_text, event_type)
-
     def _generate_news_report(self, companies: Dict[str, 'Company'], week_number: int) -> NewsReport:
         """Generate news from three reputable outlets independently
 
@@ -1407,7 +1372,14 @@ class BreakingNewsSystem:
 
                     # 50/50 positive or negative fake news
                     if random.random() < 0.5:
-                        templates = self.SUCCESS_TEMPLATES.get(company.industry, self.SUCCESS_TEMPLATES["Technology"])
+                        # Pick random severity for fake success news
+                        severity_rand = random.random()
+                        if severity_rand < 0.5:
+                            templates = self.LOW_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.LOW_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+                        elif severity_rand < 0.8:
+                            templates = self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.MEDIUM_SEVERITY_SUCCESS_TEMPLATES["Technology"])
+                        else:
+                            templates = self.HIGH_SEVERITY_SUCCESS_TEMPLATES.get(company.industry, self.HIGH_SEVERITY_SUCCESS_TEMPLATES["Technology"])
                     else:
                         # Pick random severity for fake scandal
                         severity_rand = random.random()
@@ -2217,7 +2189,7 @@ class Player:
         self.short_positions: Dict[str, int] = {}  # company_name -> shares borrowed and owed
         self.short_borrow_fee_weekly = 0.02  # ~1% annual = 0.02% weekly
 
-    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None, gold: 'Gold' = None, holy_water: 'HolyWater' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, gold_coin: 'GoldCoin' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
+    def buy_stock(self, company: Company, dollar_amount: float, leverage: float = 1.0, companies: Dict[str, 'Company'] = None, treasury: 'Treasury' = None, quantum_singularity: 'QuantumSingularity' = None, elf_queen_water: 'ElfQueenWater' = None, void_stocks: 'VoidStocks' = None, void_catalyst: 'VoidCatalyst' = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
         """Buy shares of a company using dollar amount with optional leverage
 
         Args:
@@ -2255,7 +2227,7 @@ class Player:
             shares = total_investment / effective_price
 
         # Final calculation
-        slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=slippage_multiplier)
+        slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=1.0)
         effective_price = company.price * slippage_factor
         actual_cost = effective_price * shares
 
@@ -2367,14 +2339,14 @@ class Player:
 
         return True, message
 
-    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
+    def short_sell(self, company: Company, shares: int, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None, slippage_bank: List[float] = None) -> Tuple[bool, str]:
         """Short sell shares: borrow and sell them, must cover later"""
         if shares <= 0:
             return False, "Invalid number of shares!"
 
         # Calculate effective price with slippage (selling borrowed shares)
         old_price = company.price
-        slippage_factor = company.calculate_slippage(shares, is_buy=False, slippage_multiplier=slippage_multiplier)
+        slippage_factor = company.calculate_slippage(shares, is_buy=False, slippage_multiplier=1.0)
         effective_price = old_price * slippage_factor
         total_proceeds = effective_price * shares
 
@@ -2421,7 +2393,7 @@ class Player:
 
         # Calculate effective price with slippage (buying to cover)
         old_price = company.price
-        slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=slippage_multiplier)
+        slippage_factor = company.calculate_slippage(shares, is_buy=True, slippage_multiplier=1.0)
         effective_price = old_price * slippage_factor
         total_cost = effective_price * shares
 
@@ -2860,7 +2832,7 @@ class Player:
 
         return total_fees
 
-    def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> bool:
+    def check_margin_call(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> bool:
         """Check if player is subject to margin call (equity < threshold% of total position or maintenance margin for shorts)"""
         # Check if there's any leverage or short positions
         has_risk = self.borrowed_amount > 0 or len(self.short_positions) > 0
@@ -2894,14 +2866,14 @@ class Player:
 
         return False
 
-    def force_liquidate_margin_call(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> List[str]:
+    def force_liquidate_margin_call(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None) -> List[str]:
         """
         Automatically liquidate positions to meet margin requirements.
         Returns a list of actions taken.
         """
         actions = []
 
-        if not self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
+        if not self.check_margin_call(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst):
             return actions  # No margin call, nothing to do
 
         actions.append(f"🚨 FORCED LIQUIDATION for {self.name} - Margin call not resolved")
@@ -2913,7 +2885,7 @@ class Player:
         short_positions.sort(key=lambda x: x[2], reverse=True)
 
         for company_name, shares, value in short_positions:
-            if not self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
+            if not self.check_margin_call(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst):
                 break  # Margin call resolved
 
             company = companies[company_name]
@@ -2935,7 +2907,7 @@ class Player:
         stock_positions.sort(key=lambda x: x[2], reverse=True)
 
         for company_name, shares, value in stock_positions:
-            if not self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
+            if not self.check_margin_call(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst):
                 break  # Margin call resolved
 
             company = companies[company_name]
@@ -2955,7 +2927,7 @@ class Player:
         self.portfolio = {k: v for k, v in self.portfolio.items() if v > 0}
 
         # If still in margin call, liquidate treasury bonds
-        if self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst) and self.treasury_bonds > 0:
+        if self.check_margin_call(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst) and self.treasury_bonds > 0:
             proceeds = self.treasury_bonds * treasury.price
             self.cash += proceeds
             actions.append(f"   Sold {self.treasury_bonds} treasury bonds for ${proceeds:.2f}")
@@ -2970,7 +2942,7 @@ class Player:
 
         # Final status
         equity = self.calculate_equity(companies, treasury, None, elf_queen_water, void_stocks, void_catalyst)
-        if self.check_margin_call(companies, treasury, gold, holy_water, quantum_singularity, elf_queen_water, gold_coin, void_stocks, void_catalyst):
+        if self.check_margin_call(companies, treasury, quantum_singularity, elf_queen_water, void_stocks, void_catalyst):
             actions.append(f"   ⚠️ WARNING: Still in margin call after full liquidation!")
             actions.append(f"   Final Equity: ${equity:.2f}, Debt: ${self.borrowed_amount:.2f}")
         else:
@@ -3019,7 +2991,7 @@ class Player:
         player.slippage_bank_debt = data.get('slippage_bank_debt', 0.0)  # Default to 0.0 for backwards compatibility
         return player
 
-    def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, gold: Gold = None, holy_water: HolyWater = None, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, gold_coin: GoldCoin = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None):
+    def display_portfolio(self, companies: Dict[str, Company], treasury: Treasury, quantum_singularity: QuantumSingularity = None, elf_queen_water: ElfQueenWater = None, void_stocks: VoidStocks = None, void_catalyst: VoidCatalyst = None):
         """Display player's portfolio"""
         print(f"\n{'='*60}")
         print(f"{self.name}'s Portfolio")
@@ -3123,23 +3095,12 @@ class Player:
             monthly_income = quantum_singularity.calculate_monthly_return(self.quantum_singularity_units)
             print(f"  Quantum Singularity: {self.quantum_singularity_units} units @ ${quantum_singularity.price:.2f} = ${value:.2f} (${monthly_income:.2f}/month)")
             has_themed = True
-        if gold and self.gold_ounces > 0:
-            value = self.gold_ounces * gold.price
-            print(f"  Gold: {self.gold_ounces} oz @ ${gold.price:.2f} = ${value:.2f}")
-            has_themed = True
-        if holy_water and self.holy_water_vials > 0:
-            value = self.holy_water_vials * holy_water.price
-            print(f"  Holy Water: {self.holy_water_vials} vials @ ${holy_water.price:.2f} = ${value:.2f}")
-            has_themed = True
 
         if elf_queen_water and self.elf_queen_water_vials > 0:
             value = self.elf_queen_water_vials * elf_queen_water.price
             print(f"  Elf Queen's \"Water\": {self.elf_queen_water_vials} vials @ ${elf_queen_water.price:.2f} = ${value:.2f}")
             has_themed = True
-        if gold_coin and self.gold_coins > 0:
-            value = self.gold_coins * gold_coin.price
-            print(f"  Gold Coin: {self.gold_coins} coins @ ${gold_coin.price:.2f} = ${value:.2f}")
-            has_themed = True
+
         if void_stocks and self.void_stocks_shares > 0:
             value = self.void_stocks_shares * void_stocks.price
             status = "[VOID]" if void_stocks.is_void_week else f"[{void_stocks.get_current_company_name()}]"
@@ -3993,7 +3954,9 @@ class InvestmentGame:
             company_name, news_report, event_type = self.pending_breaking_news
 
             print("\n" + "🚨 " + "="*58)
-            if news_report.is_rumor:
+            # Check if any outlet has a rumor (early report)
+            has_rumor = "RUMOR:" in news_report.financial_times or "RUMOR:" in news_report.market_watch or "RUMOR:" in news_report.bloomberg
+            if has_rumor:
                 print("💬 RUMORS CIRCULATING 💬")
             else:
                 print("⚡ BREAKING NEWS ALERT ⚡")
@@ -4717,7 +4680,7 @@ class InvestmentGame:
                 print(f"\n⚛️ Quantum Singularity passive income: ${qs_income:.2f}")
 
         # Check for margin call
-        if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
+        if player.check_margin_call(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst):
             print("\n" + "⚠️ " + "="*58)
             print("MARGIN CALL ALERT!")
             print("="*60)
@@ -4745,8 +4708,8 @@ class InvestmentGame:
             print("6. Cover Short Position")
             print("7. Buy Treasury Bonds")
             print("8. Sell Treasury Bonds")
-            print("9. Buy Themed Investments (Gold, Holy Water, Quantum Singularity)")
-            print("10. Sell Themed Investments (Gold, Holy Water)")
+            print("9. Buy Themed Investments (Quantum Singularity, Elf Queen Water, Void Stocks, Void Catalyst)")
+            print("10. Sell Themed Investments")
             print("11. Borrow Money (Leverage)")
             print("12. Repay Loan")
             print("13. Deposit Collateral (Reduces Margin Call Threshold)")
@@ -4763,7 +4726,7 @@ class InvestmentGame:
                 self.display_market()
 
             elif choice == "2":
-                player.display_portfolio(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                player.display_portfolio(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
 
             elif choice == "3":
                 self._buy_stocks_menu(player)
@@ -4815,7 +4778,7 @@ class InvestmentGame:
 
             elif choice == "18":
                 # Check for margin call warning before ending turn
-                if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
+                if player.check_margin_call(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst):
                     print("\n" + "⚠️ " + "="*58)
                     print("⚠️  MARGIN CALL WARNING!")
                     print("="*60)
@@ -4944,7 +4907,7 @@ class InvestmentGame:
 
                 # Pass slippage_bank as a list to make it mutable
                 slippage_bank_ref = [self.slippage_bank]
-                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst, slippage_bank_ref)
+                success, message = player.buy_stock(company, dollar_amount, leverage, self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst, slippage_bank_ref)
                 # Update game's slippage bank from the reference
                 self.slippage_bank = slippage_bank_ref[0]
                 print(f"\n{message}")
@@ -5058,7 +5021,7 @@ class InvestmentGame:
 
                 # Pass slippage_bank as a list to make it mutable
                 slippage_bank_ref = [self.slippage_bank]
-                success, message = player.short_sell(company, shares, self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst, slippage_bank_ref)
+                success, message = player.short_sell(company, shares, self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst, slippage_bank_ref)
                 # Update game's slippage bank from the reference
                 self.slippage_bank = slippage_bank_ref[0]
                 print(f"\n{message}")
@@ -5702,14 +5665,14 @@ class InvestmentGame:
             print("\nProcessing margin calls...")
             margin_call_actions = []
             for player in self.players:
-                if player.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
-                    actions = player.force_liquidate_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                if player.check_margin_call(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst):
+                    actions = player.force_liquidate_margin_call(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
                     margin_call_actions.extend(actions)
 
             # Enforce margin calls for NPCs (hedge funds) too
             for hedge_fund in self.hedge_funds:
-                if hedge_fund.check_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst):
-                    actions = hedge_fund.force_liquidate_margin_call(self.companies, self.treasury, self.gold, self.holy_water, self.quantum_singularity, self.elf_queen_water, self.gold_coin, self.void_stocks, self.void_catalyst)
+                if hedge_fund.check_margin_call(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst):
+                    actions = hedge_fund.force_liquidate_margin_call(self.companies, self.treasury, self.quantum_singularity, self.elf_queen_water, self.void_stocks, self.void_catalyst)
                     margin_call_actions.extend(actions)
 
             if margin_call_actions:
