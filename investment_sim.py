@@ -3465,234 +3465,6 @@ class MarketCycle:
         self.cycle_history.append((week_number, headline))
         return self.active_cycle
 
-    def apply_cycle_effects(self, companies: Dict[str, Company]) -> List[str]:
-        """Apply market cycle effects to all companies - now sector-specific"""
-        if not self.active_cycle:
-            return []
-
-        messages = []
-        cycle = self.active_cycle
-
-        # Apply effects based on cycle type
-        if cycle.cycle_type == MarketCycleType.BULL_MARKET:
-            # All stocks rise (3-7%)
-            for company in companies.values():
-                change = random.uniform(3.0, 7.0)
-                company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Bull market continues - All stocks trending upward!")
-
-        elif cycle.cycle_type == MarketCycleType.BEAR_MARKET:
-            # All stocks fall (2-5%)
-            for company in companies.values():
-                change = random.uniform(2.0, 5.0)
-                company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Bear market persists - Broad market decline continues")
-
-        elif cycle.cycle_type == MarketCycleType.RECESSION:
-            # All stocks fall significantly (4-8%)
-            for company in companies.values():
-                change = random.uniform(4.0, 8.0)
-                company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Recession impact - Severe downward pressure on all stocks")
-
-        elif cycle.cycle_type == MarketCycleType.ENERGY_INFLATION:
-            # Energy up, others down due to rising energy costs
-            for company in companies.values():
-                if company.industry == "Energy":
-                    change = random.uniform(4.0, 8.0)
-                    company.price *= (1 + change / 100)
-                else:
-                    change = random.uniform(2.0, 4.0)
-                    company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Energy-driven inflation - Energy stocks rise as costs pressure other sectors")
-
-        elif cycle.cycle_type == MarketCycleType.MARKET_CRASH:
-            # Severe crash (8-15%)
-            for company in companies.values():
-                change = random.uniform(8.0, 15.0)
-                company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 MARKET CRASH IMPACT - Extreme selling pressure across all sectors!")
-
-        elif cycle.cycle_type == MarketCycleType.RECOVERY:
-            # Strong recovery (5-10%)
-            for company in companies.values():
-                change = random.uniform(5.0, 10.0)
-                company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Economic recovery drives strong gains across all sectors!")
-
-        elif cycle.cycle_type == MarketCycleType.TECH_BOOM:
-            # Tech and electronics boom heavily, others modest gains
-            for company in companies.values():
-                if company.industry in ["Technology", "Electronics"]:
-                    change = random.uniform(7.0, 12.0)
-                else:
-                    change = random.uniform(1.0, 3.0)  # Reduced from 2-4%
-                company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Tech boom continues - Technology and Electronics sectors surge!")
-
-        # NEW SECTOR-SPECIFIC EVENTS
-        elif cycle.cycle_type == MarketCycleType.TECH_CORRECTION:
-            # Tech crashes hard, others slightly down or flat
-            for company in companies.values():
-                if company.industry in ["Technology", "Electronics"]:
-                    change = random.uniform(8.0, 15.0)
-                    company.price *= (1 - change / 100)
-                else:
-                    change = random.uniform(-1.0, 2.0)  # Slight down to slight up
-                    company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Tech correction underway - Technology stocks plummet as valuations reset")
-
-        elif cycle.cycle_type == MarketCycleType.ENERGY_CRISIS:
-            # Energy surges, others struggle
-            for company in companies.values():
-                if company.industry == "Energy":
-                    change = random.uniform(8.0, 14.0)
-                    company.price *= (1 + change / 100)
-                elif company.industry == "Golem Manufacturing":
-                    # Heavy energy users hurt most
-                    change = random.uniform(3.0, 6.0)
-                    company.price *= (1 - change / 100)
-                else:
-                    change = random.uniform(1.0, 3.0)
-                    company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Energy crisis deepens - Energy stocks soar, others pressured by costs")
-
-        elif cycle.cycle_type == MarketCycleType.FINANCIAL_SECTOR_BOOM:
-            # Financials surge, others moderate gains
-            # NOTE: No companies currently have "Finance" industry, so all get modest gains
-            for company in companies.values():
-                if company.industry == "Finance":
-                    change = random.uniform(6.0, 11.0)
-                    company.price *= (1 + change / 100)
-                else:
-                    change = random.uniform(1.0, 3.0)
-                    company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Financial sector boom - Banks lead market rally on strong margins")
-
-        elif cycle.cycle_type == MarketCycleType.RETAIL_COLLAPSE:
-            # Retail crashes, others slightly down
-            # NOTE: No companies currently have "Retail" industry, so all get slight declines
-            for company in companies.values():
-                if company.industry == "Retail":
-                    change = random.uniform(10.0, 18.0)
-                    company.price *= (1 - change / 100)
-                else:
-                    change = random.uniform(1.0, 3.0)
-                    company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Retail apocalypse - Consumer spending crash devastates retail sector")
-
-        elif cycle.cycle_type == MarketCycleType.HEALTHCARE_RALLY:
-            # Pharmaceuticals surges, others modest gains
-            for company in companies.values():
-                if company.industry == "Pharmaceuticals":
-                    change = random.uniform(6.0, 11.0)
-                    company.price *= (1 + change / 100)
-                else:
-                    change = random.uniform(0.5, 2.5)
-                    company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Healthcare rally - Medical sector surges on breakthrough innovations")
-
-        elif cycle.cycle_type == MarketCycleType.MANUFACTURING_SLUMP:
-            # Golem Manufacturing down, others slightly down
-            for company in companies.values():
-                if company.industry == "Golem Manufacturing":
-                    change = random.uniform(7.0, 13.0)
-                    company.price *= (1 - change / 100)
-                else:
-                    change = random.uniform(1.0, 3.0)
-                    company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Manufacturing slump - Industrial production declines hammer factory stocks")
-
-        # CORRECTION EVENTS
-        elif cycle.cycle_type == MarketCycleType.BUBBLE_POP:
-            # Sharp correction across board, especially high P/E stocks
-            for company in companies.values():
-                if company.industry == "Rare Fantasy Goods":
-                    # Rare goods ignore P/E ratios - erratic behavior
-                    change = random.uniform(-3.0, 5.0)  # Can even gain during bubble pops
-                    company.price *= (1 + change / 100)
-                else:
-                    pe_ratio = company.get_pe_ratio()
-                    # Higher P/E = bigger correction
-                    if pe_ratio > 40:
-                        change = random.uniform(12.0, 20.0)
-                    elif pe_ratio > 25:
-                        change = random.uniform(8.0, 14.0)
-                    else:
-                        change = random.uniform(4.0, 8.0)
-                    company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 BUBBLE POP - Overvalued stocks crash as reality check hits market!")
-
-        elif cycle.cycle_type == MarketCycleType.PROFIT_TAKING:
-            # Moderate broad correction
-            for company in companies.values():
-                change = random.uniform(3.0, 7.0)
-                company.price *= (1 - change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Profit taking - Investors lock in gains after strong rally")
-
-        elif cycle.cycle_type == MarketCycleType.SECTOR_ROTATION:
-            # High P/E sectors down, low P/E sectors up
-            # Calculate median P/E first
-            pe_values = [c.get_pe_ratio() for c in companies.values() if c.industry != "Rare Fantasy Goods"]
-            median_pe = sorted(pe_values)[len(pe_values) // 2] if pe_values else 20.0
-
-            for company in companies.values():
-                if company.industry == "Rare Fantasy Goods":
-                    # Rare goods don't participate in P/E-based rotation - wild card behavior
-                    change = random.uniform(-4.0, 6.0)
-                    company.price *= (1 + change / 100)
-                else:
-                    pe_ratio = company.get_pe_ratio()
-                    if pe_ratio > median_pe * 1.3:
-                        # Overvalued - sell off
-                        change = random.uniform(4.0, 8.0)
-                        company.price *= (1 - change / 100)
-                    elif pe_ratio < median_pe * 0.7:
-                        # Undervalued - rally
-                        change = random.uniform(4.0, 8.0)
-                        company.price *= (1 + change / 100)
-                    else:
-                        # Fairly valued - small moves
-                        change = random.uniform(-2.0, 2.0)
-                        company.price *= (1 + change / 100)
-                company.price = max(0.01, company.price)
-            messages.append("📊 Sector rotation - Money flows from overvalued to undervalued sectors")
-
-        return messages
-
-    def update_cycle(self, companies: Dict[str, Company]) -> Tuple[List[str], bool]:
-        """Update active cycle, return messages and whether cycle ended"""
-        if not self.active_cycle:
-            return [], False
-
-        self.active_cycle.weeks_remaining -= 1
-
-        # Apply weekly effects
-        messages = self.apply_cycle_effects(companies)
-
-        # Check if cycle ended
-        if self.active_cycle.weeks_remaining <= 0:
-            messages.append(f"\n🔔 MARKET CYCLE ENDED: {self.active_cycle.cycle_type.value.replace('_', ' ').title()} has concluded")
-            self.active_cycle = None
-            return messages, True
-
-        return messages, False
-
     def update_void_events(self, companies: Dict[str, Company], void_stocks: 'VoidStocks'):
         """Update void event states for the current week"""
         if not self.active_cycle:
@@ -4565,6 +4337,11 @@ class InvestmentGame:
                     impact_weeks[impact.company_name] = set()
                 impact_weeks[impact.company_name].add(impact_week)
 
+        # Calculate median P/E ratio for SECTOR_ROTATION cycle
+        # Exclude Rare Fantasy Goods as they don't participate in P/E-based rotation
+        pe_values = [c.get_pe_ratio() for c in self.companies.values() if c.industry != "Rare Fantasy Goods"]
+        median_pe = sorted(pe_values)[len(pe_values) // 2] if pe_values else 20.0
+
         # For each company, calculate future prices, EPS, and fundamentals
         for company_name, company in self.companies.items():
             future_company_prices = []
@@ -4620,7 +4397,10 @@ class InvestmentGame:
                     weeks_left = self.market_cycle.active_cycle.weeks_remaining - (week_ahead - 1)
                     if weeks_left > 0:
                         cycle_type = self.market_cycle.active_cycle.cycle_type
-                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name)
+                        # Calculate P/E ratio for this simulated week (for BUBBLE_POP and SECTOR_ROTATION)
+                        simulated_pe = (simulated_price / simulated_eps) if simulated_eps > 0.001 else 0.0
+                        cycle_effect = self._get_cycle_effect(cycle_type, company.industry, company_name,
+                                                              pe_ratio=simulated_pe, median_pe=median_pe)
 
                 # Check if a new cycle will trigger at this future week
                 elif future_week > 0 and future_week % 24 == 0:
@@ -4693,8 +4473,17 @@ class InvestmentGame:
             self.future_eps[company_name] = future_company_eps
             self.future_fundamental_prices[company_name] = future_company_fundamentals
 
-    def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str, company_name: str = "") -> float:
-        """Get the average price change effect for a cycle type"""
+    def _get_cycle_effect(self, cycle_type: 'MarketCycleType', industry: str, company_name: str = "",
+                          pe_ratio: float = 0.0, median_pe: float = 20.0) -> float:
+        """Get the average price change effect for a cycle type
+
+        Args:
+            cycle_type: The market cycle type
+            industry: The company's industry
+            company_name: The company name (for void events)
+            pe_ratio: The company's P/E ratio (for BUBBLE_POP, SECTOR_ROTATION)
+            median_pe: The median P/E across all companies (for SECTOR_ROTATION)
+        """
         # Handle Void Invasion - all companies except the safe one go to void state
         if cycle_type == MarketCycleType.VOID_INVASION:
             if company_name == self.market_cycle.void_invasion_safe_company:
@@ -4816,6 +4605,88 @@ class InvestmentGame:
                 return random.uniform(5.0, 9.0)
             else:
                 return random.uniform(2.0, 4.0)
+
+        # NEW SECTOR-SPECIFIC EVENTS
+        elif cycle_type == MarketCycleType.TECH_CORRECTION:
+            # Tech crashes hard, others slightly down or flat
+            if industry in ["Technology", "Electronics"]:
+                return -random.uniform(8.0, 15.0)
+            else:
+                return random.uniform(-1.0, 2.0)  # Slight down to slight up
+
+        elif cycle_type == MarketCycleType.ENERGY_CRISIS:
+            # Energy surges, others struggle
+            if industry == "Energy":
+                return random.uniform(8.0, 14.0)
+            elif industry == "Golem Manufacturing":
+                # Heavy energy users hurt most
+                return -random.uniform(3.0, 6.0)
+            else:
+                return -random.uniform(1.0, 3.0)
+
+        elif cycle_type == MarketCycleType.FINANCIAL_SECTOR_BOOM:
+            # Financials surge, others moderate gains
+            if industry == "Finance":
+                return random.uniform(6.0, 11.0)
+            else:
+                return random.uniform(1.0, 3.0)
+
+        elif cycle_type == MarketCycleType.RETAIL_COLLAPSE:
+            # Retail crashes, others slightly down
+            if industry == "Retail":
+                return -random.uniform(10.0, 18.0)
+            else:
+                return -random.uniform(1.0, 3.0)
+
+        elif cycle_type == MarketCycleType.HEALTHCARE_RALLY:
+            # Pharmaceuticals surges, others modest gains
+            if industry == "Pharmaceuticals":
+                return random.uniform(6.0, 11.0)
+            else:
+                return random.uniform(0.5, 2.5)
+
+        elif cycle_type == MarketCycleType.MANUFACTURING_SLUMP:
+            # Golem Manufacturing down, others slightly down
+            if industry == "Golem Manufacturing":
+                return -random.uniform(7.0, 13.0)
+            else:
+                return -random.uniform(1.0, 3.0)
+
+        # CORRECTION EVENTS
+        elif cycle_type == MarketCycleType.BUBBLE_POP:
+            # Sharp correction across board, especially high P/E stocks
+            if industry == "Rare Fantasy Goods":
+                # Rare goods ignore P/E ratios - erratic behavior
+                return random.uniform(-3.0, 5.0)  # Can even gain during bubble pops
+            else:
+                # Higher P/E = bigger correction
+                if pe_ratio > 40:
+                    return -random.uniform(12.0, 20.0)
+                elif pe_ratio > 25:
+                    return -random.uniform(8.0, 14.0)
+                else:
+                    return -random.uniform(4.0, 8.0)
+
+        elif cycle_type == MarketCycleType.PROFIT_TAKING:
+            # Moderate broad correction
+            return -random.uniform(3.0, 7.0)
+
+        elif cycle_type == MarketCycleType.SECTOR_ROTATION:
+            # High P/E sectors down, low P/E sectors up
+            if industry == "Rare Fantasy Goods":
+                # Rare goods don't participate in P/E-based rotation - wild card behavior
+                return random.uniform(-4.0, 6.0)
+            else:
+                if pe_ratio > median_pe * 1.3:
+                    # Overvalued - sell off
+                    return -random.uniform(4.0, 8.0)
+                elif pe_ratio < median_pe * 0.7:
+                    # Undervalued - rally
+                    return random.uniform(4.0, 8.0)
+                else:
+                    # Fairly valued - small moves
+                    return random.uniform(-2.0, 2.0)
+
         return 0.0
 
     def player_turn(self, player: Player):
